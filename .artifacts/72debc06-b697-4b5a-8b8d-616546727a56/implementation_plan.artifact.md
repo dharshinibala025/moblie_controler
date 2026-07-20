@@ -1,36 +1,29 @@
-# Implementation Plan - Fix Android Build and Device Errors
+# Implementation Plan - Create Frontend Dashboards
 
-The goal is to resolve the `No connected devices!` error and the Gradle build failure (`AndroidLocationsBuildService`) so that the React Native app can be run on an Android emulator.
+Create a `frontend` directory in the project root containing dashboard components for Students, Staff, and Admins.
 
 ## User Review Required
 
-> [!IMPORTANT]
-> I will attempt to create an Android Virtual Device (AVD) using the command line. If your system's virtualization settings (like HAXM or WHPX) are not enabled, the emulator may fail to start. In that case, you might need to enable them in your BIOS/Windows features or create the emulator via the Android Studio UI.
+> [!NOTE]
+> I am creating these components as standard React Native functional components using TypeScript (`.tsx`).
+>
+> To switch between these pages, you will eventually need a navigation system (like `react-navigation`). For now, I will create the files with placeholder UI so you can begin development.
 
 ## Proposed Changes
 
-### Build Configuration [MODIFY]
+### [Component Name]
 
-#### [gradle.properties](file:///D:/Mobile_Controller/android/gradle.properties)
-- Explicitly set `org.gradle.java.home` to the detected JBR path (`D:/Android/jbr`).
-- Set `org.gradle.java.installations.auto-detect=false` to stop Gradle from scanning `D:\` for invalid Java installations.
-- Set `org.gradle.java.installations.paths=D:/Android/jbr` to limit where Gradle looks for Java.
+#### [NEW] [StudentDashboard.tsx](file:///D:/Mobile_Controller/frontend/StudentDashboard.tsx)
+- A basic dashboard UI for students with a header and placeholder sections.
 
-#### [local.properties](file:///D:/Mobile_Controller/android/local.properties)
-- Ensure `sdk.dir` is correctly set to `C:\Users\Dharshini\AppData\Local\Android\Sdk`.
+#### [NEW] [StaffDashboard.tsx](file:///D:/Mobile_Controller/frontend/StaffDashboard.tsx)
+- A dashboard UI for staff members.
 
-### Environment Variables
-- I will attempt to run subsequent commands with `ANDROID_SDK_ROOT` and `ANDROID_USER_HOME` explicitly defined to resolve the `AndroidLocationsBuildService` error.
-
-### Emulator Creation
-- Create a new AVD named `Pixel_37` using the `system-images;android-37.1;google_apis_playstore_ps16k;x86_64` image which is already installed.
+#### [NEW] [AdminDashboard.tsx](file:///D:/Mobile_Controller/frontend/AdminDashboard.tsx)
+- A management dashboard UI for administrators.
 
 ## Verification Plan
 
-### Automated Tests
-1. Run `./gradlew :app:tasks` to verify that the project can be evaluated without errors.
-2. Run `emulator -list-avds` to verify the new AVD exists.
-3. Attempt to start the emulator using `emulator -avd Pixel_37 -no-window -no-audio` (or suggest the user starts it).
-
 ### Manual Verification
-1. Once the emulator is running, run `npx react-native run-android` to confirm the app can be installed and launched.
+- After creation, you can test a specific dashboard by importing it into `App.tsx` and replacing the default content.
+- Example: `import StudentDashboard from './frontend/StudentDashboard';`

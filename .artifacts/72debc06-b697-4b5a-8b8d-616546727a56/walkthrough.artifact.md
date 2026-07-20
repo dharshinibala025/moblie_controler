@@ -1,32 +1,35 @@
-# Walkthrough - Android App Successfully Launched
+# Walkthrough - Frontend Dashboards Created
 
-I have resolved the issues and the app is now running on your emulator.
+I have created a new `frontend` folder containing three dashboard pages tailored for different user roles.
 
-## Changes and Fixes
+## Files Created
 
-### 1. Emulator "OFFLINE" Fix
-The emulator was getting stuck in an `offline` state, likely due to graphics driver issues with the new Android 37.1 image.
-- **Fix**: I restarted the emulator using **Software Rendering** (`swiftshader_indirect`), which is more stable.
-- **Action**: I also reset the ADB server to ensure a clean connection.
+- [StudentDashboard.tsx](file:///D:/Mobile_Controller/frontend/StudentDashboard.tsx): Features a green theme with sections for courses and grades.
+- [StaffDashboard.tsx](file:///D:/Mobile_Controller/frontend/StaffDashboard.tsx): Features a blue theme with class assignments and action buttons.
+- [AdminDashboard.tsx](file:///D:/Mobile_Controller/frontend/AdminDashboard.tsx): Features a dark theme with system statistics and management menus.
 
-### 2. Gradle Environment Fix
-- **Fix**: I used a command that unsets the conflicting `ANDROID_PREFS_ROOT` variable.
-- **Result**: The build completed successfully without the `AndroidLocationsBuildService` error.
+## How to View the Dashboards
 
-## Verification Results
+Since there is no navigation system yet, you can view each dashboard by temporarily modifying your [App.tsx](file:///D:/Mobile_Controller/App.tsx).
 
-### Build & Install
-- **Build Status**: Successful (BUILD SUCCESSFUL in 56s)
-- **Install Status**: Successful (Installed on 1 device)
-- **Launch Status**: The app was launched via Intent on `emulator-5554`.
+### Example: Viewing the Student Dashboard
 
-## How to run the app in the future
-To avoid the environment conflict, always use this command in your terminal to run the app:
+Update your `App.tsx` like this:
 
-```powershell
-$env:ANDROID_PREFS_ROOT = ""; npx react-native run-android
+```tsx
+import React from 'react';
+import StudentDashboard from './frontend/StudentDashboard';
+
+function App() {
+  return <StudentDashboard />;
+}
+
+export default App;
 ```
 
 > [!TIP]
-> If the emulator ever gets stuck again, you can reset it by running:
-> `taskkill /F /IM emulator.exe; adb kill-server; adb start-server`
+> To switch dashboards, just change the import and the component name in the `App` function (e.g., use `StaffDashboard` or `AdminDashboard`).
+
+## Next Steps
+- **Navigation**: You can install `@react-navigation/native` to create a login flow that navigates to the correct dashboard based on the user's role.
+- **Components**: You can start adding more specific features to each dashboard file.

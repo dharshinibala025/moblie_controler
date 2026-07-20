@@ -1,7 +1,5 @@
-- [x] Configure `gradle.properties` for Java and SDK paths
-- [x] Verify `local.properties`
-- [x] Create Android Virtual Device (AVD) `Pixel_37`
-- [x] Verify Gradle project evaluation
-- [x] Launch Emulator and test `run-android`
-- [x] Resolved "Device is OFFLINE" by resetting ADB and using software rendering
-- [x] Successfully installed and launched the app
+- [x] Create `frontend` directory
+- [x] Create `StudentDashboard.tsx`
+- [x] Create `StaffDashboard.tsx`
+- [x] Create `AdminDashboard.tsx`
+- [x] Provide instructions to view the dashboards
