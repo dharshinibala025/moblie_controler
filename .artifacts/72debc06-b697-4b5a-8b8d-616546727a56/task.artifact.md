@@ -1,5 +1,0 @@
-- [x] Create `frontend` directory
-- [x] Create `StudentDashboard.tsx`
-- [x] Create `StaffDashboard.tsx`
-- [x] Create `AdminDashboard.tsx`
-- [x] Provide instructions to view the dashboards
