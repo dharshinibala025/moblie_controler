@@ -3,6 +3,7 @@ const Device = require("../models/Device");
 const { emitToClass } = require("../config/socket");
 const fcmService = require("./fcmService");
 const logger = require("../utils/logger");
+const { NotFoundError, ValidationError, ForbiddenError } = require("../utils/AppError");
 
 exports.createRule = async (ruleData, actorId) => {
   const rule = await Rule.create({
@@ -17,12 +18,13 @@ exports.createRule = async (ruleData, actorId) => {
   return rule;
 };
 
-exports.updateRule = async (ruleId, updateData, actorId) => {
+exports.updateRule = async (ruleId, updateData, actorId, institutionId) => {
   const rule = await Rule.findById(ruleId);
   if (!rule) {
-    const err = new Error("Rule not found");
-    err.statusCode = 404;
-    throw err;
+    throw new NotFoundError("Rule");
+  }
+  if (institutionId && rule.institutionId !== institutionId) {
+    throw new ForbiddenError("Access denied: rule belongs to another institution");
   }
 
   const previousStatus = rule.status;
@@ -49,22 +51,24 @@ exports.getRules = async (filters) => {
     .sort({ createdAt: -1 });
 };
 
-exports.getRuleById = async (ruleId) => {
+exports.getRuleById = async (ruleId, institutionId) => {
   const rule = await Rule.findById(ruleId).populate("createdBy", "name email");
   if (!rule) {
-    const err = new Error("Rule not found");
-    err.statusCode = 404;
-    throw err;
+    throw new NotFoundError("Rule");
+  }
+  if (institutionId && rule.institutionId !== institutionId) {
+    throw new ForbiddenError("Access denied: rule belongs to another institution");
   }
   return rule;
 };
 
-exports.sendCommand = async (ruleId, action, actorId) => {
+exports.sendCommand = async (ruleId, action, actorId, institutionId) => {
   const rule = await Rule.findById(ruleId);
   if (!rule) {
-    const err = new Error("Rule not found");
-    err.statusCode = 404;
-    throw err;
+    throw new NotFoundError("Rule");
+  }
+  if (institutionId && rule.institutionId !== institutionId) {
+    throw new ForbiddenError("Access denied: rule belongs to another institution");
   }
 
   const validTransitions = {
@@ -74,9 +78,7 @@ exports.sendCommand = async (ruleId, action, actorId) => {
   };
 
   if (!validTransitions[action] || !validTransitions[action].includes(rule.status)) {
-    const err = new Error(`Cannot '${action}' a rule with status '${rule.status}'`);
-    err.statusCode = 400;
-    throw err;
+    throw new ValidationError(`Cannot '${action}' a rule with status '${rule.status}'`);
   }
 
   if (action === "start") rule.status = "active";

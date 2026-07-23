@@ -1,10 +1,15 @@
-const ReportsCache = require("../models/ReportsCache");
 const UsageLog = require("../models/UsageLog");
 const User = require("../models/User");
 const PDFDocument = require("pdfkit");
-const logger = require("../utils/logger");
+const { NotFoundError, ForbiddenError } = require("../utils/AppError");
 
-exports.getDailyReport = async (classId, date) => {
+exports.getDailyReport = async (classId, date, institutionId) => {
+  if (institutionId) {
+    const student = await User.findOne({ classId, role: "student", institutionId }).select("_id");
+    if (!student) {
+      throw new ForbiddenError("Access denied: class not in your institution");
+    }
+  }
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(date);
@@ -13,7 +18,13 @@ exports.getDailyReport = async (classId, date) => {
   return generateReport(classId, startOfDay, endOfDay);
 };
 
-exports.getWeeklyReport = async (classId, startDate) => {
+exports.getWeeklyReport = async (classId, startDate, institutionId) => {
+  if (institutionId) {
+    const student = await User.findOne({ classId, role: "student", institutionId }).select("_id");
+    if (!student) {
+      throw new ForbiddenError("Access denied: class not in your institution");
+    }
+  }
   const start = new Date(startDate);
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
@@ -22,7 +33,13 @@ exports.getWeeklyReport = async (classId, startDate) => {
   return generateReport(classId, start, end);
 };
 
-exports.getStudentReport = async (studentId, startDate, endDate) => {
+exports.getStudentReport = async (studentId, startDate, endDate, institutionId) => {
+  if (institutionId) {
+    const student = await User.findOne({ _id: studentId, institutionId }).select("_id");
+    if (!student) {
+      throw new ForbiddenError("Access denied: student not in your institution");
+    }
+  }
   const start = startDate ? new Date(startDate) : new Date();
   start.setHours(0, 0, 0, 0);
   const end = endDate ? new Date(endDate) : new Date();

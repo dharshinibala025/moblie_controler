@@ -24,16 +24,22 @@ const auditLogSchema = new mongoose.Schema(
         "staff.delete",
         "catalog.update",
         "device.register",
+        "device.update",
         "tamper.detected",
+        "tamper.response",
         "auth.login",
         "auth.failed",
+        "auth.logout",
+        "student.register",
+        "student.update",
+        "student.delete",
       ],
       required: true,
     },
     target: {
       type: {
         type: String,
-        enum: ["rule", "user", "device", "catalog", "auth"],
+        enum: ["rule", "user", "device", "catalog", "auth", "student"],
       },
       id: { type: mongoose.Schema.Types.Mixed },
     },
@@ -41,12 +47,8 @@ const auditLogSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
-    timestamp: {
-      type: Date,
-      default: Date.now,
-    },
   },
-  { timestamps: true }
+  { timestamps: { createdAt: "timestamp", updatedAt: false } }
 );
 
 auditLogSchema.index({ actorId: 1, timestamp: -1 });

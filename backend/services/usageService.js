@@ -1,20 +1,17 @@
 const UsageLog = require("../models/UsageLog");
 const Device = require("../models/Device");
 const logger = require("../utils/logger");
+const { ForbiddenError } = require("../utils/AppError");
 
 exports.recordUsage = async (studentId, deviceId, logs) => {
   const device = await Device.findOne({ userId: studentId });
   if (!device) {
-    const err = new Error("Device not registered");
-    err.statusCode = 403;
-    throw err;
+    throw new ForbiddenError("Device not registered");
   }
 
   if (device._id.toString() !== deviceId.toString() && deviceId.toString() !== device._id.toString()) {
     if (device._id.toString() !== String(deviceId)) {
-      const err = new Error("Device mismatch");
-      err.statusCode = 403;
-      throw err;
+      throw new ForbiddenError("Device mismatch");
     }
   }
 

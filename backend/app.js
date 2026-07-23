@@ -9,11 +9,15 @@ const authRoutes = require("./routes/auth.routes");
 const adminRoutes = require("./routes/admin.routes");
 const staffRoutes = require("./routes/staff.routes");
 const studentRoutes = require("./routes/student.routes");
-const { generalLimiter } = require("./middleware/rateLimiter");
+const { generalLimiter, userLimiter } = require("./middleware/rateLimiter");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const logger = require("./utils/logger");
 
 const app = express();
+
+if (process.env.TRUST_PROXY) {
+  app.set("trust proxy", parseInt(process.env.TRUST_PROXY) || 1);
+}
 
 app.use(helmet());
 
@@ -50,9 +54,9 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/auth", authRoutes);
-app.use("/admin", adminRoutes);
-app.use("/staff", staffRoutes);
-app.use("/student", studentRoutes);
+app.use("/admin", userLimiter, adminRoutes);
+app.use("/staff", userLimiter, staffRoutes);
+app.use("/student", userLimiter, studentRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });

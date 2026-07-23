@@ -1,7 +1,9 @@
-const { getIO, emitToClass } = require("../config/socket");
+const { getIO } = require("../config/socket");
 const Device = require("../models/Device");
 const dispatchService = require("../services/dispatchService");
 const logger = require("../utils/logger");
+
+const HEARTBEAT_RATE_LIMIT_MS = 5000;
 
 const setupDeviceGateway = () => {
   const io = getIO();
@@ -11,6 +13,8 @@ const setupDeviceGateway = () => {
   }
 
   io.on("connection", (socket) => {
+    const lastHeartbeats = new Map();
+
     if (socket.user.role === "student") {
       handleStudentConnection(socket);
     }
@@ -20,6 +24,13 @@ const setupDeviceGateway = () => {
     }
 
     socket.on("device:heartbeat", async () => {
+      const now = Date.now();
+      const lastBeat = lastHeartbeats.get("heartbeat") || 0;
+      if (now - lastBeat < HEARTBEAT_RATE_LIMIT_MS) {
+        return;
+      }
+      lastHeartbeats.set("heartbeat", now);
+
       try {
         const device = await Device.findOne({ userId: socket.user.userId });
         if (device) {
@@ -33,6 +44,11 @@ const setupDeviceGateway = () => {
     });
 
     socket.on("device:requestState", async () => {
+      if (socket.user.role !== "student") {
+        socket.emit("error", { message: "Only students can request state" });
+        return;
+      }
+
       try {
         if (socket.user.classId) {
           const command = await dispatchService.getLatestCommand(socket.user.classId);

@@ -7,6 +7,7 @@ const { initializeFirebase } = require("./config/firebase");
 const { initializeSocket } = require("./config/socket");
 const { setupDeviceGateway } = require("./sockets/deviceGateway");
 const { startScheduler } = require("./jobs/aggregateReports");
+const institutionService = require("./services/institutionService");
 const logger = require("./utils/logger");
 
 const PORT = process.env.PORT || 5000;
@@ -16,6 +17,8 @@ const startServer = async () => {
     await connectDB();
 
     initializeFirebase();
+
+    await institutionService.ensureAdminExists();
 
     const httpServer = http.createServer(app);
 

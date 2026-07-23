@@ -35,7 +35,7 @@ const usageLogSchema = new mongoose.Schema(
 
 usageLogSchema.index({ studentId: 1, timestamp: -1 });
 usageLogSchema.index({ studentId: 1, packageName: 1, timestamp: -1 });
-usageLogSchema.index({ timestamp: -1 });
+usageLogSchema.index({ timestamp: -1 }, { expireAfterSeconds: 7776000 });
 usageLogSchema.index({ deviceId: 1 });
 
 module.exports = mongoose.model("UsageLog", usageLogSchema);

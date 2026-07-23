@@ -4,6 +4,9 @@ const logger = require("../utils/logger");
 
 let io = null;
 
+const connectionCounts = new Map();
+const MAX_CONNECTIONS_PER_USER = parseInt(process.env.MAX_SOCKET_CONNECTIONS_PER_USER) || 5;
+
 const initializeSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
@@ -13,15 +16,17 @@ const initializeSocket = (httpServer) => {
       methods: ["GET", "POST"],
       credentials: true,
     },
+    connectTimeout: 10000,
   });
 
   io.use((socket, next) => {
-    const token = socket.handshake.auth.token || socket.handshake.query.token;
+    const isProduction = process.env.NODE_ENV === "production";
+    const token = socket.handshake.auth.token || (!isProduction && socket.handshake.query.token);
     if (!token) {
       return next(new Error("Authentication required"));
     }
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
       socket.user = decoded;
       next();
     } catch (err) {
@@ -29,9 +34,29 @@ const initializeSocket = (httpServer) => {
     }
   });
 
+  io.use((socket, next) => {
+    const userId = socket.user.userId.toString();
+    const count = connectionCounts.get(userId) || 0;
+    if (count >= MAX_CONNECTIONS_PER_USER) {
+      return next(new Error("Too many connections from this account"));
+    }
+    connectionCounts.set(userId, count + 1);
+    socket.on("disconnect", () => {
+      const current = connectionCounts.get(userId) || 0;
+      if (current <= 1) {
+        connectionCounts.delete(userId);
+      } else {
+        connectionCounts.set(userId, current - 1);
+      }
+    });
+    next();
+  });
+
   io.on("connection", (socket) => {
     const user = socket.user;
     logger.info(`Socket connected: userId=${user.userId}, role=${user.role}`);
+
+    socket.join(`user:${user.userId}`);
 
     if (user.classId) {
       socket.join(`class:${user.classId}`);
@@ -63,4 +88,14 @@ const emitToClass = (classId, event, data) => {
   return true;
 };
 
-module.exports = { initializeSocket, getIO, emitToClass };
+const emitToUser = (userId, event, data) => {
+  if (!io) {
+    logger.warn("Socket.io not initialized, cannot emit event");
+    return false;
+  }
+  io.to(`user:${userId}`).emit(event, data);
+  logger.debug(`Emitted ${event} to user:${userId}`);
+  return true;
+};
+
+module.exports = { initializeSocket, getIO, emitToClass, emitToUser };

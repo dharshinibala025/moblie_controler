@@ -3,13 +3,12 @@ const AppsCatalog = require("../models/AppsCatalog");
 const Rule = require("../models/Rule");
 const User = require("../models/User");
 const logger = require("../utils/logger");
+const { NotFoundError } = require("../utils/AppError");
 
 exports.processScan = async (studentId, deviceId, apps) => {
   const student = await User.findById(studentId);
   if (!student) {
-    const err = new Error("Student not found");
-    err.statusCode = 404;
-    throw err;
+    throw new NotFoundError("Student");
   }
 
   await ScannedApp.deleteMany({ studentId, deviceId });

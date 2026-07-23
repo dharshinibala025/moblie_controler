@@ -1,9 +1,7 @@
 const express = require("express");
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
-const { loginLimiter } = require("../middleware/rateLimiter");
+const { loginLimiter, strictLimiter } = require("../middleware/rateLimiter");
 const { validate } = require("../middleware/validation");
-const auditService = require("../services/auditService");
+const authService = require("../services/authService");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -11,42 +9,162 @@ const router = express.Router();
 router.post("/login", loginLimiter, validate("login"), async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    const ip = req.ip || req.connection?.remoteAddress;
+    const userAgent = req.headers["user-agent"];
 
-    const user = await User.findOne({ email }).select("+password");
-    if (!user) {
-      return res.status(401).json({ error: "Invalid credentials" });
+    const result = await authService.authenticate({ email, password, ip, userAgent });
+
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error });
     }
 
-    if (!user.isActive) {
-      return res.status(401).json({ error: "Account disabled" });
+    if (result.mustChangePassword) {
+      return res.status(200).json({
+        mustChangePassword: true,
+        accessToken: result.tempToken,
+        user: result.user,
+      });
     }
 
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      await auditService.logAction(null, user.role, "auth.failed", {
-        type: "auth",
-        id: user._id,
-      }, { email });
-      return res.status(401).json({ error: "Invalid credentials" });
+    res.json({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/refresh", async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    const ip = req.ip || req.connection?.remoteAddress;
+    const userAgent = req.headers["user-agent"];
+
+    const result = await authService.refreshToken({ refreshToken, ip, userAgent });
+
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error, mustChangePassword: result.mustChangePassword });
     }
 
-    const tokenPayload = {
-      userId: user._id,
-      role: user.role,
-      classId: user.classId,
-      institutionId: user.institutionId,
-    };
+    res.json({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || "24h",
+router.post("/logout", async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    const authHeader = req.headers.authorization;
+    let userId = null;
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const jwt = require("jsonwebtoken");
+        const token = authHeader.split(" ")[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+        userId = decoded.userId;
+      } catch (err) {
+        // token may be expired, still allow logout
+      }
+    }
+
+    const result = await authService.logout({ refreshToken, userId });
+    res.json({ message: "Logged out successfully" });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/change-password", strictLimiter, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword, tempToken } = req.body;
+
+    if (tempToken) {
+      const result = await authService.changePasswordWithTempToken({ tempToken, newPassword });
+      if (!result.success) {
+        return res.status(result.status).json({ error: result.error });
+      }
+      return res.json({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        user: result.user,
+      });
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const jwt = require("jsonwebtoken");
+    const token = authHeader.split(" ")[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+    } catch (err) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const result = await authService.changePassword({
+      userId: decoded.userId,
+      currentPassword,
+      newPassword,
     });
 
-    await auditService.logAction(user._id, user.role, "auth.login", {
-      type: "auth",
-      id: user._id,
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    res.json({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/consent/accept", strictLimiter, async (req, res, next) => {
+  try {
+    const { consentVersion } = req.body;
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const jwt = require("jsonwebtoken");
+    const token = authHeader.split(" ")[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+    } catch (err) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const ip = req.ip || req.connection?.remoteAddress;
+    const result = await authService.acceptConsent({
+      userId: decoded.userId,
+      consentVersion: consentVersion || "1.0",
+      ip,
     });
 
-    res.json({ token });
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    res.json({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    });
   } catch (err) {
     next(err);
   }

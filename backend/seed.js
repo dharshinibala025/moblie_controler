@@ -1,230 +1,208 @@
 require("dotenv").config();
+
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
+
 const connectDB = require("./config/db");
 const User = require("./models/User");
-const Device = require("./models/Device");
-const Rule = require("./models/Rule");
-const AppsCatalog = require("./models/AppsCatalog");
-const ScannedApp = require("./models/ScannedApp");
-const UsageLog = require("./models/UsageLog");
-const AuditLog = require("./models/AuditLog");
+const Department = require("./models/Department");
+const AcademicYear = require("./models/AcademicYear");
+const Section = require("./models/Section");
+const ClassRoom = require("./models/ClassRoom");
+const StaffAssignment = require("./models/StaffAssignment");
+const Session = require("./models/Session");
 const logger = require("./utils/logger");
 
-const USERS = [
-  {
-    name: "Admin User",
-    email: "admin@smartclass.com",
-    password: "Admin@123",
-    role: "admin",
-    classId: null,
-    institutionId: "INST001",
-  },
-  {
-    name: "Staff User",
-    email: "staff@smartclass.com",
-    password: "Staff@123",
-    role: "staff",
-    classId: "C101",
-    institutionId: "INST001",
-  },
-  {
-    name: "Alice Student",
-    email: "alice@smartclass.com",
-    password: "Student@123",
-    role: "student",
-    classId: "C101",
-    institutionId: "INST001",
-  },
-  {
-    name: "Bob Student",
-    email: "bob@smartclass.com",
-    password: "Student@123",
-    role: "student",
-    classId: "C101",
-    institutionId: "INST001",
-  },
-  {
-    name: "Charlie Student",
-    email: "charlie@smartclass.com",
-    password: "Student@123",
-    role: "student",
-    classId: "C102",
-    institutionId: "INST001",
-  },
-  {
-    name: "Staff Two",
-    email: "staff2@smartclass.com",
-    password: "Staff@123",
-    role: "staff",
-    classId: "C102",
-    institutionId: "INST001",
-  },
-];
+const INSTITUTION_ID = "KSRCE";
 
-const APP_CATALOG = [
-  { packageName: "com.instagram.android", appName: "Instagram", category: "social", isDangerous: false },
-  { packageName: "com.whatsapp", appName: "WhatsApp", category: "social", isDangerous: false },
-  { packageName: "com.facebook.katana", appName: "Facebook", category: "social", isDangerous: false },
-  { packageName: "com.twitter.android", appName: "X (Twitter)", category: "social", isDangerous: false },
-  { packageName: "com.snapchat.android", appName: "Snapchat", category: "social", isDangerous: false },
-  { packageName: "com.google.android.youtube", appName: "YouTube", category: "entertainment", isDangerous: false },
-  { packageName: "com.netflix.mediaclient", appName: "Netflix", category: "entertainment", isDangerous: false },
-  { packageName: "com.spotify.music", appName: "Spotify", category: "entertainment", isDangerous: false },
-  { packageName: "com.zhiliaoapp.musically", appName: "TikTok", category: "entertainment", isDangerous: false },
-  { packageName: "com.supercell.clashofclans", appName: "Clash of Clans", category: "games", isDangerous: false },
-  { packageName: "com.supercell.brawlstars", appName: "Brawl Stars", category: "games", isDangerous: false },
-  { packageName: "com.garena.game.codm", appName: "Call of Duty Mobile", category: "games", isDangerous: false },
-  { packageName: "com.google.android.apps.docs", appName: "Google Docs", category: "educational", isDangerous: false },
-  { packageName: "com.google.android.apps.classroom", appName: "Google Classroom", category: "educational", isDangerous: false },
-  { packageName: "com.khanacademy.android", appName: "Khan Academy", category: "educational", isDangerous: false },
-  { packageName: "com.microsoft.teams", appName: "Microsoft Teams", category: "productivity", isDangerous: false },
-  { packageName: "com.slack", appName: "Slack", category: "productivity", isDangerous: false },
-  { packageName: "org.telegram.messenger", appName: "Telegram", category: "social", isDangerous: false },
-  { packageName: "com.duolingo", appName: "Duolingo", category: "educational", isDangerous: false },
-  { packageName: "com.candyrush", appName: "Candy Crush", category: "games", isDangerous: false },
+const ADMIN = {
+  name: "System Administrator",
+  email: "admin@ksrce.ac.in",
+  password: "KsrAdmin@2026",
+  role: "admin",
+  employeeId: "ADM001",
+};
+
+const STAFF = {
+  name: "Dr. Priya Sharma",
+  email: "priya@ksrce.ac.in",
+  password: "Staff@2026",
+  role: "staff",
+  employeeId: "STF001",
+};
+
+const STUDENTS = [
+  { name: "Arun Kumar", email: "arun@ksrce.ac.in", studentId: "STU001", password: "Student@2026" },
+  { name: "Bharathi Devi", email: "bharathi@ksrce.ac.in", studentId: "STU002", password: "Student@2026" },
+  { name: "Chandran Murugan", email: "chandran@ksrce.ac.in", studentId: "STU003", password: "Student@2026" },
+  { name: "Deepa Lakshmi", email: "deepa@ksrce.ac.in", studentId: "STU004", password: "Student@2026" },
+  { name: "Ezhil Raj", email: "ezhil@ksrce.ac.in", studentId: "STU005", password: "Student@2026" },
+  { name: "Fathima Banu", email: "fathima@ksrce.ac.in", studentId: "STU006", password: "Student@2026" },
+  { name: "Ganesh Prasad", email: "ganesh@ksrce.ac.in", studentId: "STU007", password: "Student@2026" },
+  { name: "Hema Malini", email: "hema@ksrce.ac.in", studentId: "STU008", password: "Student@2026" },
+  { name: "Irfan Khan", email: "irfan@ksrce.ac.in", studentId: "STU009", password: "Student@2026" },
+  { name: "Janani Sri", email: "janani@ksrce.ac.in", studentId: "STU010", password: "Student@2026" },
 ];
 
 const seed = async () => {
   try {
     await connectDB();
-    logger.info("Connected to MongoDB, starting seed...");
+    logger.info("Connected to MongoDB");
 
-    await User.deleteMany({});
-    await Device.deleteMany({});
-    await Rule.deleteMany({});
-    await AppsCatalog.deleteMany({});
-    await ScannedApp.deleteMany({});
-    await UsageLog.deleteMany({});
-    await AuditLog.deleteMany({});
-    logger.info("Cleared existing data");
-
-    const createdUsers = [];
-    for (const userData of USERS) {
-      const user = await User.create(userData);
-      createdUsers.push(user);
-      logger.info(`Created user: ${user.name} (${user.email}) [${user.role}]`);
+    // Drop all collections
+    const collections = await mongoose.connection.db.listCollections().toArray();
+    for (const col of collections) {
+      await mongoose.connection.db.dropCollection(col.name);
     }
+    logger.info("Dropped all collections");
 
-    const students = createdUsers.filter((u) => u.role === "student");
+    // 1. Create Department
+    const dept = await Department.create({
+      name: "Computer Science and Engineering",
+      code: "CSE",
+      institutionId: INSTITUTION_ID,
+    });
+    logger.info(`Department created: ${dept.code}`);
 
-    for (const student of students) {
-      await Device.create({
-        userId: student._id,
-        fcmToken: `test-fcm-token-${student.name.toLowerCase().replace(" ", "-")}`,
-        status: "online",
-        lastSyncAt: new Date(),
-      });
-      logger.info(`Created device for ${student.name}`);
-    }
+    // 2. Create Academic Year
+    const year = await AcademicYear.create({
+      name: "2025-2026",
+      startDate: new Date("2025-06-01"),
+      endDate: new Date("2026-04-30"),
+      institutionId: INSTITUTION_ID,
+    });
+    logger.info(`Academic Year created: ${year.name}`);
 
-    for (const app of APP_CATALOG) {
-      await AppsCatalog.create(app);
-    }
-    logger.info(`Created ${APP_CATALOG.length} catalog apps`);
+    // 3. Create Section
+    const section = await Section.create({
+      name: "A",
+      departmentId: dept._id,
+      academicYearId: year._id,
+      institutionId: INSTITUTION_ID,
+    });
+    logger.info(`Section created: ${section.name}`);
 
-    const adminUser = createdUsers.find((u) => u.role === "admin");
+    // 4. Create Class
+    const classroom = await ClassRoom.create({
+      name: "CSE Second Year - Section A",
+      code: "CSE-II-A",
+      departmentId: dept._id,
+      sectionId: section._id,
+      academicYearId: year._id,
+      institutionId: INSTITUTION_ID,
+    });
+    logger.info(`Class created: ${classroom.code} (${classroom._id})`);
 
-    const rule = await Rule.create({
-      createdBy: adminUser._id,
-      blockedApps: [
-        "com.instagram.android",
-        "com.google.android.youtube",
-        "com.zhiliaoapp.musically",
-        "com.garena.game.codm",
-      ],
-      scheduleStart: "09:00",
-      scheduleEnd: "16:00",
-      activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-      targetClassId: "C101",
-      institutionId: "INST001",
+    // 5. Create Admin
+    const admin = await User.create({
+      name: ADMIN.name,
+      email: ADMIN.email,
+      password: ADMIN.password,
+      role: "admin",
+      employeeId: ADMIN.employeeId,
+      institutionId: INSTITUTION_ID,
+      hasSetPassword: true,
+      hasAcceptedTerms: true,
+      termsAcceptedAt: new Date(),
       status: "active",
+      isActive: true,
     });
-    logger.info(`Created rule: ${rule._id} (active, targeting C101)`);
+    logger.info(`Admin created: ${admin.email}`);
 
-    const rule2 = await Rule.create({
-      createdBy: adminUser._id,
-      blockedApps: ["com.instagram.android", "com.facebook.katana"],
-      scheduleStart: "10:00",
-      scheduleEnd: "14:00",
-      activeDays: ["Mon", "Wed", "Fri"],
-      targetClassId: "C102",
-      institutionId: "INST001",
-      status: "draft",
+    // 6. Create Staff
+    const staff = await User.create({
+      name: STAFF.name,
+      email: STAFF.email,
+      password: STAFF.password,
+      role: "staff",
+      employeeId: STAFF.employeeId,
+      classId: classroom.code,
+      classRoomId: classroom._id,
+      departmentId: dept._id,
+      institutionId: INSTITUTION_ID,
+      mustChangePassword: true,
+      hasSetPassword: true,
+      hasAcceptedTerms: false,
+      status: "active",
+      isActive: true,
+      registeredBy: admin._id,
     });
-    logger.info(`Created rule2: ${rule2._id} (draft, targeting C102)`);
+    logger.info(`Staff created: ${staff.email}`);
 
-    const alice = createdUsers.find((u) => u.email === "alice@smartclass.com");
-    const aliceDevice = await Device.findOne({ userId: alice._id });
+    // Assign staff to class
+    await StaffAssignment.create({
+      staffId: staff._id,
+      classId: classroom._id,
+      institutionId: INSTITUTION_ID,
+      assignedBy: admin._id,
+    });
+    logger.info(`Staff assigned to class: ${classroom.code}`);
 
-    const scannedApps = [
-      { packageName: "com.instagram.android", appName: "Instagram" },
-      { packageName: "com.google.android.youtube", appName: "YouTube" },
-      { packageName: "com.whatsapp", appName: "WhatsApp" },
-      { packageName: "com.google.android.apps.docs", appName: "Google Docs" },
-      { packageName: "com.spotify.music", appName: "Spotify" },
-      { packageName: "com.zhiliaoapp.musically", appName: "TikTok" },
-      { packageName: "com.garena.game.codm", appName: "Call of Duty Mobile" },
-    ];
-
-    for (const app of scannedApps) {
-      await ScannedApp.create({
-        studentId: alice._id,
-        deviceId: aliceDevice._id,
-        packageName: app.packageName,
-        appName: app.appName,
-        category: APP_CATALOG.find((c) => c.packageName === app.packageName)?.category || "uncategorized",
-        scannedAt: new Date(),
+    // 7. Create Students
+    for (const s of STUDENTS) {
+      const student = await User.create({
+        name: s.name,
+        email: s.email,
+        password: s.password,
+        role: "student",
+        studentId: s.studentId,
+        classId: classroom.code,
+        classRoomId: classroom._id,
+        departmentId: dept._id,
+        academicYearId: year._id,
+        sectionId: section._id,
+        institutionId: INSTITUTION_ID,
+        mustChangePassword: true,
+        hasSetPassword: true,
+        hasAcceptedTerms: false,
+        status: "active",
+        isActive: true,
+        registeredBy: admin._id,
       });
-    }
-    logger.info(`Created ${scannedApps.length} scanned apps for Alice`);
-
-    const now = new Date();
-    const usageLogs = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-
-      for (const app of ["com.instagram.android", "com.google.android.youtube", "com.whatsapp", "com.spotify.music"]) {
-        const durationMs = Math.floor(Math.random() * 3600000) + 600000;
-        const wasBlocked = ["com.instagram.android", "com.google.android.youtube"].includes(app);
-        usageLogs.push({
-          studentId: alice._id,
-          deviceId: aliceDevice._id,
-          packageName: app,
-          durationMs,
-          wasBlockedAttempt: wasBlocked,
-          timestamp: date,
-        });
-      }
+      logger.info(`Student created: ${student.email} (${student.studentId})`);
     }
 
-    await UsageLog.insertMany(usageLogs);
-    logger.info(`Created ${usageLogs.length} usage log entries for Alice`);
+    // Summary
+    const totalUsers = await User.countDocuments();
+    const totalDepts = await Department.countDocuments();
+    const totalYears = await AcademicYear.countDocuments();
+    const totalSections = await Section.countDocuments();
+    const totalClasses = await ClassRoom.countDocuments();
+    const totalAssignments = await StaffAssignment.countDocuments();
 
-    await AuditLog.create({
-      actorId: adminUser._id,
-      actorRole: "admin",
-      action: "auth.login",
-      target: { type: "auth", id: adminUser._id },
-      details: { note: "Seeded" },
-      timestamp: new Date(),
-    });
-    logger.info("Created sample audit log entry");
+    console.log("\n====================================");
+    console.log("  SEED COMPLETE");
+    console.log("====================================");
+    console.log(`  Institution:  ${INSTITUTION_ID}`);
+    console.log(`  Departments:  ${totalDepts}`);
+    console.log(`  Acad Years:   ${totalYears}`);
+    console.log(`  Sections:     ${totalSections}`);
+    console.log(`  Classes:      ${totalClasses}`);
+    console.log(`  Users:        ${totalUsers}`);
+    console.log(`  Assignments:  ${totalAssignments}`);
+    console.log("====================================\n");
 
-    logger.info("\n===== SEED COMPLETE =====");
-    logger.info("Test accounts:");
-    logger.info("  Admin:  admin@smartclass.com  / Admin@123");
-    logger.info("  Staff:  staff@smartclass.com  / Staff@123  (class C101)");
-    logger.info("  Staff2: staff2@smartclass.com / Staff@123  (class C102)");
-    logger.info("  Student: alice@smartclass.com / Student@123 (class C101)");
-    logger.info("  Student: bob@smartclass.com   / Student@123 (class C101)");
-    logger.info("  Student: charlie@smartclass.com / Student@123 (class C102)");
-    logger.info("==========================\n");
+    console.log("LOGIN CREDENTIALS:");
+    console.log("====================================");
+    console.log(`Admin:  ${ADMIN.email} / ${ADMIN.password}`);
+    console.log(`Staff:  ${STAFF.email} / ${STAFF.password} (mustChangePassword)`);
+    console.log(`Students (all mustChangePassword=true):`);
+    for (const s of STUDENTS) {
+      console.log(`  ${s.email} / ${s.password}`);
+    }
+    console.log("====================================\n");
 
+    console.log(`Class ID for API calls: ${classroom._id}`);
+    console.log(`Department ID: ${dept._id}`);
+    console.log(`Academic Year ID: ${year._id}`);
+    console.log(`Section ID: ${section._id}`);
+
+    await mongoose.disconnect();
     process.exit(0);
   } catch (err) {
-    logger.error(`Seed error: ${err.message}`);
+    logger.error(`Seed failed: ${err.message}`);
+    console.error(err);
+    await mongoose.disconnect();
     process.exit(1);
   }
 };

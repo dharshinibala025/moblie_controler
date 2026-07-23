@@ -1,4 +1,5 @@
 const logger = require("../utils/logger");
+const { AppError } = require("../utils/AppError");
 
 const errorMiddleware = (err, req, res, _next) => {
   logger.error({
@@ -7,6 +8,12 @@ const errorMiddleware = (err, req, res, _next) => {
     message: err.message,
     stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
   });
+
+  if (err instanceof AppError) {
+    const response = { error: err.message, code: err.code };
+    if (err.details) response.details = err.details;
+    return res.status(err.statusCode).json(response);
+  }
 
   if (err.name === "ValidationError") {
     const messages = Object.values(err.errors).map((e) => e.message);
