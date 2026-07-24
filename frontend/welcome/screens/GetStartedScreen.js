@@ -9,6 +9,7 @@ import {
   StatusBar,
   SafeAreaView,
   Dimensions,
+  Platform,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -56,18 +57,10 @@ export const GetStartedScreen = ({ onGetStarted }) => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      <Animated.View
-        style={[
-          styles.container,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
-      >
+      <View style={styles.container}>
         {/* Top Header Section */}
         <View style={styles.topSection}>
-          {/* Logo Badge */}
+          {/* Logo Badge - Perfectly Centered & Positioned Below Notch */}
           <View style={styles.logoWrapper}>
             <Image
               source={require('../assets/logo.png')}
@@ -121,7 +114,7 @@ export const GetStartedScreen = ({ onGetStarted }) => {
             </TouchableOpacity>
           </Animated.View>
         </View>
-      </Animated.View>
+      </View>
     </SafeAreaView>
   );
 };
@@ -135,56 +128,60 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 36,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 16 : 24,
+    paddingBottom: 32,
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   topSection: {
     alignItems: 'center',
     width: '100%',
+    marginTop: 8,
   },
   logoWrapper: {
-    width: 90,
-    height: 90,
-    borderRadius: 24,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
     shadowColor: '#1E293B',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    padding: 6,
   },
   logoImage: {
-    width: 68,
-    height: 68,
+    width: '100%',
+    height: '100%',
   },
   brandTitle: {
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: '800',
-    color: '#1E3A8A', // Dark Blue for Focus
+    color: '#1E3A8A',
     letterSpacing: -0.5,
   },
   brandAccent: {
-    color: '#10B981', // Vibrant Green for Sync
+    color: '#10B981',
   },
   tagline: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#475569',
-    marginTop: 6,
+    marginTop: 4,
     letterSpacing: 0.2,
   },
   illustrationSection: {
     width: '100%',
-    height: width * 0.62,
-    maxHeight: 280,
+    height: width * 0.58,
+    maxHeight: 260,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: 8,
   },
   illustrationImage: {
     width: '100%',
@@ -195,20 +192,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   systemSubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1E293B',
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 28,
+    marginBottom: 24,
   },
   buttonWrapper: {
     width: '100%',
     maxWidth: 380,
   },
   getStartedButton: {
-    height: 60,
-    borderRadius: 20,
+    height: 56,
+    borderRadius: 18,
     backgroundColor: '#2563EB',
     flexDirection: 'row',
     alignItems: 'center',
@@ -216,28 +213,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    elevation: 6,
   },
   buttonText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.3,
     marginRight: 10,
   },
   arrowCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   arrowIcon: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     marginTop: -2,
   },

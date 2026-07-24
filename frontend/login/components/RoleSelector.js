@@ -8,15 +8,16 @@ import {
 } from 'react-native';
 import colors from '../styles/colors';
 import typography from '../styles/typography';
+import { StudentIcon, StaffIcon, AdminIcon } from './AuthIcons';
 
 const ROLES = [
-  { id: 'student', title: 'Student', icon: '📘' },
-  { id: 'staff', title: 'Staff', icon: '👨‍🏫' },
-  { id: 'admin', title: 'Admin', icon: '🛡' },
+  { id: 'student', title: 'Student', renderIcon: (active) => <StudentIcon active={active} size={20} /> },
+  { id: 'staff', title: 'Staff', renderIcon: (active) => <StaffIcon active={active} size={20} /> },
+  { id: 'admin', title: 'Admin', renderIcon: (active) => <AdminIcon active={active} size={20} /> },
 ];
 
 /**
- * RoleItem component with animation
+ * RoleItem component preserving original card size and structure, with professional vector icons (no emojis)
  */
 const RoleItem = ({ role, isSelected, onSelect }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -55,7 +56,10 @@ const RoleItem = ({ role, isSelected, onSelect }) => {
           isSelected ? styles.roleCardSelected : styles.roleCardUnselected,
         ]}
       >
-        <Text style={styles.roleIcon}>{role.icon}</Text>
+        <View style={styles.roleIconWrapper}>
+          {role.renderIcon(isSelected)}
+        </View>
+
         <Text
           style={[
             styles.roleText,
@@ -134,8 +138,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 4,
   },
-  roleIcon: {
-    fontSize: 22,
+  roleIconWrapper: {
     marginBottom: 6,
   },
   roleText: {

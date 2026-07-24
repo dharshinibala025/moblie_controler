@@ -119,7 +119,7 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
 
             <View style={styles.card}>
               <Text style={typography.cardTitle}>Welcome Back</Text>
-              <Text style={typography.cardSubtitle}>Sign in to continue</Text>
+              <Text style={typography.cardSubtitle}>Sign in to your account</Text>
 
               <InputField
                 label="Email Address"
@@ -154,7 +154,7 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
                 Need help? Contact your Administrator
               </Text>
             </View>
-          </Animated.View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
