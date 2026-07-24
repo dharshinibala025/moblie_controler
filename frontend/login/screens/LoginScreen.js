@@ -19,7 +19,7 @@ import RoleSelector from '../components/RoleSelector';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 
-export const LoginScreen = ({ onBack }) => {
+export const LoginScreen = ({ onBack, onLoginSuccess }) => {
   // State variables
   const [role, setRole] = useState('student');
   const [email, setEmail] = useState('');
@@ -36,12 +36,12 @@ export const LoginScreen = ({ onBack }) => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 700,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.timing(translateYAnim, {
         toValue: 0,
-        duration: 700,
+        duration: 600,
         useNativeDriver: true,
       }),
     ]).start();
@@ -76,21 +76,17 @@ export const LoginScreen = ({ onBack }) => {
       setLoading(true);
       setTimeout(() => {
         setLoading(false);
-        Alert.alert(
-          'Login Successful',
-          `Welcome to FocusSync!\nRole: ${role.toUpperCase()}\nEmail: ${email}`,
-          [{ text: 'OK' }]
-        );
-      }, 1200);
+        if (onLoginSuccess) {
+          onLoginSuccess({ role, email });
+        } else {
+          Alert.alert(
+            'Login Successful',
+            `Welcome to FocusSync!\nRole: ${role.toUpperCase()}\nEmail: ${email}`,
+            [{ text: 'OK' }]
+          );
+        }
+      }, 1000);
     }
-  };
-
-  const handleForgotPassword = () => {
-    Alert.alert(
-      'Forgot Password',
-      'Please contact your institution Administrator to reset your credentials.',
-      [{ text: 'OK' }]
-    );
   };
 
   return (
@@ -106,16 +102,8 @@ export const LoginScreen = ({ onBack }) => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View
-            style={[
-              styles.animatedContainer,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: translateYAnim }],
-              },
-            ]}
-          >
-            {/* Header / Splash Section */}
+          <View style={styles.animatedContainer}>
+            {/* Header Section with Single College Logo */}
             <View style={styles.headerSection}>
               {onBack && (
                 <TouchableOpacity
@@ -128,6 +116,7 @@ export const LoginScreen = ({ onBack }) => {
                 </TouchableOpacity>
               )}
 
+              {/* Single Logo Display */}
               <View style={styles.logoBadgeContainer}>
                 <Image
                   source={require('../assets/logo.png')}
@@ -137,26 +126,14 @@ export const LoginScreen = ({ onBack }) => {
               </View>
               
               <Text style={typography.headerTitle}>FocusSync</Text>
-              <Text style={typography.headerSubtitle}>
-                Smart Classroom Mobile Usage Control
-              </Text>
-
-              {/* Minimal Hero Illustration */}
-              <View style={styles.illustrationWrapper}>
-                <Image
-                  source={require('../assets/illustration.png')}
-                  style={styles.illustrationImage}
-                  resizeMode="contain"
-                />
-              </View>
             </View>
 
             {/* Floating White Login Card */}
             <View style={styles.card}>
               <Text style={typography.cardTitle}>Welcome Back</Text>
-              <Text style={typography.cardSubtitle}>Sign in to continue</Text>
+              <Text style={typography.cardSubtitle}>Sign in to your account</Text>
 
-              {/* Role Selection */}
+              {/* Compact Role Selection (Student, Staff, Admin) */}
               <RoleSelector selectedRole={role} onSelectRole={setRole} />
 
               {/* Input Fields */}
@@ -167,7 +144,7 @@ export const LoginScreen = ({ onBack }) => {
                   setEmail(text);
                   if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
                 }}
-                placeholder="enter.your.email@school.edu"
+                placeholder="enter.your.email@college.edu"
                 iconType="email"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -187,7 +164,7 @@ export const LoginScreen = ({ onBack }) => {
                 error={errors.password}
               />
 
-              {/* Remember Me & Forgot Password Row */}
+              {/* Remember Me Checkbox */}
               <View style={styles.optionsRow}>
                 <TouchableOpacity
                   activeOpacity={0.7}
@@ -204,13 +181,6 @@ export const LoginScreen = ({ onBack }) => {
                   </View>
                   <Text style={styles.rememberMeText}>Remember Me</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={handleForgotPassword}
-                >
-                  <Text style={typography.linkText}>Forgot Password?</Text>
-                </TouchableOpacity>
               </View>
 
               {/* Sign In Button */}
@@ -221,19 +191,13 @@ export const LoginScreen = ({ onBack }) => {
               />
             </View>
 
-            {/* Footer Section */}
+            {/* Clean Footer */}
             <View style={styles.footerSection}>
               <Text style={typography.footerText}>
-                Need help?{' '}
-                <Text
-                  style={typography.footerHighlight}
-                  onPress={handleForgotPassword}
-                >
-                  Contact your Administrator
-                </Text>
+                FocusSync System • Department Controller
               </Text>
             </View>
-          </Animated.View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -259,14 +223,14 @@ const styles = StyleSheet.create({
   },
   animatedContainer: {
     width: '100%',
-    maxWidth: 440, // Keeps it sleek on tablets/large phones
+    maxWidth: 440,
     alignItems: 'center',
   },
 
   // Header Section
   headerSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
     width: '100%',
     position: 'relative',
   },
@@ -293,10 +257,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
   },
+
+  // Single Logo Badge Container
   logoBadgeContainer: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -306,45 +272,36 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 6,
   },
   logoImage: {
-    width: 48,
-    height: 48,
-  },
-  illustrationWrapper: {
     width: '100%',
-    height: 140,
-    marginTop: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  illustrationImage: {
-    width: '90%',
     height: '100%',
   },
 
-  // Floating White Card
+  // Card Container
   card: {
     width: '100%',
     backgroundColor: colors.card,
     borderRadius: 22,
     paddingHorizontal: 22,
-    paddingVertical: 24,
+    paddingVertical: 20,
     shadowColor: colors.shadowColor,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.07,
-    shadowRadius: 20,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 5,
     borderWidth: 1,
     borderColor: '#F1F5F9',
   },
 
-  // Remember Me & Forgot Password Row
+  // Options Row
   optionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 12,
+    marginVertical: 10,
     paddingHorizontal: 2,
   },
   rememberMeContainer: {
@@ -352,9 +309,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 5,
     borderWidth: 1.8,
     borderColor: colors.border,
     justifyContent: 'center',
@@ -368,7 +325,7 @@ const styles = StyleSheet.create({
   },
   checkmark: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     marginTop: -2,
   },
@@ -380,7 +337,7 @@ const styles = StyleSheet.create({
 
   // Footer Section
   footerSection: {
-    marginTop: 24,
+    marginTop: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },

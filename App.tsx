@@ -3,21 +3,37 @@ import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import GetStartedScreen from './frontend/welcome/screens/GetStartedScreen';
 import LoginScreen from './frontend/login/screens/LoginScreen';
+import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswordScreen';
+import StudentDashboardScreen from './frontend/student_dashboard/screens/StudentDashboardScreen';
+
+type Screen = 'welcome' | 'login' | 'set_password' | 'dashboard';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState('welcome'); // 'welcome' | 'login'
+  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
 
   return (
     <SafeAreaProvider>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={currentScreen === 'welcome' ? '#FFFFFF' : '#F8FAFC'}
+        backgroundColor={currentScreen === 'welcome' || currentScreen === 'set_password' ? '#FFFFFF' : '#F8FAFC'}
       />
       <View style={styles.container}>
-        {currentScreen === 'welcome' ? (
+        {currentScreen === 'welcome' && (
           <GetStartedScreen onGetStarted={() => setCurrentScreen('login')} />
-        ) : (
-          <LoginScreen onBack={() => setCurrentScreen('welcome')} />
+        )}
+        {currentScreen === 'login' && (
+          <LoginScreen
+            onBack={() => setCurrentScreen('welcome')}
+            onLoginSuccess={() => setCurrentScreen('set_password')}
+          />
+        )}
+        {currentScreen === 'set_password' && (
+          <SetNewPasswordScreen
+            onPasswordUpdated={() => setCurrentScreen('dashboard')}
+          />
+        )}
+        {currentScreen === 'dashboard' && (
+          <StudentDashboardScreen onLogout={() => setCurrentScreen('login')} />
         )}
       </View>
     </SafeAreaProvider>
