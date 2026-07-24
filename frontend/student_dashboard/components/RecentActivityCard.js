@@ -24,8 +24,8 @@ export const RecentActivityCard = ({ activities = [] }) => {
                 {/* Status Indicator Icon */}
                 <View style={[styles.iconWrapper, { backgroundColor: badgeBg }]}>
                   <VectorIcon
-                    name={isBlocked ? 'lock' : 'unlock'}
-                    size={16}
+                    name={isBlocked ? 'lock' : 'lock-open'}
+                    size={18}
                     color={badgeColor}
                   />
                 </View>

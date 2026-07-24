@@ -62,8 +62,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    paddingTop: 4,
-    paddingBottom: 28,
+    paddingTop: 8,
+    paddingBottom: 100, // Provides full scroll clearance above bottom navbar
   },
 });
 

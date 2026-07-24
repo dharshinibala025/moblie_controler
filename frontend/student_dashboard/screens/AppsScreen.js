@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Platform, StatusBar } from 'react-native';
 import { colors, borderRadius, shadows } from '../styles/theme';
 import AppGridCard from '../components/AppGridCard';
 import VectorIcon from '../components/VectorIcon';
+
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
 export const AppsScreen = ({ data }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,8 +62,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    paddingTop: 16,
-    paddingBottom: 32,
+    paddingTop: STATUSBAR_OFFSET,
+    paddingBottom: 100,
   },
   screenHeader: {
     paddingHorizontal: 20,

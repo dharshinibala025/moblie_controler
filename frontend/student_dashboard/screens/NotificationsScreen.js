@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, StatusBar } from 'react-native';
 import { colors } from '../styles/theme';
 import NotificationsCard from '../components/NotificationsCard';
+
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
 export const NotificationsScreen = ({ data }) => {
   return (
@@ -28,8 +30,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    paddingTop: 16,
-    paddingBottom: 32,
+    paddingTop: STATUSBAR_OFFSET,
+    paddingBottom: 100,
   },
   screenHeader: {
     paddingHorizontal: 20,

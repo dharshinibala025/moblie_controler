@@ -71,19 +71,19 @@ export const mockData = {
   notifications: [
     {
       id: 'n1',
-      message: '📢 Mobile restrictions started.',
+      message: 'Mobile restrictions started.',
       time: '09:00 AM',
       read: false,
     },
     {
       id: 'n2',
-      message: '📢 Restrictions will end at 4 PM.',
+      message: 'Restrictions will end at 4 PM.',
       time: '10:00 AM',
       read: false,
     },
     {
       id: 'n3',
-      message: '📢 Tomorrow special lab session.',
+      message: 'Tomorrow special lab session.',
       time: 'Yesterday',
       read: true,
     },
