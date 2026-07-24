@@ -13,7 +13,10 @@ const StudentDashboard = ({ user }) => {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Welcome, {user?.name || 'Student'}</Text>
-          <Text style={styles.classInfo}>Class: {user?.classId || 'N/A'} | ID: {user?.studentId || 'N/A'}</Text>
+          <Text style={styles.classInfo}>Class: {user?.classId || 'CSE-II-A'} | Reg No: {user?.studentId || '221CS000'}</Text>
+        </View>
+        <View style={styles.sessionBadge}>
+          <Text style={styles.sessionBadgeText}>🔒 Permanent Login Active</Text>
         </View>
       </View>
 
@@ -72,11 +75,24 @@ const StudentDashboard = ({ user }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 20, paddingTop: 50, backgroundColor: '#7C3AED',
+    flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start',
+    padding: 20, paddingTop: 50, backgroundColor: '#7C3AED', gap: 10,
   },
   greeting: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
   classInfo: { fontSize: 13, color: '#DDD6FE', marginTop: 2 },
+  sessionBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  sessionBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   card: {
     margin: 16, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20,
     shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,

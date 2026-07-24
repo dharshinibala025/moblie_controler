@@ -1,59 +1,54 @@
 import React, { useState, useEffect } from 'react';
-import { StatusBar, StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StatusBar, StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import GetStartedScreen from './frontend/welcome/screens/GetStartedScreen';
 import LoginScreen from './frontend/login/screens/LoginScreen';
-import ActivationScreen from './frontend/login/screens/ActivationScreen';
 import PasswordResetScreen from './frontend/login/screens/PasswordResetScreen';
-import ConsentGateScreen from './frontend/login/screens/ConsentGateScreen';
 import AdminDashboard from './frontend/screens/AdminDashboard';
 import StaffDashboard from './frontend/screens/StaffDashboard';
 import StudentDashboard from './frontend/screens/StudentDashboard';
+import OfflineScreen from './frontend/screens/OfflineScreen';
 import authService from './frontend/services/authService';
 
 function App() {
-  const [screen, setScreen] = useState('loading');
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'offline' | 'login' | 'passwordReset' | 'dashboard'
   const [user, setUser] = useState(null);
   const [authData, setAuthData] = useState(null);
 
   useEffect(() => {
-    checkLoginStatus();
+    initApp();
   }, []);
 
-  const checkLoginStatus = async () => {
+  const initApp = async () => {
+    setScreen('loading');
     try {
+      // 1. Health Check API as per Architecture Diagram
+      const isHealthy = await authService.healthCheck();
+      if (!isHealthy) {
+        setScreen('offline');
+        return;
+      }
+
+      // 2. Session Restore Flow via Token & Storage
       const session = await authService.getSession();
       if (session && session.token && session.user) {
         setUser(session.user);
         setScreen('dashboard');
       } else {
-        setScreen('welcome');
+        setScreen('login');
       }
     } catch (error) {
-      setScreen('welcome');
+      setScreen('login');
     }
   };
 
   const handleLoginSuccess = (data) => {
-    if (data.screen === 'activation') {
-      setAuthData(data);
-      setScreen('activation');
-      return;
-    }
-
     if (data.screen === 'passwordReset') {
       setAuthData(data);
       setScreen('passwordReset');
       return;
     }
 
-    if (data.screen === 'consent') {
-      setAuthData(data);
-      setScreen('consent');
-      return;
-    }
-
-    if (data.screen === 'dashboard' && data.token && data.user) {
+    if (data.screen === 'dashboard' && data.user) {
       setUser(data.user);
       setAuthData(null);
       setScreen('dashboard');
@@ -78,46 +73,22 @@ function App() {
         return (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#2563EB" />
+            <Text style={styles.loadingText}>Initializing Smart Classroom...</Text>
           </View>
         );
 
-      case 'welcome':
-        return <GetStartedScreen onGetStarted={() => setScreen('login')} />;
+      case 'offline':
+        return <OfflineScreen onRetry={initApp} />;
 
       case 'login':
-        return (
-          <LoginScreen
-            onBack={() => setScreen('welcome')}
-            onLoginSuccess={handleLoginSuccess}
-          />
-        );
-
-      case 'activation':
-        return (
-          <ActivationScreen
-            initialEmail={authData?.email}
-            onBack={handleBackToLogin}
-            onSuccess={handleLoginSuccess}
-          />
-        );
+        return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
 
       case 'passwordReset':
         return (
           <PasswordResetScreen
-            preToken={authData?.preToken}
-            userId={authData?.userId}
-            role={authData?.role}
-            onSuccess={handleLoginSuccess}
-            onBack={handleBackToLogin}
-          />
-        );
-
-      case 'consent':
-        return (
-          <ConsentGateScreen
-            preToken={authData?.preToken}
-            userId={authData?.userId}
-            role={authData?.role}
+            preToken={authData?.tempToken || authData?.preToken}
+            userId={authData?.user?._id || authData?.userId}
+            role={authData?.user?.role || authData?.role}
             onSuccess={handleLoginSuccess}
             onBack={handleBackToLogin}
           />
@@ -136,11 +107,11 @@ function App() {
           case 'student':
             return <StudentDashboard user={user} />;
           default:
-            return <LoginScreen onBack={() => setScreen('welcome')} onLoginSuccess={handleLoginSuccess} />;
+            return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
         }
 
       default:
-        return <GetStartedScreen onGetStarted={() => setScreen('login')} />;
+        return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
     }
   };
 
@@ -148,7 +119,7 @@ function App() {
     <SafeAreaProvider>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={screen === 'welcome' ? '#FFFFFF' : '#F8FAFC'}
+        backgroundColor="#F8FAFC"
       />
       <View style={styles.container}>
         {renderScreen()}
@@ -159,7 +130,18 @@ function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+  },
 });
 
 export default App;

@@ -100,6 +100,10 @@ const authService = {
     return await sessionService.getSession();
   },
 
+  healthCheck: async () => {
+    return await api.healthCheck();
+  },
+
   setPreToken: (token) => {
     _preToken = token;
   },

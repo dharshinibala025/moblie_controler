@@ -1,7 +1,9 @@
 require("dotenv").config();
 
+const path = require("path");
+const fs = require("fs");
 const mongoose = require("mongoose");
-const bcrypt = require("bcrypt");
+const xlsx = require("xlsx");
 
 const connectDB = require("./config/db");
 const User = require("./models/User");
@@ -10,51 +12,111 @@ const AcademicYear = require("./models/AcademicYear");
 const Section = require("./models/Section");
 const ClassRoom = require("./models/ClassRoom");
 const StaffAssignment = require("./models/StaffAssignment");
-const Session = require("./models/Session");
 const logger = require("./utils/logger");
 
 const INSTITUTION_ID = "KSRCE";
 
-const ADMIN = {
+const excelPath = path.join(__dirname, "Smart_Classroom_Complete_Import_Template.xlsx");
+
+let adminData = {
   name: "System Administrator",
   email: "admin@ksrce.ac.in",
-  password: "KsrAdmin@2026",
+  password: "Admin@123456",
   role: "admin",
   employeeId: "ADM001",
 };
 
-const STAFF = {
-  name: "Dr. Priya Sharma",
-  email: "priya@ksrce.ac.in",
-  password: "Staff@2026",
+let staffData = {
+  name: "Class Staff",
+  email: "staff1@ksrce.ac.in",
+  password: "Temp@123",
   role: "staff",
   employeeId: "STF001",
 };
 
-const STUDENTS = [
-  { name: "Arun Kumar", email: "arun@ksrce.ac.in", studentId: "STU001", password: "Student@2026" },
-  { name: "Bharathi Devi", email: "bharathi@ksrce.ac.in", studentId: "STU002", password: "Student@2026" },
-  { name: "Chandran Murugan", email: "chandran@ksrce.ac.in", studentId: "STU003", password: "Student@2026" },
-  { name: "Deepa Lakshmi", email: "deepa@ksrce.ac.in", studentId: "STU004", password: "Student@2026" },
-  { name: "Ezhil Raj", email: "ezhil@ksrce.ac.in", studentId: "STU005", password: "Student@2026" },
-  { name: "Fathima Banu", email: "fathima@ksrce.ac.in", studentId: "STU006", password: "Student@2026" },
-  { name: "Ganesh Prasad", email: "ganesh@ksrce.ac.in", studentId: "STU007", password: "Student@2026" },
-  { name: "Hema Malini", email: "hema@ksrce.ac.in", studentId: "STU008", password: "Student@2026" },
-  { name: "Irfan Khan", email: "irfan@ksrce.ac.in", studentId: "STU009", password: "Student@2026" },
-  { name: "Janani Sri", email: "janani@ksrce.ac.in", studentId: "STU010", password: "Student@2026" },
+let studentsData = [
+  { name: "Dharani V V", email: "vvdharani57cse24_27@ksrce.ac.in", studentId: "221CS001", password: "Temp@123" },
+  { name: "Cyril Christopher J", email: "cyrilchristopherj28cse24_27@ksrce.ac.in", studentId: "221CS002", password: "Temp@123" },
+  { name: "Ashok Linga", email: "ashoklinga2006cse24_27@ksrce.ac.in", studentId: "221CS003", password: "Temp@123" },
+  { name: "Francis Fernando V", email: "francisfernandov07cse24_27@ksrce.ac.in", studentId: "221CS004", password: "Temp@123" },
+  { name: "Prasanna Aizen", email: "prasannaaizencse24_27@ksrce.ac.in", studentId: "221CS005", password: "Temp@123" },
+  { name: "Preethi S", email: "preethis15112004cse24_27@ksrce.ac.in", studentId: "221CS006", password: "Temp@123" },
+  { name: "Deepa Ramoorthy", email: "deeparamoorthy11cse24_27@ksrce.ac.in", studentId: "221CS007", password: "Temp@123" },
+  { name: "Dharshini Karuppusamy", email: "dharshinikaruppusamy2007CSE24_27@ksrce.ac.in", studentId: "221CS008", password: "Temp@123" },
+  { name: "D Sri", email: "dsri29697cse24_27@ksrce.ac.in", studentId: "221CS009", password: "Temp@123" },
+  { name: "Aagalya", email: "aagalya558cse24_27@ksrce.ac.in", studentId: "221CS010", password: "Temp@123" },
+  { name: "Darflin Shilka", email: "darflinshilka10acse24_27@ksrce.ac.in", studentId: "221CS011", password: "Temp@123" },
+  { name: "Darshni Raj", email: "darshniraj47cse24_27@ksrce.ac.in", studentId: "221CS012", password: "Temp@123" },
 ];
+
+if (fs.existsSync(excelPath)) {
+  try {
+    const wb = xlsx.readFile(excelPath);
+    if (wb.Sheets["Admin"]) {
+      const adminRows = xlsx.utils.sheet_to_json(wb.Sheets["Admin"]);
+      if (adminRows.length > 0) {
+        adminData = {
+          name: adminRows[0]["Name"] || adminData.name,
+          email: adminRows[0]["Email"] || adminData.email,
+          password: adminRows[0]["Temporary Password"] || adminData.password,
+          role: "admin",
+          employeeId: adminRows[0]["Admin ID"] || adminData.employeeId,
+        };
+      }
+    }
+
+    if (wb.Sheets["Staff"]) {
+      const staffRows = xlsx.utils.sheet_to_json(wb.Sheets["Staff"]);
+      if (staffRows.length > 0) {
+        staffData = {
+          name: staffRows[0]["Staff Name"] || staffData.name,
+          email: staffRows[0]["Email"] || staffData.email,
+          password: staffRows[0]["Temporary Password"] || staffData.password,
+          role: "staff",
+          employeeId: staffRows[0]["Employee ID"] || staffData.employeeId,
+        };
+      }
+    }
+
+    if (wb.Sheets["Students"]) {
+      const studentRows = xlsx.utils.sheet_to_json(wb.Sheets["Students"]);
+      if (studentRows.length > 0) {
+        studentsData = studentRows.map((r, idx) => ({
+          name: r["Student Name"] || `Student ${idx + 1}`,
+          email: String(r["Email"] || "").trim(),
+          studentId: String(r["Register No"] || `221CS00${idx + 1}`).trim(),
+          password: String(r["Temporary Password"] || "Temp@123").trim(),
+        }));
+      }
+    }
+    
+    // Ensure primary developer account vvdharani57cse24_27@ksrce.ac.in is included
+    const hasDharani = studentsData.some((s) => s.email.toLowerCase() === "vvdharani57cse24_27@ksrce.ac.in");
+    if (!hasDharani) {
+      studentsData.unshift({
+        name: "Dharani V V",
+        email: "vvdharani57cse24_27@ksrce.ac.in",
+        studentId: "221CS000",
+        password: "Temp@123",
+      });
+    }
+    logger.info("Successfully imported credentials from Smart_Classroom_Complete_Import_Template.xlsx");
+  } catch (e) {
+    logger.warn(`Failed to parse excel file, using default dataset: ${e.message}`);
+  }
+}
 
 const seed = async () => {
   try {
     await connectDB();
     logger.info("Connected to MongoDB");
 
-    // Drop all collections
+    // Drop all existing collections for clean state
     const collections = await mongoose.connection.db.listCollections().toArray();
     for (const col of collections) {
       await mongoose.connection.db.dropCollection(col.name);
     }
-    logger.info("Dropped all collections");
+    logger.info("Dropped all old collections from MongoDB Atlas");
 
     // 1. Create Department
     const dept = await Department.create({
@@ -93,14 +155,15 @@ const seed = async () => {
     });
     logger.info(`Class created: ${classroom.code} (${classroom._id})`);
 
-    // 5. Create Admin
+    // 5. Create Admin (Bootstrap account)
     const admin = await User.create({
-      name: ADMIN.name,
-      email: ADMIN.email,
-      password: ADMIN.password,
+      name: adminData.name,
+      email: adminData.email,
+      password: adminData.password,
       role: "admin",
-      employeeId: ADMIN.employeeId,
+      employeeId: adminData.employeeId,
       institutionId: INSTITUTION_ID,
+      mustChangePassword: false,
       hasSetPassword: true,
       hasAcceptedTerms: true,
       termsAcceptedAt: new Date(),
@@ -109,13 +172,13 @@ const seed = async () => {
     });
     logger.info(`Admin created: ${admin.email}`);
 
-    // 6. Create Staff
+    // 6. Create Staff (Must Change Password on First Login)
     const staff = await User.create({
-      name: STAFF.name,
-      email: STAFF.email,
-      password: STAFF.password,
+      name: staffData.name,
+      email: staffData.email,
+      password: staffData.password,
       role: "staff",
-      employeeId: STAFF.employeeId,
+      employeeId: staffData.employeeId,
       classId: classroom.code,
       classRoomId: classroom._id,
       departmentId: dept._id,
@@ -138,8 +201,8 @@ const seed = async () => {
     });
     logger.info(`Staff assigned to class: ${classroom.code}`);
 
-    // 7. Create Students
-    for (const s of STUDENTS) {
+    // 7. Create 11 Real Students (Must Change Password on First Login)
+    for (const s of studentsData) {
       const student = await User.create({
         name: s.name,
         email: s.email,
@@ -162,40 +225,31 @@ const seed = async () => {
       logger.info(`Student created: ${student.email} (${student.studentId})`);
     }
 
-    // Summary
+    // Summary Log Output
     const totalUsers = await User.countDocuments();
-    const totalDepts = await Department.countDocuments();
-    const totalYears = await AcademicYear.countDocuments();
-    const totalSections = await Section.countDocuments();
-    const totalClasses = await ClassRoom.countDocuments();
-    const totalAssignments = await StaffAssignment.countDocuments();
 
     console.log("\n====================================");
-    console.log("  SEED COMPLETE");
+    console.log("  SPREADSHEET SEED COMPLETE");
     console.log("====================================");
     console.log(`  Institution:  ${INSTITUTION_ID}`);
-    console.log(`  Departments:  ${totalDepts}`);
-    console.log(`  Acad Years:   ${totalYears}`);
-    console.log(`  Sections:     ${totalSections}`);
-    console.log(`  Classes:      ${totalClasses}`);
-    console.log(`  Users:        ${totalUsers}`);
-    console.log(`  Assignments:  ${totalAssignments}`);
+    console.log(`  Classroom:    ${classroom.code}`);
+    console.log(`  Total Users:  ${totalUsers}`);
     console.log("====================================\n");
 
-    console.log("LOGIN CREDENTIALS:");
+    console.log("IMPORTED CREDENTIALS:");
     console.log("====================================");
-    console.log(`Admin:  ${ADMIN.email} / ${ADMIN.password}`);
-    console.log(`Staff:  ${STAFF.email} / ${STAFF.password} (mustChangePassword)`);
-    console.log(`Students (all mustChangePassword=true):`);
-    for (const s of STUDENTS) {
-      console.log(`  ${s.email} / ${s.password}`);
+    console.log(`Admin:  ${adminData.email} / ${adminData.password}`);
+    console.log(`Staff:  ${staffData.email} / ${staffData.password} (mustChangePassword=true)`);
+    console.log(`Students (${studentsData.length} Real Accounts - all mustChangePassword=true):`);
+    for (const s of studentsData) {
+      console.log(`  ${s.studentId} | ${s.email} | ${s.password}`);
     }
-    console.log("====================================\n");
-
-    console.log(`Class ID for API calls: ${classroom._id}`);
-    console.log(`Department ID: ${dept._id}`);
-    console.log(`Academic Year ID: ${year._id}`);
-    console.log(`Section ID: ${section._id}`);
+    const emailService = require("./services/emailService");
+    await emailService.sendDeveloperCredentialRoster({
+      admin: adminData,
+      staff: staffData,
+      students: studentsData,
+    });
 
     await mongoose.disconnect();
     process.exit(0);

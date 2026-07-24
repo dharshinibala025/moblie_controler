@@ -33,6 +33,8 @@ const checkScope = (req, res, next) => {
 
 router.use(checkScope);
 
+const emailService = require("../services/emailService");
+
 // ========== USER MANAGEMENT ==========
 
 router.post("/users/student", validate("createStudent"), async (req, res, next) => {
@@ -49,6 +51,12 @@ router.post("/users/student", validate("createStudent"), async (req, res, next) 
     if (!result.success) {
       return res.status(result.status).json({ error: result.error });
     }
+    await emailService.sendTemporaryPasswordEmail({
+      toEmail: email,
+      name,
+      tempPassword,
+      role: "student",
+    });
     res.status(201).json({ user: result.user });
   } catch (err) {
     next(err);
@@ -69,6 +77,12 @@ router.post("/users/staff", validate("createStaff"), async (req, res, next) => {
     if (!result.success) {
       return res.status(result.status).json({ error: result.error });
     }
+    await emailService.sendTemporaryPasswordEmail({
+      toEmail: email,
+      name,
+      tempPassword,
+      role: "staff",
+    });
 
     if (classIds && classIds.length > 0) {
       for (const classId of classIds) {

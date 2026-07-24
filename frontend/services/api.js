@@ -1,10 +1,29 @@
 import sessionService from './sessionService';
 
-const API_BASE_URL = 'http://10.0.2.2:5000';
+const CANDIDATE_HOSTS = ['http://10.0.2.2:5000', 'http://127.0.0.1:5000', 'http://localhost:5000'];
+let activeBaseUrl = 'http://10.0.2.2:5000';
 
 const api = {
   getToken: async () => {
     return await sessionService.getToken();
+  },
+
+  healthCheck: async () => {
+    for (const host of CANDIDATE_HOSTS) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(`${host}/health`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          activeBaseUrl = host;
+          return true;
+        }
+      } catch (e) {
+        // try next candidate host
+      }
+    }
+    return false;
   },
 
   request: async (endpoint, options = {}) => {
@@ -18,10 +37,24 @@ const api = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    let response;
+    try {
+      response = await fetch(`${activeBaseUrl}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } catch (networkError) {
+      // Retry via candidates if active URL failed
+      const healthy = await api.healthCheck();
+      if (healthy) {
+        response = await fetch(`${activeBaseUrl}${endpoint}`, {
+          ...options,
+          headers,
+        });
+      } else {
+        throw { status: 0, message: 'Backend server is unavailable. Please check server connection.' };
+      }
+    }
 
     const data = await response.json();
 
