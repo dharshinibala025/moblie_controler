@@ -1,0 +1,102 @@
+const { getIO } = require("../config/socket");
+const Device = require("../models/Device");
+const dispatchService = require("../services/dispatchService");
+const logger = require("../utils/logger");
+
+const HEARTBEAT_RATE_LIMIT_MS = 5000;
+
+const setupDeviceGateway = () => {
+  const io = getIO();
+  if (!io) {
+    logger.warn("Socket.io not initialized, skipping device gateway setup");
+    return;
+  }
+
+  io.on("connection", (socket) => {
+    const lastHeartbeats = new Map();
+
+    if (socket.user.role === "student") {
+      handleStudentConnection(socket);
+    }
+
+    if (socket.user.role === "admin" || socket.user.role === "staff") {
+      handleMonitorConnection(socket);
+    }
+
+    socket.on("device:heartbeat", async () => {
+      const now = Date.now();
+      const lastBeat = lastHeartbeats.get("heartbeat") || 0;
+      if (now - lastBeat < HEARTBEAT_RATE_LIMIT_MS) {
+        return;
+      }
+      lastHeartbeats.set("heartbeat", now);
+
+      try {
+        const device = await Device.findOne({ userId: socket.user.userId });
+        if (device) {
+          device.lastSyncAt = new Date();
+          device.status = "online";
+          await device.save();
+        }
+      } catch (err) {
+        logger.error(`Heartbeat error: ${err.message}`);
+      }
+    });
+
+    socket.on("device:requestState", async () => {
+      if (socket.user.role !== "student") {
+        socket.emit("error", { message: "Only students can request state" });
+        return;
+      }
+
+      try {
+        if (socket.user.classId) {
+          const command = await dispatchService.getLatestCommand(socket.user.classId);
+          if (command) {
+            socket.emit("rule:update", command);
+          }
+        }
+      } catch (err) {
+        logger.error(`State request error: ${err.message}`);
+      }
+    });
+
+    socket.on("disconnect", async () => {
+      try {
+        const device = await Device.findOne({ userId: socket.user.userId });
+        if (device) {
+          device.status = "offline";
+          await device.save();
+        }
+      } catch (err) {
+        logger.error(`Disconnect handler error: ${err.message}`);
+      }
+    });
+  });
+};
+
+async function handleStudentConnection(socket) {
+  try {
+    const device = await Device.findOne({ userId: socket.user.userId });
+    if (device) {
+      device.status = "online";
+      device.lastSyncAt = new Date();
+      await device.save();
+    }
+
+    if (socket.user.classId) {
+      const command = await dispatchService.getLatestCommand(socket.user.classId);
+      if (command) {
+        socket.emit("rule:update", command);
+      }
+    }
+  } catch (err) {
+    logger.error(`Student connection setup error: ${err.message}`);
+  }
+}
+
+function handleMonitorConnection(socket) {
+  logger.debug(`Monitor connected: userId=${socket.user.userId}, role=${socket.user.role}`);
+}
+
+module.exports = { setupDeviceGateway };

@@ -38,7 +38,10 @@ local.properties
 # ==========================
 # iOS / Xcode
 # ==========================
-ios/build/
+ios/
+Gemfile
+Gemfile.lock
+.bundle/
 DerivedData/
 xcuserdata/
 *.pbxuser
@@ -62,6 +65,7 @@ vendor/bundle/
 # Coverage
 # ==========================
 coverage/
+build/
 
 # ==========================
 # Yarn
