@@ -28,7 +28,7 @@ export const AppGridCard = ({ blockedApps = [] }) => {
             <View key={app.id} style={styles.appCard}>
               {/* App Icon */}
               <View style={styles.iconContainer}>
-                <VectorIcon name={app.icon || 'apps'} size={24} showBg />
+                <VectorIcon name={app.icon || 'cellphone'} size={22} color={colors.primary} />
               </View>
 
               {/* App Name */}
@@ -91,7 +91,15 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
   },
   appName: {
     fontSize: 13,

@@ -11,9 +11,9 @@ import typography from '../styles/typography';
 import { StudentIcon, StaffIcon, AdminIcon } from './AuthIcons';
 
 const ROLES = [
-  { id: 'student', title: 'Student', renderIcon: (active) => <StudentIcon active={active} size={20} /> },
-  { id: 'staff', title: 'Staff', renderIcon: (active) => <StaffIcon active={active} size={20} /> },
-  { id: 'admin', title: 'Admin', renderIcon: (active) => <AdminIcon active={active} size={20} /> },
+  { id: 'student', title: 'Student', renderIcon: (active) => <StudentIcon active={active} color={active ? colors.textLight : colors.primary} size={20} /> },
+  { id: 'staff', title: 'Staff', renderIcon: (active) => <StaffIcon active={active} color={active ? colors.textLight : colors.primary} size={20} /> },
+  { id: 'admin', title: 'Admin', renderIcon: (active) => <AdminIcon active={active} color={active ? colors.textLight : colors.primary} size={20} /> },
 ];
 
 /**

@@ -6,9 +6,9 @@ import VectorIcon from './VectorIcon';
 export const BottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
   const tabs = [
     { id: 'home', label: 'Home', icon: 'home' },
-    { id: 'apps', label: 'Blocked Apps', icon: 'apps' },
-    { id: 'notifications', label: 'Notifications', icon: 'bell', badge: 2 },
-    { id: 'profile', label: 'Profile', icon: 'user' },
+    { id: 'apps', label: 'Blocked Apps', icon: 'cellphone' },
+    { id: 'notifications', label: 'Notifications', icon: 'bell', badge: 6 },
+    { id: 'profile', label: 'Profile', icon: 'account-circle' },
   ];
 
   return (
@@ -26,12 +26,12 @@ export const BottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
               <View style={styles.iconWrapper}>
                 <VectorIcon
                   name={tab.icon}
-                  size={20}
-                  color={isActive ? colors.primary : colors.textMuted}
+                  size={26} // Bottom Navigation icon size 26
+                  color={isActive ? colors.primary : '#64748B'}
                 />
-                {tab.badge && tab.badge > 0 && !isActive && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{tab.badge}</Text>
+                {tab.badge && tab.badge > 0 && (
+                  <View style={styles.redBadge}>
+                    <Text style={styles.redBadgeText}>{tab.badge}</Text>
                   </View>
                 )}
               </View>
@@ -76,28 +76,40 @@ const styles = StyleSheet.create({
   iconWrapper: {
     position: 'relative',
     marginBottom: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  badge: {
+
+  // Red Circle Badge matching user's image specification
+  redBadge: {
     position: 'absolute',
-    top: -3,
-    right: -6,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    minWidth: 14,
-    height: 14,
+    top: -4,
+    right: -8,
+    backgroundColor: '#DC2626',
+    borderRadius: 9,
+    width: 18,
+    height: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 2,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: '800',
+  redBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
     color: '#FFFFFF',
+    textAlign: 'center',
   },
+
   tabLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.textMuted,
+    color: '#64748B',
   },
   tabLabelActive: {
     fontWeight: '700',

@@ -6,9 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
 import VectorIcon from '../components/VectorIcon';
+
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
 export const ProfileScreen = ({ student, onLogout }) => {
   const handleLogoutPress = () => {
@@ -83,8 +87,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: STATUSBAR_OFFSET,
+    paddingBottom: 100,
   },
 
   heroCard: {
