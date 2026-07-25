@@ -41,7 +41,7 @@ function App() {
     }
   };
 
-  const handleLoginSuccess = (data) => {
+  const handleLoginSuccess = (data: any) => {
     if (data.screen === 'passwordReset') {
       setAuthData(data);
       setScreen('passwordReset');
@@ -81,7 +81,7 @@ function App() {
         return <OfflineScreen onRetry={initApp} />;
 
       case 'login':
-        return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+        return <LoginScreen onLoginSuccess={handleLoginSuccess} onBack={handleBackToLogin} />;
 
       case 'passwordReset':
         return (
@@ -107,11 +107,11 @@ function App() {
           case 'student':
             return <StudentDashboard user={user} />;
           default:
-            return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+            return <LoginScreen onLoginSuccess={handleLoginSuccess} onBack={handleBackToLogin} />;
         }
 
       default:
-        return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+        return <LoginScreen onLoginSuccess={handleLoginSuccess} onBack={handleBackToLogin} />;
     }
   };
 

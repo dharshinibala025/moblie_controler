@@ -18,7 +18,7 @@ import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import authService from '../../services/authService';
 
-export const LoginScreen = ({ onBack, onLoginSuccess }) => {
+export const LoginScreen = ({ onBack = () => {}, onLoginSuccess }) => {
   const [selectedRole, setSelectedRole] = useState('student'); // 'student' | 'staff' | 'admin'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

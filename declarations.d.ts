@@ -1,0 +1,12 @@
+declare module 'react';
+declare module 'react-native';
+declare module 'react-native-safe-area-context';
+declare module 'react-native-vector-icons/*';
+declare module './frontend/login/screens/LoginScreen';
+declare module './frontend/login/screens/PasswordResetScreen';
+declare module './frontend/student_dashboard/screens/StudentDashboardScreen';
+declare module './frontend/screens/AdminDashboard';
+declare module './frontend/screens/StaffDashboard';
+declare module './frontend/screens/OfflineScreen';
+declare module './frontend/services/authService';
+declare module './frontend/*';
