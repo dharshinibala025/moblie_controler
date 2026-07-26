@@ -78,9 +78,9 @@ export const RestrictionInfoScreen = ({ restrictionStatus, onBack }) => {
           <Text style={[styles.bannerTitle, { color: statusColor }]}>
             {isActive ? 'Restrictions Currently Active' : 'No Active Restriction'}
           </Text>
-          {isActive && remaining && (
+          {Boolean(isActive && remaining) ? (
             <Text style={styles.bannerSub}>{remaining}</Text>
-          )}
+          ) : null}
         </View>
       </View>
 

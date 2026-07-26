@@ -29,11 +29,11 @@ export const BottomNavBar = ({ activeTab = 'home', onSelectTab, unreadCount = 0 
                   size={26} // Bottom Navigation icon size 26
                   color={isActive ? colors.primary : '#64748B'}
                 />
-                {tab.badge && tab.badge > 0 && (
+                {Boolean(tab.badge && tab.badge > 0) ? (
                   <View style={styles.redBadge}>
                     <Text style={styles.redBadgeText}>{tab.badge}</Text>
                   </View>
-                )}
+                ) : null}
               </View>
 
               <Text

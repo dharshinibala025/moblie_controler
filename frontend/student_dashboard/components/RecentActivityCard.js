@@ -46,7 +46,7 @@ export const RecentActivityCard = ({ activities = [], onViewAll }) => {
         })}
 
         {/* View All link */}
-        {onViewAll && activities.length > 0 && (
+        {Boolean(onViewAll && activities.length > 0) ? (
           <>
             <View style={styles.divider} />
             <TouchableOpacity
@@ -58,7 +58,7 @@ export const RecentActivityCard = ({ activities = [], onViewAll }) => {
               <VectorIcon name="chevron-right" size={16} color={colors.primary} />
             </TouchableOpacity>
           </>
-        )}
+        ) : null}
       </View>
     </View>
   );

@@ -137,9 +137,9 @@ export const SyncStatusScreen = ({ deviceStatus, student, onBack, onRefresh, ref
                 <Text style={[styles.infoValue, { color: row.valueColor || colors.textPrimary }]}>
                   {row.value}
                 </Text>
-                {row.sub && (
+                {row.sub ? (
                   <Text style={styles.infoSub}>{row.sub}</Text>
-                )}
+                ) : null}
               </View>
             </View>
           </React.Fragment>

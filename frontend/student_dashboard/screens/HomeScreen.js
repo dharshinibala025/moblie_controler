@@ -70,11 +70,11 @@ export const HomeScreen = ({
                 : 'No new notifications'}
             </Text>
           </View>
-          {unreadCount > 0 && (
+          {unreadCount > 0 ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unreadCount}</Text>
             </View>
-          )}
+          ) : null}
           <VectorIcon name="chevron-right" size={18} color={colors.textMuted} />
         </TouchableOpacity>
       </ScrollView>
