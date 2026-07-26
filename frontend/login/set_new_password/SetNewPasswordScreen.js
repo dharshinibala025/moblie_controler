@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,10 @@ import {
   SafeAreaView,
   TextInput,
 } from 'react-native';
-import colors from '../styles/colors';
 import { LockIcon, EyeIcon, EyeOffIcon, InfoIcon, SuccessCheckIcon } from '../components/AuthIcons';
 import PasswordStrengthMeter from './PasswordStrengthMeter';
-import PasswordRequirements from './PasswordRequirements';
+
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 20;
 
 export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
   const [newPassword, setNewPassword] = useState('');
@@ -39,16 +39,6 @@ export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
   const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
 
   const canSubmit = allRulesSatisfied && passwordsMatch && !loading;
-
-  // Inline Validation Message
-  const validationMessage = useMemo(() => {
-    if (!newPassword && !confirmPassword) return null;
-    if (newPassword && !isLengthValid) return 'Password is too short (min. 8 characters).';
-    if (newPassword && !allRulesSatisfied) return 'Password does not meet all security requirements below.';
-    if (confirmPassword && !passwordsMatch) return 'Passwords do not match.';
-    if (passwordsMatch && allRulesSatisfied) return 'All requirements met.';
-    return null;
-  }, [newPassword, confirmPassword, isLengthValid, allRulesSatisfied, passwordsMatch]);
 
   const handleUpdatePassword = () => {
     if (!canSubmit) return;
@@ -166,7 +156,11 @@ export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
                   </View>
 
                   {/* Password Strength Indicator */}
-                  <PasswordStrengthMeter password={newPassword} />
+                  {newPassword.length > 0 && (
+                    <View style={styles.strengthWrapper}>
+                      <PasswordStrengthMeter password={newPassword} />
+                    </View>
+                  )}
 
                   {/* Confirm Password Input */}
                   <View style={styles.inputGroup}>
@@ -196,31 +190,31 @@ export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
                     </View>
                   </View>
 
-                  {/* Password Requirements Checklist */}
-                  <PasswordRequirements password={newPassword} />
-
-                  {/* Inline Validation Message */}
-                  {validationMessage && (
-                    <View
+                  {/* Clean Single-Line Password Requirement Hint */}
+                  <View style={styles.singleLineHintContainer}>
+                    <Text
                       style={[
-                        styles.validationBadge,
+                        styles.singleLineHintText,
                         allRulesSatisfied && passwordsMatch
-                          ? styles.validationSuccess
-                          : styles.validationError,
+                          ? styles.hintSuccess
+                          : confirmPassword && !passwordsMatch
+                          ? styles.hintError
+                          : newPassword && !allRulesSatisfied
+                          ? styles.hintError
+                          : styles.hintMuted,
                       ]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
                     >
-                      <Text
-                        style={[
-                          styles.validationText,
-                          allRulesSatisfied && passwordsMatch
-                            ? styles.textSuccess
-                            : styles.textError,
-                        ]}
-                      >
-                        {validationMessage}
-                      </Text>
-                    </View>
-                  )}
+                      {allRulesSatisfied && passwordsMatch
+                        ? 'All password requirements met.'
+                        : confirmPassword && !passwordsMatch
+                        ? 'Passwords do not match.'
+                        : newPassword && !allRulesSatisfied
+                        ? 'Min. 8 chars with A-Z, a-z, 0-9 & special char.'
+                        : 'Must be min. 8 characters with A-Z, a-z, 0-9 & special char.'}
+                    </Text>
+                  </View>
 
                   {/* Update Password Primary Button */}
                   <TouchableOpacity
@@ -270,7 +264,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: STATUSBAR_OFFSET,
     paddingBottom: 32,
     alignItems: 'center',
     justifyContent: 'center',
@@ -287,9 +281,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   logoBadgeContainer: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -349,7 +343,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  // Floating Card
+  // Card Container
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -366,7 +360,7 @@ const styles = StyleSheet.create({
 
   // Form Inputs
   inputGroup: {
-    marginVertical: 6,
+    marginBottom: 14,
   },
   inputLabel: {
     fontSize: 13,
@@ -378,10 +372,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
-    borderRadius: 16, // 16px radius
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    height: 52,
+    height: 50,
     paddingHorizontal: 14,
   },
   textInput: {
@@ -395,29 +389,30 @@ const styles = StyleSheet.create({
     padding: 6,
   },
 
-  // Inline Validation Badges
-  validationBadge: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginVertical: 8,
+  strengthWrapper: {
+    marginBottom: 14,
   },
-  validationError: {
-    backgroundColor: '#FEE2E2',
+
+  // Clean Single Line Requirement Hint
+  singleLineHintContainer: {
+    marginTop: 4,
+    marginBottom: 12,
+    alignItems: 'center',
   },
-  validationSuccess: {
-    backgroundColor: '#DCFCE7',
-  },
-  validationText: {
+  singleLineHintText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     textAlign: 'center',
   },
-  textError: {
+  hintMuted: {
+    color: '#64748B',
+  },
+  hintError: {
     color: '#EF4444',
   },
-  textSuccess: {
+  hintSuccess: {
     color: '#15803D',
+    fontWeight: '700',
   },
 
   // Primary Button
@@ -428,7 +423,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 14,
+    marginTop: 8,
     shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
