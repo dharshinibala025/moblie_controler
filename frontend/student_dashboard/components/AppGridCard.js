@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
 import VectorIcon from './VectorIcon';
 
-export const AppGridCard = ({ blockedApps = [] }) => {
+export const AppGridCard = ({ blockedApps = [], onSelectApp }) => {
   const filteredApps = blockedApps.filter((app) => app.blocked);
 
   return (
@@ -25,10 +25,15 @@ export const AppGridCard = ({ blockedApps = [] }) => {
       ) : (
         <View style={styles.grid}>
           {filteredApps.map((app) => (
-            <View key={app.id} style={styles.appCard}>
+            <TouchableOpacity
+              key={app.id}
+              style={styles.appCard}
+              activeOpacity={onSelectApp ? 0.7 : 1}
+              onPress={() => onSelectApp && onSelectApp(app)}
+            >
               {/* App Icon */}
               <View style={styles.iconContainer}>
-                <VectorIcon name={app.icon || 'apps'} size={24} showBg />
+                <VectorIcon name={app.icon || 'cellphone'} size={22} color={colors.primary} />
               </View>
 
               {/* App Name */}
@@ -40,7 +45,7 @@ export const AppGridCard = ({ blockedApps = [] }) => {
               <View style={styles.blockedBadge}>
                 <Text style={styles.blockedBadgeText}>Blocked</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       )}
@@ -91,7 +96,15 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
   },
   appName: {
     fontSize: 13,

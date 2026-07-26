@@ -20,10 +20,22 @@ const REFRESH_TOKEN_DAYS = {
 
 class AuthService {
   async authenticate({ email, password, ip, userAgent, deviceInfo }) {
-    const user = await User.findOne({ email }).select("+password");
+    const cleanInput = (email || "").trim();
+    const lowerEmail = cleanInput.toLowerCase();
+
+    const user = await User.findOne({
+      $or: [
+        { email: lowerEmail },
+        { studentId: cleanInput },
+        { studentId: cleanInput.toUpperCase() },
+        { studentId: lowerEmail },
+        { employeeId: cleanInput },
+        { employeeId: cleanInput.toUpperCase() },
+      ],
+    }).select("+password");
 
     if (!user) {
-      await this._logAuth({ email, action: "login.failed", ip, userAgent, details: { reason: "user_not_found" } });
+      await this._logAuth({ email: cleanInput, action: "login.failed", ip, userAgent, details: { reason: "user_not_found" } });
       return { success: false, error: "Invalid email or password", status: 401 };
     }
 
@@ -187,7 +199,31 @@ class AuthService {
     return { success: true, sessionsRevoked: result.modifiedCount };
   }
 
+  _validatePasswordComplexity(password) {
+    if (!password || password.length < 8) {
+      return "Password must be at least 8 characters long";
+    }
+    if (!/[A-Z]/.test(password)) {
+      return "Password must contain at least one uppercase letter";
+    }
+    if (!/[a-z]/.test(password)) {
+      return "Password must contain at least one lowercase letter";
+    }
+    if (!/\d/.test(password)) {
+      return "Password must contain at least one number";
+    }
+    if (!/[@$!%*?&#^()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      return "Password must contain at least one special character";
+    }
+    return null;
+  }
+
   async changePassword({ userId, currentPassword, newPassword }) {
+    const pwdErr = this._validatePasswordComplexity(newPassword);
+    if (pwdErr) {
+      return { success: false, error: pwdErr, status: 400 };
+    }
+
     const user = await User.findById(userId).select("+password");
     if (!user) {
       return { success: false, error: "User not found", status: 404 };
@@ -217,6 +253,11 @@ class AuthService {
   async changePasswordWithTempToken({ tempToken, newPassword }) {
     if (!tempToken) {
       return { success: false, error: "Temporary token required", status: 400 };
+    }
+
+    const pwdErr = this._validatePasswordComplexity(newPassword);
+    if (pwdErr) {
+      return { success: false, error: pwdErr, status: 400 };
     }
 
     let decoded;

@@ -1,14 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
 
-export const RestrictionStatusCard = ({ statusData }) => {
-  const isActive = statusData?.isActive ?? true;
+export const RestrictionStatusCard = ({ statusData, onPress }) => {
+  const isActive = statusData?.isActive ?? false;
   const statusColor = isActive ? colors.active : colors.blocked;
   const statusBg = isActive ? colors.activeLight : colors.blockedLight;
-  const statusTitle = isActive ? 'Restrictions Active' : 'Restrictions Inactive';
+  const statusTitle = statusData?.statusTitle || (isActive ? 'Restrictions Active' : 'No Restrictions Active');
 
-  return (
+  const cardContent = (
     <View style={styles.card}>
       {/* Top Banner Row with Large Indicator */}
       <View style={styles.topRow}>
@@ -31,7 +31,7 @@ export const RestrictionStatusCard = ({ statusData }) => {
         <View style={styles.timeBlock}>
           <Text style={styles.label}>REMAINING TIME</Text>
           <Text style={styles.remainingTimeText}>
-            {statusData?.remainingTime || '2 Hours 15 Minutes'}
+            {statusData?.remainingTime || 'No active restriction'}
           </Text>
         </View>
 
@@ -41,12 +41,27 @@ export const RestrictionStatusCard = ({ statusData }) => {
         <View style={styles.scheduleBlock}>
           <Text style={styles.label}>TODAY'S SCHEDULE</Text>
           <Text style={styles.scheduleText}>
-            {statusData?.schedule || '09:00 AM – 04:00 PM'}
+            {statusData?.schedule || 'N/A'}
           </Text>
         </View>
       </View>
+
+      {/* Tap hint when tappable */}
+      {onPress && (
+        <Text style={styles.tapHint}>Tap to view restriction details →</Text>
+      )}
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
+        {cardContent}
+      </TouchableOpacity>
+    );
+  }
+
+  return cardContent;
 };
 
 const styles = StyleSheet.create({
@@ -122,6 +137,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textSecondary,
   },
+  tapHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'right',
+    marginTop: 10,
+  },
 });
 
 export default RestrictionStatusCard;
+

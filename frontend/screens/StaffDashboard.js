@@ -1,140 +1,135 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  SafeAreaView,
+  StatusBar,
   TouchableOpacity,
-  RefreshControl,
-  Alert,
 } from 'react-native';
-import api from '../services/api';
 
+/**
+ * StaffDashboard — Placeholder
+ * Staff portal is managed via the web dashboard.
+ * This screen informs the staff they should use the web interface.
+ */
 const StaffDashboard = ({ user, onLogout }) => {
-  const [liveData, setLiveData] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const fetchData = async () => {
-    try {
-      if (user?.classId) {
-        const data = await api.get(`/staff/classes/${user.classId}/live`);
-        setLiveData(data);
-      }
-    } catch (error) {
-      console.error('Fetch error:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  };
-
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Welcome, Staff</Text>
-          <Text style={styles.classInfo}>Class: {user?.classId || 'N/A'}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.container}>
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>👨‍🏫</Text>
         </View>
-        <TouchableOpacity onPress={onLogout} style={styles.logoutBtn}>
-          <Text style={styles.logoutText}>Logout</Text>
+        <Text style={styles.title}>Staff Portal</Text>
+        <Text style={styles.subtitle}>
+          Welcome, {user?.name || 'Staff Member'}.{'\n'}
+          The Staff Dashboard is accessible via the web portal.{'\n'}
+          This mobile app is intended for student use.
+        </Text>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoLabel}>Role</Text>
+          <Text style={styles.infoValue}>Staff / HOD</Text>
+          <View style={styles.divider} />
+          <Text style={styles.infoLabel}>Employee ID</Text>
+          <Text style={styles.infoValue}>{user?.employeeId || 'N/A'}</Text>
+          <View style={styles.divider} />
+          <Text style={styles.infoLabel}>Institution</Text>
+          <Text style={styles.infoValue}>{user?.institutionId || 'KSRCE'}</Text>
+        </View>
+        <TouchableOpacity style={styles.logoutButton} onPress={onLogout} activeOpacity={0.8}>
+          <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Class Live Status</Text>
-        {liveData ? (
-          <View style={styles.liveCard}>
-            <View style={styles.liveRow}>
-              <Text style={styles.liveLabel}>Online Students</Text>
-              <Text style={styles.liveValue}>{liveData.onlineCount || 0}</Text>
-            </View>
-            <View style={styles.liveRow}>
-              <Text style={styles.liveLabel}>Total Students</Text>
-              <Text style={styles.liveValue}>{liveData.totalStudents || 0}</Text>
-            </View>
-            <View style={styles.liveRow}>
-              <Text style={styles.liveLabel}>Active Rule</Text>
-              <Text style={styles.liveValue}>{liveData.activeRule ? 'Yes' : 'None'}</Text>
-            </View>
-          </View>
-        ) : (
-          <Text style={styles.emptyText}>Loading live status...</Text>
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert('Coming Soon', 'Student activity view will be available soon.')}>
-          <Text style={styles.actionText}>View Student Activity</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 50,
-    backgroundColor: '#059669',
-  },
-  greeting: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
-  classInfo: { fontSize: 13, color: '#D1FAE5', marginTop: 2 },
-  logoutBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 8,
-  },
-  logoutText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
-  section: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 12 },
-  liveCard: {
+  safeArea: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    backgroundColor: '#FFFFFF',
+  },
+  badge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  badgeText: {
+    fontSize: 36,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  infoCard: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
     borderRadius: 16,
-    padding: 20,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 28,
   },
-  liveRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 2,
   },
-  liveLabel: { fontSize: 14, color: '#64748B' },
-  liveValue: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
-  emptyText: { color: '#94A3B8', textAlign: 'center', paddingVertical: 20 },
-  actionBtn: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+  infoValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 12,
   },
-  actionText: { fontSize: 15, fontWeight: '600', color: '#2563EB' },
+  divider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  logoutButton: {
+    backgroundColor: '#EF4444',
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 16,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
 });
 
 export default StaffDashboard;

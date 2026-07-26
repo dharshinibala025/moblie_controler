@@ -33,6 +33,14 @@ const scannedAppSchema = new mongoose.Schema(
       ],
       default: "uncategorized",
     },
+    versionName: {
+      type: String,
+      default: "1.0.0",
+    },
+    isUserFacing: {
+      type: Boolean,
+      default: true,
+    },
     scannedAt: {
       type: Date,
       default: Date.now,

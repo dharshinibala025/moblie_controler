@@ -83,13 +83,13 @@ beforeEach(async () => {
   });
 
   const loginAdmin = await request(app).post("/auth/login").send({ email: "admin@test.com", password: "Admin@123" });
-  adminToken = loginAdmin.body.token;
+  adminToken = loginAdmin.body.accessToken || loginAdmin.body.token;
 
   const loginStaff = await request(app).post("/auth/login").send({ email: "staff@test.com", password: "Staff@123" });
-  staffToken = loginStaff.body.token;
+  staffToken = loginStaff.body.accessToken || loginStaff.body.token;
 
   const loginStudent = await request(app).post("/auth/login").send({ email: "student@test.com", password: "Student@123" });
-  studentToken = loginStudent.body.token;
+  studentToken = loginStudent.body.accessToken || loginStudent.body.token;
 });
 
 describe("AUTH - Login", () => {
@@ -99,9 +99,10 @@ describe("AUTH - Login", () => {
       .send({ email: "admin@test.com", password: "Admin@123" });
 
     expect(res.status).toBe(200);
-    expect(res.body.token).toBeDefined();
-    expect(typeof res.body.token).toBe("string");
-    expect(res.body.token.split(".")).toHaveLength(3);
+    const token = res.body.accessToken || res.body.token;
+    expect(token).toBeDefined();
+    expect(typeof token).toBe("string");
+    expect(token.split(".")).toHaveLength(3);
   });
 
   test("POST /auth/login with wrong password returns 401 (no field leak)", async () => {

@@ -1,135 +1,154 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
 
-const ICON_MAP = {
-  // Navigation & Core UI
-  home: '🏠',
-  analytics: '📊',
-  chart: '📈',
-  apps: '📱',
-  grid: '🔲',
-  bell: '🔔',
-  user: '👤',
-  profile: '👨‍🎓',
-  shield: '🛡️',
-  'shield-check': '🛡️',
-  'shield-alert': '⚠️',
-  'shield-off': '🔓',
-  lock: '🔒',
-  unlock: '🔓',
-  key: '🔑',
-  battery: '🔋',
-  wifi: '📶',
-  globe: '🌐',
-  internet: '⚡',
-  check: '✓',
-  'check-circle': '✅',
-  alert: '⚠️',
-  info: 'ℹ️',
-  time: '⏰',
-  clock: '🕒',
-  calendar: '📅',
-  book: '📚',
-  phone: '📞',
-  email: '✉️',
-  mail: '📧',
-  building: '🏢',
-  office: '🏫',
-  logout: '🚪',
-  refresh: '🔄',
-  search: '🔍',
-  filter: '🌪️',
-  'chevron-right': '›',
-  'chevron-left': '‹',
-  close: '✕',
-  plus: '+',
+/**
+ * Set of icon names handled by FontAwesome6 (Social & Media Applications)
+ */
+const FA6_ICONS = new Set([
+  'instagram',
+  'facebook',
+  'whatsapp',
+  'youtube',
+  'telegram',
+  'x-twitter',
+  'twitter',
+  'discord',
+  'snapchat',
+  'gamepad',
+  'controller-classic',
+]);
 
-  // Stats Icons
-  screen: '🖥️',
-  target: '🎯',
-  history: '📜',
-  sparkles: '✨',
-
-  // Blocked App Icons
-  instagram: '📸',
-  facebook: '👍',
-  whatsapp: '💬',
-  youtube: '▶️',
-  snapchat: '👻',
-  telegram: '✈️',
-  twitter: '𝕏',
-  discord: '🎮',
-  gamepad: '🎮',
-  'gamepad-variant': '👾',
-  movie: '🎬',
-
-  // Allowed Educational App Icons
-  'google-classroom': '🎓',
-  'microsoft-teams': '👥',
-  video: '📹',
-  'video-account': '💻',
-  web: '🌐',
-  'file-pdf-box': '📄',
+/**
+ * FontAwesome6 Name Normalization Map
+ */
+const FA6_NAME_MAP = {
+  twitter: 'x-twitter',
+  'controller-classic': 'gamepad',
 };
 
-const BRAND_COLORS = {
-  instagram: '#E4405F',
-  facebook: '#1877F2',
-  whatsapp: '#25D366',
-  youtube: '#FF0000',
-  snapchat: '#FFFC00',
-  telegram: '#0088CC',
-  twitter: '#000000',
-  discord: '#5865F2',
-  gamepad: '#9333EA',
-  'gamepad-variant': '#DC2626',
-  movie: '#E50914',
-
-  'google-classroom': '#0F9D58',
-  'microsoft-teams': '#6264A7',
-  video: '#2D8CFF',
-  'video-account': '#00897B',
-  email: '#EA4335',
-  web: '#4285F4',
-  'file-pdf-box': '#F44336',
+/**
+ * MaterialCommunityIcons Name Normalization Map
+ */
+const MCI_NAME_MAP = {
+  home: 'home',
+  analytics: 'chart-bar',
+  chart: 'chart-line',
+  apps: 'cellphone',
+  grid: 'apps',
+  bell: 'bell',
+  notifications: 'bell',
+  account: 'account',
+  user: 'account-circle',
+  profile: 'account-circle',
+  'account-circle': 'account-circle',
+  groups: 'account-group',
+  users: 'account-group',
+  shield: 'shield',
+  'shield-check': 'shield-check',
+  'shield-alert': 'shield-alert',
+  'shield-off': 'shield-off',
+  'shield-account': 'shield-account',
+  lock: 'lock',
+  blocked: 'lock',
+  unlock: 'lock-open',
+  unblocked: 'lock-open',
+  'lock-open': 'lock-open',
+  'lock-open-variant': 'lock-open',
+  key: 'key',
+  'key-variant': 'key-variant',
+  battery: 'battery',
+  wifi: 'wifi',
+  earth: 'earth',
+  web: 'earth',
+  internet: 'earth',
+  public: 'earth',
+  calendar: 'calendar',
+  'calendar-month': 'calendar-month',
+  time: 'clock-outline',
+  clock: 'clock-outline',
+  schedule: 'clock-outline',
+  'clock-outline': 'clock-outline',
+  'timer-outline': 'clock-outline',
+  information: 'information',
+  info: 'information',
+  alert: 'alert-circle',
+  'alert-circle': 'alert-circle',
+  check: 'check-circle',
+  'check-circle': 'check-circle',
+  active: 'check-circle',
+  close: 'close-circle',
+  'close-circle': 'close-circle',
+  inactive: 'close-circle',
+  magnify: 'magnify',
+  search: 'magnify',
+  filter: 'filter-variant',
+  refresh: 'refresh',
+  logout: 'logout',
+  'office-building': 'office-building',
+  office: 'office-building',
+  building: 'office-building',
+  school: 'school',
+  department: 'school',
+  email: 'email',
+  mail: 'email',
+  phone: 'phone',
+  call: 'phone',
+  'file-pdf-box': 'file-pdf-box',
+  book: 'book-open-page-variant',
+  'book-open-page-variant': 'book-open-page-variant',
+  settings: 'cog',
+  cog: 'cog',
+  plus: 'plus',
+  'chevron-left': 'chevron-left',
+  'chevron-right': 'chevron-right',
+  campaign: 'bullhorn',
+  announcement: 'bullhorn',
+  'card-account-details-outline': 'card-account-details-outline',
+  'student-id': 'card-account-details-outline',
+  'location-on': 'map-marker',
 };
 
-export const VectorIcon = ({ name, size = 20, color = '#2563EB', style, showBg = false, bgColor }) => {
-  const symbol = ICON_MAP[name] || '📌';
-  const brandBg = bgColor || BRAND_COLORS[name];
+/**
+ * Reusable VectorIcon component that automatically selects between
+ * MaterialCommunityIcons and FontAwesome6.
+ */
+export default function VectorIcon({
+  name,
+  size = 24,
+  color = '#2563EB',
+  style,
+}) {
+  const normalizedName = name ? name.toLowerCase() : 'help-circle-outline';
 
-  if (showBg || brandBg) {
-    const bg = brandBg || '#EFF6FF';
+  // Automatically dispatch to FontAwesome6 for social media and brand icons
+  if (FA6_ICONS.has(normalizedName)) {
+    const faName = FA6_NAME_MAP[normalizedName] || normalizedName;
+    const isBrand = faName !== 'gamepad';
+
     return (
-      <View
-        style={[
-          styles.bgIcon,
-          {
-            width: size * 1.8,
-            height: size * 1.8,
-            borderRadius: (size * 1.8) / 2.5,
-            backgroundColor: bg + (brandBg ? '1A' : ''), // 10% opacity for brand backgrounds
-          },
-          style,
-        ]}
-      >
-        <Text style={{ fontSize: size }}>{symbol}</Text>
-      </View>
+      <FontAwesome6
+        name={faName}
+        size={size}
+        color={color}
+        style={style}
+        brand={isBrand}
+        iconStyle={isBrand ? 'brand' : 'solid'}
+      />
     );
   }
 
+  // Dispatch to MaterialCommunityIcons for standard UI icons
+  const mciName = MCI_NAME_MAP[normalizedName] || normalizedName || 'help-circle-outline';
+
   return (
-    <Text style={[{ fontSize: size, color: color, textAlign: 'center' }, style]}>
-      {symbol}
-    </Text>
+    <MaterialCommunityIcons
+      name={mciName}
+      size={size}
+      color={color}
+      style={style}
+    />
   );
-};
+}
 
-const styles = StyleSheet.create({
-  bgIcon: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
-
-export default VectorIcon;
+export { VectorIcon };

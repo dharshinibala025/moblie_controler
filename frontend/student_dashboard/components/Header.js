@@ -1,6 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, StatusBar } from 'react-native';
 import { colors, shadows } from '../styles/theme';
+
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 12;
 
 export const Header = ({ student, onOpenProfile }) => {
   const getGreeting = () => {
@@ -8,6 +10,16 @@ export const Header = ({ student, onOpenProfile }) => {
     if (hour < 12) return 'Good Morning';
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
+  };
+
+  const getInitials = (name) => {
+    if (!name) return 'ST';
+    return name
+      .split(' ')
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
@@ -25,13 +37,13 @@ export const Header = ({ student, onOpenProfile }) => {
         {/* Greeting & Student Info */}
         <View style={styles.textContainer}>
           <Text style={styles.greetingText}>
-            {getGreeting()} 👋
+            {getGreeting()}
           </Text>
           <Text style={styles.studentName} numberOfLines={1}>
-            {student?.name || 'Rohit Sharma'}
+            {student?.name || 'Student'}
           </Text>
           <Text style={styles.departmentText} numberOfLines={1}>
-            {student?.department || 'CSE Department'}
+            {student?.department || 'Department'}
           </Text>
         </View>
       </View>
@@ -44,7 +56,7 @@ export const Header = ({ student, onOpenProfile }) => {
       >
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>
-            {student?.initials || 'RS'}
+            {getInitials(student?.name)}
           </Text>
         </View>
       </TouchableOpacity>
@@ -58,9 +70,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingTop: STATUSBAR_OFFSET, // Ensures text is positioned comfortably below notch & camera punch-hole
+    paddingBottom: 14,
     backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
   },
   leftSection: {
     flexDirection: 'row',
@@ -69,38 +83,39 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   logoBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 12,
     borderWidth: 1,
     borderColor: '#DBEAFE',
+    padding: 4,
   },
   logoImage: {
-    width: 28,
-    height: 28,
+    width: '100%',
+    height: '100%',
   },
   textContainer: {
     flex: 1,
     justifyContent: 'center',
   },
   greetingText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
     marginBottom: 2,
   },
   studentName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: colors.textPrimary,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   departmentText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.primary,
     marginTop: 1,
@@ -109,15 +124,15 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },

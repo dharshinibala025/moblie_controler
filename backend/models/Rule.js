@@ -33,6 +33,25 @@ const ruleSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    targetScope: {
+      type: {
+        type: String,
+        enum: ["student", "class", "department", "institution"],
+        default: "class",
+      },
+      targetId: {
+        type: String,
+        default: null,
+      },
+    },
+    reason: {
+      type: String,
+      default: "",
+    },
+    version: {
+      type: Number,
+      default: 1,
+    },
     institutionId: {
       type: String,
       default: null,

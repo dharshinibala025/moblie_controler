@@ -1,93 +1,16 @@
-export const mockData = {
-  student: {
-    name: 'Rohit Sharma',
-    registerNumber: '21CS084',
-    department: 'CSE Department',
-    fullDepartment: 'Computer Science & Engineering',
-    year: '3rd Year',
-    section: 'Section A',
-    email: 'rohit.sharma@college.edu',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
-    initials: 'RS',
-  },
+/**
+ * mockData.js — DEPRECATED
+ *
+ * All data is now loaded from the real backend API via:
+ *   frontend/services/studentService.js
+ *   frontend/services/authService.js
+ *
+ * This file is intentionally left empty to prevent any mock data
+ * from appearing in the application.
+ *
+ * DO NOT add mock data here.
+ */
 
-  restrictionStatus: {
-    isActive: true,
-    statusTitle: 'Restrictions Active',
-    schedule: '09:00 AM – 04:00 PM',
-    remainingTime: 'Remaining: 2 Hours 15 Minutes',
-    noticeText: 'Remotely controlled by Department HOD/Admin during active class hours.',
-  },
-
-  blockedApps: [
-    { id: '1', name: 'Instagram', category: 'Social Media', icon: 'instagram', blocked: true },
-    { id: '2', name: 'WhatsApp', category: 'Messaging', icon: 'whatsapp', blocked: true },
-    { id: '3', name: 'Facebook', category: 'Social Media', icon: 'facebook', blocked: true },
-    { id: '4', name: 'YouTube', category: 'Video Streaming', icon: 'youtube', blocked: true },
-    { id: '5', name: 'Telegram', category: 'Messaging', icon: 'telegram', blocked: true },
-    { id: '6', name: 'Games', category: 'Gaming', icon: 'gamepad', blocked: true },
-    { id: '7', name: 'Snapchat', category: 'Social Media', icon: 'snapchat', blocked: true },
-    { id: '8', name: 'X (Twitter)', category: 'Social Media', icon: 'twitter', blocked: true },
-  ],
-
-  recentActivity: [
-    {
-      id: 'a1',
-      time: '09:00 AM',
-      type: 'blocked',
-      title: 'Restrictions Enabled',
-      details: 'Instagram, WhatsApp, Facebook blocked',
-    },
-    {
-      id: 'a2',
-      time: '11:00 AM',
-      type: 'blocked',
-      title: 'Apps Blocked',
-      details: 'YouTube and Telegram blocked for theory session',
-    },
-    {
-      id: 'a3',
-      time: '01:00 PM',
-      type: 'unblocked',
-      title: 'Apps Unblocked',
-      details: 'Messaging apps unblocked for lunch break',
-    },
-    {
-      id: 'a4',
-      time: '02:00 PM',
-      type: 'blocked',
-      title: 'Restrictions Enabled',
-      details: 'All distracting apps re-blocked for lab session',
-    },
-    {
-      id: 'a5',
-      time: '04:00 PM',
-      type: 'unblocked',
-      title: 'Restrictions Disabled',
-      details: 'All applications unlocked',
-    },
-  ],
-
-  notifications: [
-    {
-      id: 'n1',
-      message: '📢 Mobile restrictions started.',
-      time: '09:00 AM',
-      read: false,
-    },
-    {
-      id: 'n2',
-      message: '📢 Restrictions will end at 4 PM.',
-      time: '10:00 AM',
-      read: false,
-    },
-    {
-      id: 'n3',
-      message: '📢 Tomorrow special lab session.',
-      time: 'Yesterday',
-      read: true,
-    },
-  ],
-};
+export const mockData = null;
 
 export default mockData;

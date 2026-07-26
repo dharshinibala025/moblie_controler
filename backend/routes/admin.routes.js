@@ -94,6 +94,15 @@ router.post("/users/staff", validate("createStaff"), async (req, res, next) => {
       }
     }
 
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "staff.create",
+      { type: "user", id: result.user._id },
+      { email, employeeId, classIds },
+      req.scopeInstitutionId || result.user.institutionId
+    );
+
     res.status(201).json({ user: result.user });
   } catch (err) {
     next(err);
@@ -423,6 +432,32 @@ router.get("/rules", async (req, res, next) => {
 router.patch("/rules/:id", validate("updateRule"), async (req, res, next) => {
   try {
     const rule = await ruleService.updateRule(req.params.id, req.body, req.user.userId, req.scopeInstitutionId);
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "rule.update",
+      { type: "rule", id: rule._id },
+      { targetClassId: rule.targetClassId },
+      req.scopeInstitutionId || rule.institutionId
+    );
+    res.json(rule);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/rules/:id/command", validate("commandBody"), async (req, res, next) => {
+  try {
+    const { action } = req.body;
+    const rule = await ruleService.sendCommand(req.params.id, action, req.user.userId, req.scopeInstitutionId);
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "rule.command",
+      { type: "rule", id: rule._id },
+      { action, targetClassId: rule.targetClassId },
+      req.scopeInstitutionId || rule.institutionId
+    );
     res.json(rule);
   } catch (err) {
     next(err);
@@ -457,6 +492,38 @@ router.get("/audit-log", async (req, res, next) => {
     if (req.query.limit) filters.limit = req.query.limit;
     const result = await auditService.getAuditLog(filters);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/scanned-apps", async (req, res, next) => {
+  try {
+    const ScannedApp = require("../models/ScannedApp");
+    const query = {};
+
+    if (req.query.studentId) {
+      query.studentId = req.query.studentId;
+    }
+    if (req.query.category) {
+      query.category = req.query.category;
+    }
+    if (req.query.search) {
+      query.$or = [
+        { appName: { $regex: req.query.search, $options: "i" } },
+        { packageName: { $regex: req.query.search, $options: "i" } },
+      ];
+    }
+
+    let apps = await ScannedApp.find(query)
+      .populate("studentId", "name email studentId classId")
+      .sort({ scannedAt: -1 });
+
+    if (req.query.classId) {
+      apps = apps.filter((app) => app.studentId && app.studentId.classId === req.query.classId);
+    }
+
+    res.json({ apps });
   } catch (err) {
     next(err);
   }

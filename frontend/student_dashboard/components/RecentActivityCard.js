@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
 import VectorIcon from './VectorIcon';
 
-export const RecentActivityCard = ({ activities = [] }) => {
+export const RecentActivityCard = ({ activities = [], onViewAll }) => {
   // Only display top 5 items
   const displayActivities = activities.slice(0, 5);
 
@@ -24,8 +24,8 @@ export const RecentActivityCard = ({ activities = [] }) => {
                 {/* Status Indicator Icon */}
                 <View style={[styles.iconWrapper, { backgroundColor: badgeBg }]}>
                   <VectorIcon
-                    name={isBlocked ? 'lock' : 'unlock'}
-                    size={16}
+                    name={isBlocked ? 'lock' : 'lock-open'}
+                    size={18}
                     color={badgeColor}
                   />
                 </View>
@@ -44,6 +44,21 @@ export const RecentActivityCard = ({ activities = [] }) => {
             </React.Fragment>
           );
         })}
+
+        {/* View All link */}
+        {onViewAll && activities.length > 0 && (
+          <>
+            <View style={styles.divider} />
+            <TouchableOpacity
+              style={styles.viewAllRow}
+              activeOpacity={0.7}
+              onPress={onViewAll}
+            >
+              <Text style={styles.viewAllText}>View Full Activity Timeline</Text>
+              <VectorIcon name="chevron-right" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
@@ -110,6 +125,18 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textSecondary,
     lineHeight: 18,
+  },
+  viewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });
 

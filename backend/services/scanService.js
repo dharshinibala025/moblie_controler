@@ -30,8 +30,19 @@ exports.processScan = async (studentId, deviceId, apps) => {
 
   await ScannedApp.insertMany(scannedDocs);
 
+  const scopeQueries = [
+    { targetClassId: student.classId },
+    { "targetScope.type": "student", "targetScope.targetId": student._id.toString() },
+    { "targetScope.type": "class", "targetScope.targetId": student.classId },
+    { "targetScope.type": "institution", "targetScope.targetId": student.institutionId || "KSRCE" },
+  ];
+
+  if (student.departmentId) {
+    scopeQueries.push({ "targetScope.type": "department", "targetScope.targetId": student.departmentId.toString() });
+  }
+
   const activeRules = await Rule.find({
-    targetClassId: student.classId,
+    $or: scopeQueries,
     status: "active",
   });
 

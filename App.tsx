@@ -5,7 +5,8 @@ import LoginScreen from './frontend/login/screens/LoginScreen';
 import PasswordResetScreen from './frontend/login/screens/PasswordResetScreen';
 import AdminDashboard from './frontend/screens/AdminDashboard';
 import StaffDashboard from './frontend/screens/StaffDashboard';
-import StudentDashboard from './frontend/screens/StudentDashboard';
+import StudentDashboardScreen from './frontend/student_dashboard/screens/StudentDashboardScreen';
+import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswordScreen';
 import OfflineScreen from './frontend/screens/OfflineScreen';
 import authService from './frontend/services/authService';
 
@@ -42,7 +43,7 @@ function App() {
   };
 
   const handleLoginSuccess = (data: any) => {
-    if (data.screen === 'passwordReset') {
+    if (data.screen === 'passwordReset' || data.mustChangePassword) {
       setAuthData(data);
       setScreen('passwordReset');
       return;
@@ -85,12 +86,14 @@ function App() {
 
       case 'passwordReset':
         return (
-          <PasswordResetScreen
-            preToken={authData?.tempToken || authData?.preToken}
-            userId={authData?.user?._id || authData?.userId}
-            role={authData?.user?.role || authData?.role}
-            onSuccess={handleLoginSuccess}
-            onBack={handleBackToLogin}
+          <SetNewPasswordScreen
+            tempToken={authData?.accessToken || authData?.tempToken || authData?.preToken}
+            onPasswordUpdated={async () => {
+              await authService.logout();
+              setUser(null);
+              setAuthData(null);
+              setScreen('login');
+            }}
           />
         );
 
@@ -105,7 +108,7 @@ function App() {
           case 'staff':
             return <StaffDashboard user={user} onLogout={handleLogout} />;
           case 'student':
-            return <StudentDashboard user={user} />;
+            return <StudentDashboardScreen onLogout={handleLogout} />;
           default:
             return <LoginScreen onLoginSuccess={handleLoginSuccess} onBack={handleBackToLogin} />;
         }

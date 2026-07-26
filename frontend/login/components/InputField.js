@@ -5,11 +5,14 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Platform,
+  Animated,
 } from 'react-native';
 import colors from '../styles/colors';
 import typography from '../styles/typography';
 
+/**
+ * Custom SVG-like Vector Icons using React Native Views
+ */
 const MailIcon = ({ color }) => (
   <View style={iconStyles.iconContainer}>
     <View style={[iconStyles.mailBox, { borderColor: color }]}>
@@ -39,7 +42,7 @@ export const InputField = ({
   value,
   onChangeText,
   placeholder,
-  iconType,
+  iconType, // 'email' | 'password'
   isPassword = false,
   keyboardType = 'default',
   autoCapitalize = 'none',
@@ -53,7 +56,7 @@ export const InputField = ({
   return (
     <View style={styles.container}>
       {label && <Text style={typography.inputLabel}>{label}</Text>}
-
+      
       <View
         style={[
           styles.inputWrapper,
@@ -61,11 +64,13 @@ export const InputField = ({
           error && styles.inputWrapperError,
         ]}
       >
+        {/* Left Icon */}
         <View style={styles.leftIconWrapper}>
           {iconType === 'email' && <MailIcon color={iconColor} />}
           {iconType === 'password' && <LockIcon color={iconColor} />}
         </View>
 
+        {/* Text Input */}
         <TextInput
           style={styles.textInput}
           value={value}
@@ -75,11 +80,11 @@ export const InputField = ({
           secureTextEntry={isPassword && !passwordVisible}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
-          underlineColorAndroid="transparent"
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
         />
 
+        {/* Right Password Toggle Icon */}
         {isPassword && (
           <TouchableOpacity
             activeOpacity={0.7}
@@ -143,16 +148,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.textPrimary,
     fontWeight: '500',
-    height: '100%',
-    ...Platform.select({
-      android: {
-        textAlignVertical: 'center',
-        includeFontPadding: false,
-      },
-      ios: {
-        paddingVertical: 12,
-      },
-    }),
+    paddingVertical: 12,
   },
   errorText: {
     fontSize: 12,

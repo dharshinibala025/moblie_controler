@@ -39,11 +39,13 @@ const startServer = async () => {
 };
 
 process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled Rejection:", reason);
+  console.error("Unhandled Rejection stack:", reason);
+  logger.error(reason, "Unhandled Rejection");
 });
 
 process.on("uncaughtException", (err) => {
-  logger.error("Uncaught Exception:", err);
+  console.error("Uncaught Exception stack:", err);
+  logger.error(err, "Uncaught Exception");
   process.exit(1);
 });
 

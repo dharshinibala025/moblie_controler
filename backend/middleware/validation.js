@@ -2,8 +2,9 @@ const Joi = require("joi");
 
 const schemas = {
   login: Joi.object({
-    email: Joi.string().email().required(),
+    email: Joi.string().trim().required(),
     password: Joi.string().min(6).required(),
+    role: Joi.string().optional(),
   }),
 
   createStudent: Joi.object({
@@ -86,6 +87,11 @@ const schemas = {
       .min(1)
       .required(),
     targetClassId: Joi.string().required(),
+    targetScope: Joi.object({
+      type: Joi.string().valid("student", "class", "department", "institution").default("class"),
+      targetId: Joi.string().allow(null, ""),
+    }).optional(),
+    reason: Joi.string().allow("").optional(),
     status: Joi.string().valid("draft", "active", "paused", "stopped").default("draft"),
   }),
 
@@ -97,6 +103,11 @@ const schemas = {
       .items(Joi.string().valid("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
       .min(1),
     targetClassId: Joi.string(),
+    targetScope: Joi.object({
+      type: Joi.string().valid("student", "class", "department", "institution"),
+      targetId: Joi.string().allow(null, ""),
+    }).optional(),
+    reason: Joi.string().allow("").optional(),
     status: Joi.string().valid("draft", "active", "paused", "stopped"),
   }).min(1),
 

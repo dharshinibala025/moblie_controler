@@ -12,13 +12,15 @@ import {
   StatusBar,
   SafeAreaView,
   TextInput,
+  Alert,
 } from 'react-native';
 import colors from '../styles/colors';
 import { LockIcon, EyeIcon, EyeOffIcon, InfoIcon, SuccessCheckIcon } from '../components/AuthIcons';
 import PasswordStrengthMeter from './PasswordStrengthMeter';
 import PasswordRequirements from './PasswordRequirements';
+import authService from '../../services/authService';
 
-export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
+export const SetNewPasswordScreen = ({ onPasswordUpdated, tempToken }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -50,14 +52,27 @@ export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
     return null;
   }, [newPassword, confirmPassword, isLengthValid, allRulesSatisfied, passwordsMatch]);
 
-  const handleUpdatePassword = () => {
+  const handleUpdatePassword = async () => {
     if (!canSubmit) return;
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await authService.changePasswordWithTempToken(tempToken, newPassword);
       setIsSuccess(true);
-    }, 1200);
+    } catch (err) {
+      const msg = err?.message || 'Password update failed. Please try again.';
+      if (err?.status === 401) {
+        Alert.alert(
+          'Session Expired',
+          'Your session has expired. Please log in again.',
+          [{ text: 'OK', onPress: () => onPasswordUpdated && onPasswordUpdated() }]
+        );
+      } else {
+        Alert.alert('Error', msg);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleContinue = () => {
@@ -79,164 +94,179 @@ export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {isSuccess ? (
-            /* Success View State */
-            <View style={styles.successCard}>
-              <SuccessCheckIcon size={72} color="#22C55E" />
+          <View style={styles.formContainer}>
+            {/* Header Section with Logo Badge */}
+            <View style={styles.headerSection}>
+              <View style={styles.logoBadgeContainer}>
+                <Image
+                  source={require('../assets/logo.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              </View>
 
-              <Text style={styles.successTitle}>Password Updated Successfully</Text>
-
-              <Text style={styles.successMessage}>
-                Your password has been updated successfully. You can now continue to the Department Mobile Controller.
+              <Text style={styles.headerTitle}>
+                {isSuccess ? 'FocusSync' : 'Create Your Password'}
               </Text>
-
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={handleContinue}
-                style={styles.primaryButton}
-              >
-                <Text style={styles.primaryButtonText}>Continue</Text>
-              </TouchableOpacity>
+              <Text style={styles.headerDescription}>
+                {isSuccess
+                  ? 'Account Security & Access Control'
+                  : 'For security reasons, you must create a new password before continuing.'}
+              </Text>
             </View>
-          ) : (
-            /* Set New Password Form View */
-            <View style={styles.formContainer}>
-              {/* College Logo Header */}
-              <View style={styles.headerSection}>
-                <View style={styles.logoBadgeContainer}>
-                  <Image
-                    source={require('../assets/logo.png')}
-                    style={styles.logoImage}
-                    resizeMode="contain"
-                  />
+
+            {isSuccess ? (
+              /* Success View State Card */
+              <View style={styles.successCard}>
+                <View style={styles.successIconBadge}>
+                  <SuccessCheckIcon size={52} color="#22C55E" />
                 </View>
 
-                <Text style={styles.headerTitle}>Create Your Password</Text>
-                <Text style={styles.headerDescription}>
-                  For security reasons, you must create a new password before continuing.
+                <Text style={styles.successTitle}>Password Updated Successfully</Text>
+
+                <Text style={styles.successMessage}>
+                  Your password has been updated successfully. You can now continue to the Department Mobile Controller.
                 </Text>
-              </View>
 
-              {/* Security Information Card */}
-              <View style={styles.infoCard}>
-                <View style={styles.infoCardHeader}>
-                  <InfoIcon size={18} color="#2563EB" />
-                  <Text style={styles.infoCardTitle}>First-Time Account Setup</Text>
-                </View>
-                <Text style={styles.infoCardContent}>
-                  You are currently signed in using a temporary password provided by the Department Administrator. Please create a new password that only you know.
-                </Text>
-              </View>
-
-              {/* Password Form Card */}
-              <View style={styles.card}>
-                {/* New Password Input */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>New Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <LockIcon size={18} color="#64748B" />
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter new password"
-                      placeholderTextColor="#94A3B8"
-                      secureTextEntry={!showNewPassword}
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                      autoCapitalize="none"
-                    />
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => setShowNewPassword(!showNewPassword)}
-                      style={styles.eyeToggle}
-                    >
-                      {showNewPassword ? (
-                        <EyeOffIcon size={16} color="#2563EB" />
-                      ) : (
-                        <EyeIcon size={16} color="#64748B" />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Password Strength Indicator */}
-                <PasswordStrengthMeter password={newPassword} />
-
-                {/* Confirm Password Input */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Confirm Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <LockIcon size={18} color="#64748B" />
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Re-enter new password"
-                      placeholderTextColor="#94A3B8"
-                      secureTextEntry={!showConfirmPassword}
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      autoCapitalize="none"
-                    />
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                      style={styles.eyeToggle}
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOffIcon size={16} color="#2563EB" />
-                      ) : (
-                        <EyeIcon size={16} color="#64748B" />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Password Requirements Checklist */}
-                <PasswordRequirements password={newPassword} />
-
-                {/* Inline Validation Message */}
-                {validationMessage && (
-                  <View
-                    style={[
-                      styles.validationBadge,
-                      allRulesSatisfied && passwordsMatch
-                        ? styles.validationSuccess
-                        : styles.validationError,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.validationText,
-                        allRulesSatisfied && passwordsMatch
-                          ? styles.textSuccess
-                          : styles.textError,
-                      ]}
-                    >
-                      {validationMessage}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Update Password Primary Button */}
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  onPress={handleUpdatePassword}
-                  disabled={!canSubmit}
-                  style={[
-                    styles.primaryButton,
-                    !canSubmit && styles.buttonDisabled,
-                  ]}
+                  onPress={handleContinue}
+                  style={styles.primaryButton}
                 >
-                  {loading ? (
-                    <View style={styles.loadingRow}>
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                      <Text style={styles.primaryButtonText}>Updating Password...</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.primaryButtonText}>Update Password</Text>
-                  )}
+                  <Text style={styles.primaryButtonText}>Continue</Text>
                 </TouchableOpacity>
               </View>
+            ) : (
+              /* Set New Password Form View */
+              <View style={styles.formSection}>
+                {/* Security Information Card */}
+                <View style={styles.infoCard}>
+                  <View style={styles.infoCardHeader}>
+                    <InfoIcon size={18} color="#2563EB" />
+                    <Text style={styles.infoCardTitle}>First-Time Account Setup</Text>
+                  </View>
+                  <Text style={styles.infoCardContent}>
+                    You are currently signed in using a temporary password provided by the Department Administrator. Please create a new password that only you know.
+                  </Text>
+                </View>
+
+                {/* Password Form Card */}
+                <View style={styles.card}>
+                  {/* New Password Input */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>New Password</Text>
+                    <View style={styles.inputWrapper}>
+                      <LockIcon size={18} color="#64748B" />
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="Enter new password"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showNewPassword}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => setShowNewPassword(!showNewPassword)}
+                        style={styles.eyeToggle}
+                      >
+                        {showNewPassword ? (
+                          <EyeOffIcon size={16} color="#2563EB" />
+                        ) : (
+                          <EyeIcon size={16} color="#64748B" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Password Strength Indicator */}
+                  <PasswordStrengthMeter password={newPassword} />
+
+                  {/* Confirm Password Input */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Confirm Password</Text>
+                    <View style={styles.inputWrapper}>
+                      <LockIcon size={18} color="#64748B" />
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="Re-enter new password"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showConfirmPassword}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                        style={styles.eyeToggle}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOffIcon size={16} color="#2563EB" />
+                        ) : (
+                          <EyeIcon size={16} color="#64748B" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Password Requirements Checklist */}
+                  <PasswordRequirements password={newPassword} />
+
+                  {/* Inline Validation Message */}
+                  {validationMessage && (
+                    <View
+                      style={[
+                        styles.validationBadge,
+                        allRulesSatisfied && passwordsMatch
+                          ? styles.validationSuccess
+                          : styles.validationError,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.validationText,
+                          allRulesSatisfied && passwordsMatch
+                            ? styles.textSuccess
+                            : styles.textError,
+                        ]}
+                      >
+                        {validationMessage}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Update Password Primary Button */}
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={handleUpdatePassword}
+                    disabled={!canSubmit}
+                    style={[
+                      styles.primaryButton,
+                      !canSubmit && styles.buttonDisabled,
+                    ]}
+                  >
+                    {loading ? (
+                      <View style={styles.loadingRow}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={styles.primaryButtonText}>Updating Password...</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.primaryButtonText}>Update Password</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Footer Section */}
+            <View style={styles.footerSection}>
+              <Text style={styles.footerText}>
+                FocusSync System • Department Controller
+              </Text>
             </View>
-          )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -407,6 +437,7 @@ const styles = StyleSheet.create({
 
   // Primary Button
   primaryButton: {
+    width: '100%',
     backgroundColor: '#2563EB',
     height: 52,
     borderRadius: 14,
@@ -435,37 +466,63 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
+  formSection: {
+    width: '100%',
+  },
+
   // Success View State Card
   successCard: {
     width: '100%',
-    maxWidth: 440,
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 28,
+    borderRadius: 22,
+    paddingHorizontal: 22,
+    paddingVertical: 28,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#F1F5F9',
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.07,
-    shadowRadius: 20,
-    elevation: 6,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  successIconBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F0FDF4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
   },
   successTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: '#0F172A',
     textAlign: 'center',
-    marginTop: 8,
+    marginBottom: 8,
   },
   successMessage: {
     fontSize: 14,
     fontWeight: '500',
     color: '#475569',
     textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 20,
     lineHeight: 20,
+    marginBottom: 16,
+  },
+
+  // Footer Section
+  footerSection: {
+    marginTop: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
   },
 });
 

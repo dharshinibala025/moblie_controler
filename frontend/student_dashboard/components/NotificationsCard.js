@@ -1,12 +1,31 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
+import VectorIcon from './VectorIcon';
 
 export const NotificationsCard = ({ notifications = [], onViewAll }) => {
+  const formatTime = (createdAt) => {
+    if (!createdAt) return '';
+    const date = new Date(createdAt);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  };
+
+  const displayNotifications = notifications.slice(0, 5);
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
+        <View style={styles.titleRow}>
+          <VectorIcon name="bell" size={22} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Notifications</Text>
+        </View>
         {onViewAll && (
           <TouchableOpacity activeOpacity={0.7} onPress={onViewAll}>
             <Text style={styles.viewAllText}>View All</Text>
@@ -14,32 +33,47 @@ export const NotificationsCard = ({ notifications = [], onViewAll }) => {
         )}
       </View>
 
-      <View style={styles.card}>
-        {notifications.map((item, index) => (
-          <React.Fragment key={item.id || index}>
-            {index > 0 && <View style={styles.divider} />}
-            <View style={styles.notificationRow}>
-              {/* Unread Dot Indicator */}
-              <View style={styles.statusDotWrapper}>
+      {displayNotifications.length === 0 ? (
+        <View style={[styles.card, styles.emptyCard]}>
+          <VectorIcon name="bell" size={24} color={colors.textMuted} />
+          <Text style={styles.emptyText}>No notifications yet</Text>
+        </View>
+      ) : (
+        <View style={styles.card}>
+          {displayNotifications.map((item, index) => (
+            <React.Fragment key={item._id || item.id || index}>
+              {index > 0 && <View style={styles.divider} />}
+              <View style={styles.notificationRow}>
+                {/* Notification Bell Icon */}
+                <View style={styles.iconWrapper}>
+                  <VectorIcon name="bell" size={18} color={colors.primary} />
+                </View>
+
+                {/* Message Content */}
+                <View style={styles.contentWrapper}>
+                  {item.title ? (
+                    <Text style={[styles.titleText, !item.read && styles.unreadTitleText]}>
+                      {item.title}
+                    </Text>
+                  ) : null}
+                  <Text
+                    style={[
+                      styles.messageText,
+                      !item.read && styles.unreadMessageText,
+                    ]}
+                  >
+                    {item.message}
+                  </Text>
+                  <Text style={styles.timeText}>{formatTime(item.createdAt || item.time)}</Text>
+                </View>
+
+                {/* Unread Dot Indicator */}
                 {!item.read && <View style={styles.unreadDot} />}
               </View>
-
-              {/* Message Content */}
-              <View style={styles.contentWrapper}>
-                <Text
-                  style={[
-                    styles.messageText,
-                    !item.read && styles.unreadMessageText,
-                  ]}
-                >
-                  {item.message}
-                </Text>
-                <Text style={styles.timeText}>{item.time}</Text>
-              </View>
-            </View>
-          </React.Fragment>
-        ))}
-      </View>
+            </React.Fragment>
+          ))}
+        </View>
+      )}
     </View>
   );
 };
@@ -54,6 +88,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   sectionTitle: {
     fontSize: 16,
@@ -75,34 +114,30 @@ const styles = StyleSheet.create({
   },
   notificationRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingVertical: 10,
   },
   divider: {
     height: 1,
     backgroundColor: colors.borderLight,
   },
-  statusDotWrapper: {
-    width: 14,
+  iconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 5,
-    marginRight: 8,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primary,
+    marginRight: 10,
   },
   contentWrapper: {
     flex: 1,
   },
   messageText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   unreadMessageText: {
     fontWeight: '700',
@@ -112,7 +147,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: colors.textMuted,
-    marginTop: 4,
+    marginTop: 2,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginLeft: 8,
+  },
+  titleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  unreadTitleText: {
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  emptyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 20,
+  },
+  emptyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
 });
 
