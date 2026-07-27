@@ -114,7 +114,8 @@ userSchema.index({ departmentId: 1 });
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   if (!this.password) return next();
-  this.password = await bcrypt.hash(this.password, 12);
+  const saltRounds = process.env.NODE_ENV === "test" ? 1 : 12;
+  this.password = await bcrypt.hash(this.password, saltRounds);
   this.hasSetPassword = true;
   next();
 });

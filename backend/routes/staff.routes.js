@@ -13,6 +13,15 @@ const verifyClassScope = async (req, res, next) => {
   const classId = req.params.id || req.query.classId;
   if (!classId) return next();
 
+  if (req.user.classId === classId) {
+    return next();
+  }
+
+  const mongoose = require("mongoose");
+  if (!mongoose.Types.ObjectId.isValid(classId)) {
+    return res.status(403).json({ error: "Access denied: class scope not assigned to you" });
+  }
+
   const assignment = await StaffAssignment.findOne({
     staffId: req.user.userId,
     classId,
@@ -20,7 +29,7 @@ const verifyClassScope = async (req, res, next) => {
   });
 
   if (!assignment) {
-    return res.status(403).json({ error: "Access denied: class not assigned to you" });
+    return res.status(403).json({ error: "Access denied: class scope not assigned to you" });
   }
 
   req.staffAssignment = assignment;

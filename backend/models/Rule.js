@@ -36,7 +36,7 @@ const ruleSchema = new mongoose.Schema(
     targetScope: {
       type: {
         type: String,
-        enum: ["student", "class", "department", "institution"],
+        enum: ["student", "class", "department", "year", "institution"],
         default: "class",
       },
       targetId: {
@@ -51,6 +51,14 @@ const ruleSchema = new mongoose.Schema(
     version: {
       type: Number,
       default: 1,
+    },
+    policyVersion: {
+      type: Number,
+      default: 1,
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
     },
     institutionId: {
       type: String,

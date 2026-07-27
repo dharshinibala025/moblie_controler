@@ -28,6 +28,23 @@ const appsCatalogSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isSocialMedia: {
+      type: Boolean,
+      default: false,
+    },
+    platform: {
+      type: String,
+      default: "Android",
+    },
+    riskLevel: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      default: "medium",
+    },
+    active: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );

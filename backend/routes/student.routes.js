@@ -123,9 +123,12 @@ router.get("/dashboard", async (req, res, next) => {
       status: "active",
     }).sort({ updatedAt: -1 });
 
+    const { isRuleActiveNow } = require("../utils/scheduleHelper");
     const activeRule = activeRules[0] || null;
+    const currentlyEnforcedRules = activeRules.filter((rule) => isRuleActiveNow(rule, new Date()));
+
     const blockedAppsSet = new Set();
-    activeRules.forEach((rule) => {
+    currentlyEnforcedRules.forEach((rule) => {
       rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
     });
 
@@ -150,21 +153,21 @@ router.get("/dashboard", async (req, res, next) => {
     });
 
     let isActive = false;
-    let remainingTime = "No active restriction";
+    let remainingTime = "No active restriction window";
 
     if (activeRule) {
       const now = new Date();
-      const [startH, startM] = activeRule.scheduleStart.split(":").map(Number);
-      const [endH, endM] = activeRule.scheduleEnd.split(":").map(Number);
-      const startTime = new Date(now).setHours(startH, startM, 0, 0);
-      const endTime = new Date(now).setHours(endH, endM, 0, 0);
+      isActive = isRuleActiveNow(activeRule, now);
 
-      if (now >= startTime && now <= endTime) {
-        isActive = true;
-        const diffMs = endTime - now;
+      if (isActive) {
+        const [endH, endM] = activeRule.scheduleEnd.split(":").map(Number);
+        const endTime = new Date(now).setHours(endH, endM, 0, 0);
+        const diffMs = Math.max(0, endTime - now);
         const hours = Math.floor(diffMs / (1000 * 60 * 60));
         const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
         remainingTime = `Remaining: ${hours} Hours ${mins} Minutes`;
+      } else {
+        remainingTime = `Schedule Window: ${activeRule.scheduleStart} – ${activeRule.scheduleEnd}`;
       }
     }
 
@@ -214,6 +217,7 @@ router.get("/apps", async (req, res, next) => {
     const Rule = require("../models/Rule");
     const ScannedApp = require("../models/ScannedApp");
     const User = require("../models/User");
+    const { isRuleActiveNow } = require("../utils/scheduleHelper");
 
     const student = await User.findById(req.user.userId);
     const scannedApps = await ScannedApp.find({ studentId: req.user.userId }).sort({ appName: 1 });
@@ -228,8 +232,10 @@ router.get("/apps", async (req, res, next) => {
       status: "active",
     });
 
+    const currentlyEnforcedRules = activeRules.filter((rule) => isRuleActiveNow(rule, new Date()));
+
     const blockedAppsSet = new Set();
-    activeRules.forEach((rule) => {
+    currentlyEnforcedRules.forEach((rule) => {
       rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
     });
 
@@ -284,6 +290,46 @@ router.post("/notifications/:id/read", async (req, res, next) => {
       { read: true }
     );
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/blocked-attempt", async (req, res, next) => {
+  try {
+    const { packageName, appName, policyVersion, attemptedAt } = req.body;
+    const User = require("../models/User");
+    const BlockedAttempt = require("../models/BlockedAttempt");
+
+    const student = await User.findById(req.user.userId);
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    const device = await deviceService.getDeviceByUser(req.user.userId);
+    if (!device) {
+      return res.status(403).json({ error: "Device not registered" });
+    }
+
+    const attempt = await BlockedAttempt.create({
+      studentId: req.user.userId,
+      deviceId: device._id,
+      packageName,
+      appName: appName || "",
+      policyVersion: policyVersion || 1,
+      attemptedAt: attemptedAt ? new Date(attemptedAt) : new Date(),
+    });
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "blocked_attempt",
+      { type: "device", id: device._id },
+      { packageName, appName, policyVersion },
+      student.institutionId || "KSRCE"
+    );
+
+    res.status(201).json({ success: true, attemptId: attempt._id });
   } catch (err) {
     next(err);
   }

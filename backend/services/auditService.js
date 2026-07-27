@@ -1,7 +1,7 @@
 const AuditLog = require("../models/AuditLog");
 const logger = require("../utils/logger");
 
-exports.logAction = async (actorId, actorRole, action, target, details = null) => {
+exports.logAction = async (actorId, actorRole, action, target, details = null, institutionId = null) => {
   try {
     const entry = await AuditLog.create({
       actorId,
@@ -9,6 +9,7 @@ exports.logAction = async (actorId, actorRole, action, target, details = null) =
       action,
       target,
       details,
+      institutionId,
     });
     return entry;
   } catch (err) {
@@ -20,21 +21,8 @@ exports.logAction = async (actorId, actorRole, action, target, details = null) =
 exports.getAuditLog = async (filters = {}) => {
   const query = {};
   if (filters.action) query.action = filters.action;
-  
-  if (filters.actorId && filters.institutionId) {
-    const User = require("../models/User");
-    const actors = await User.find({ 
-      institutionId: filters.institutionId,
-      _id: filters.actorId 
-    }).select("_id");
-    query.actorId = { $in: actors.map((a) => a._id) };
-  } else if (filters.institutionId) {
-    const User = require("../models/User");
-    const actors = await User.find({ institutionId: filters.institutionId }).select("_id");
-    query.actorId = { $in: actors.map((a) => a._id) };
-  } else if (filters.actorId) {
-    query.actorId = filters.actorId;
-  }
+  if (filters.institutionId) query.institutionId = filters.institutionId;
+  if (filters.actorId) query.actorId = filters.actorId;
 
   const page = Math.max(1, parseInt(filters.page) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(filters.limit) || 20));

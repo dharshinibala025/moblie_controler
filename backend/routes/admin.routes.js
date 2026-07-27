@@ -401,6 +401,90 @@ router.delete("/staff-assignments/:id", async (req, res, next) => {
   }
 });
 
+// ========== CATALOG ROUTES ==========
+
+router.get("/catalog", async (req, res, next) => {
+  try {
+    const AppsCatalog = require("../models/AppsCatalog");
+    const query = {};
+    if (req.query.category) query.category = req.query.category;
+    if (req.query.isDangerous !== undefined) query.isDangerous = req.query.isDangerous === "true";
+    const catalog = await AppsCatalog.find(query).sort({ appName: 1 });
+    res.json(catalog);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/catalog/:packageName", validate("updateCatalog"), async (req, res, next) => {
+  try {
+    const AppsCatalog = require("../models/AppsCatalog");
+    const app = await AppsCatalog.findOneAndUpdate(
+      { packageName: req.params.packageName },
+      { $set: req.body },
+      { new: true }
+    );
+    if (!app) {
+      return res.status(404).json({ error: "App not found in catalog" });
+    }
+    res.json(app);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ========== STAFF ALIAS ROUTE ==========
+// Simplified staff creation endpoint (accepts name, email, password, classId)
+
+router.post("/staff", async (req, res, next) => {
+  try {
+    const { name, email, password, classId } = req.body;
+
+    if (!name || !email || !password || !classId) {
+      return res.status(400).json({ error: "Validation failed", details: ["name, email, password, classId are required"] });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Validation failed", details: ["Invalid email address"] });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Validation failed", details: ["Password must be at least 8 characters"] });
+    }
+
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(409).json({ error: "A user with this email already exists" });
+    }
+
+    const newStaff = await User.create({
+      name,
+      email: email.toLowerCase(),
+      password,
+      role: "staff",
+      classId,
+      institutionId: req.scopeInstitutionId || "KSRCE",
+      isActive: true,
+      status: "active",
+    });
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "staff.create",
+      { type: "user", id: newStaff._id },
+      { email, classId },
+      req.scopeInstitutionId || "KSRCE"
+    );
+
+    const staffObj = newStaff.toObject();
+    delete staffObj.password;
+    res.status(201).json(staffObj);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ========== EXISTING ROUTES ==========
 
 router.post("/rules", validate("createRule"), async (req, res, next) => {
@@ -409,7 +493,14 @@ router.post("/rules", validate("createRule"), async (req, res, next) => {
       req.body.institutionId = req.scopeInstitutionId;
     }
     const rule = await ruleService.createRule(req.body, req.user.userId);
-    await auditService.logAction(req.user.userId, req.user.role, "rule.create", { type: "rule", id: rule._id }, { targetClassId: rule.targetClassId });
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "rule.create",
+      { type: "rule", id: rule._id },
+      { targetClassId: rule.targetClassId },
+      req.scopeInstitutionId || rule.institutionId
+    );
     res.status(201).json(rule);
   } catch (err) {
     next(err);
@@ -476,8 +567,93 @@ router.get("/devices", async (req, res, next) => {
 router.get("/reports/overview", async (req, res, next) => {
   try {
     const institutionId = req.scopeInstitutionId || req.user.institutionId;
-    const reports = await reportService.getInstitutionOverview(institutionId, req.query.startDate, req.query.endDate);
+    const endDate = req.query.endDate || new Date().toISOString();
+    const startDate = req.query.startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const reports = await reportService.getInstitutionOverview(institutionId, startDate, endDate);
     res.json(reports);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/reports/daily", async (req, res, next) => {
+  try {
+    const { classId, date } = req.query;
+    if (!classId) {
+      return res.status(400).json({ error: "classId is required" });
+    }
+    const report = await reportService.getDailyReport(
+      classId,
+      date || new Date().toISOString(),
+      req.scopeInstitutionId
+    );
+    res.json(report);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/reports/weekly", async (req, res, next) => {
+  try {
+    const { classId, startDate } = req.query;
+    if (!classId) {
+      return res.status(400).json({ error: "classId is required" });
+    }
+    const report = await reportService.getWeeklyReport(
+      classId,
+      startDate || new Date().toISOString(),
+      req.scopeInstitutionId
+    );
+    res.json(report);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/reports/student/:id", async (req, res, next) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const report = await reportService.getStudentReport(
+      req.params.id,
+      startDate,
+      endDate,
+      req.scopeInstitutionId
+    );
+    res.json(report);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/reports/export", async (req, res, next) => {
+  try {
+    const { classId, format = "json", startDate, endDate } = req.query;
+    if (!classId) {
+      return res.status(400).json({ error: "classId is required" });
+    }
+
+    const report = await reportService.getDailyReport(
+      classId,
+      startDate || new Date().toISOString(),
+      req.scopeInstitutionId
+    );
+
+    if (format === "pdf") {
+      const doc = new (require("pdfkit"))();
+      res.setHeader("Content-Type", "application/pdf");
+      doc.pipe(res);
+      doc.fontSize(16).text(`Class Report — ${classId}`, { align: "center" });
+      doc.moveDown();
+      doc.fontSize(12).text(`Total Students: ${report.totalStudents}`);
+      doc.moveDown();
+      doc.text("Top Blocked Apps:");
+      for (const app of report.topApps || []) {
+        doc.text(`  ${app.appName || app.packageName}: ${app.count} blocks`);
+      }
+      doc.end();
+    } else {
+      res.json({ ...report, classId });
+    }
   } catch (err) {
     next(err);
   }
@@ -524,6 +700,117 @@ router.get("/scanned-apps", async (req, res, next) => {
     }
 
     res.json({ apps });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/students/:id/social-apps", async (req, res, next) => {
+  try {
+    const ScannedApp = require("../models/ScannedApp");
+    const Device = require("../models/Device");
+    const Rule = require("../models/Rule");
+    const User = require("../models/User");
+
+    const studentId = req.params.id;
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    const device = await Device.findOne({ userId: studentId }).sort({ updatedAt: -1 });
+    const deviceId = device ? device._id : null;
+    const lastSyncAt = device ? device.lastSyncAt : null;
+
+    const activeRules = await Rule.find({
+      $or: [
+        { targetClassId: student.classId },
+        { "targetScope.type": "student", "targetScope.targetId": student._id.toString() },
+        { "targetScope.type": "class", "targetScope.targetId": student.classId },
+        { "targetScope.type": "institution", "targetScope.targetId": student.institutionId || "KSRCE" },
+        ...(student.departmentId ? [{ "targetScope.type": "department", "targetScope.targetId": student.departmentId.toString() }] : []),
+        ...(student.academicYearId ? [{ "targetScope.type": "year", "targetScope.targetId": student.academicYearId.toString() }] : []),
+      ],
+      status: "active",
+    });
+
+    const blockedAppsSet = new Set();
+    let maxPolicyVersion = 0;
+    activeRules.forEach((rule) => {
+      maxPolicyVersion = Math.max(maxPolicyVersion, rule.policyVersion || 1);
+      rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
+    });
+
+    const query = { studentId, removedAt: null };
+    const { category, search, sort } = req.query;
+
+    if (category) {
+      query.category = category;
+    }
+    if (search) {
+      query.$or = [
+        { appName: { $regex: search, $options: "i" } },
+        { packageName: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    let appsQuery = ScannedApp.find(query);
+
+    if (sort === "name") {
+      appsQuery = appsQuery.sort({ appName: 1 });
+    } else if (sort === "installed") {
+      appsQuery = appsQuery.sort({ createdAt: 1 });
+    } else {
+      appsQuery = appsQuery.sort({ appName: 1 });
+    }
+
+    const scannedApps = await appsQuery;
+    const lastScanAt = scannedApps.length > 0 ? scannedApps[0].scannedAt : null;
+
+    const appsList = scannedApps.map((app) => {
+      const isBlocked = blockedAppsSet.has(app.packageName);
+      return {
+        packageName: app.packageName,
+        appName: app.appName,
+        iconCategory: app.category || "social",
+        installedAt: app.createdAt,
+        lastUpdatedAt: app.updatedAt,
+        restrictionStatus: isBlocked ? "restricted" : "allowed",
+        policyVersion: isBlocked ? maxPolicyVersion : 0,
+        lastSyncAt,
+      };
+    });
+
+    res.json({
+      studentId,
+      deviceId,
+      lastScanAt,
+      apps: appsList,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/reports/blocked-attempts", async (req, res, next) => {
+  try {
+    const BlockedAttempt = require("../models/BlockedAttempt");
+    const query = {};
+
+    if (req.query.studentId) {
+      query.studentId = req.query.studentId;
+    }
+    if (req.query.packageName) {
+      query.packageName = req.query.packageName;
+    }
+
+    const attempts = await BlockedAttempt.find(query)
+      .populate("studentId", "name email studentId classId")
+      .populate("deviceId", "deviceInfo")
+      .sort({ attemptedAt: -1 })
+      .limit(100);
+
+    res.json({ attempts });
   } catch (err) {
     next(err);
   }

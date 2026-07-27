@@ -2,11 +2,14 @@ package com.mobile_controller
 
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 
@@ -52,6 +55,89 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             promise.resolve(resultArray)
         } catch (e: Exception) {
             promise.reject("SCAN_ERROR", e.localizedMessage, e)
+        }
+    }
+
+    @ReactMethod
+    fun getDeviceInfo(promise: Promise) {
+        try {
+            val deviceId = Settings.Secure.getString(
+                reactContext.contentResolver,
+                Settings.Secure.ANDROID_ID
+            ) ?: "unknown_android"
+            
+            val infoMap = Arguments.createMap()
+            infoMap.putString("platform", "android")
+            infoMap.putString("deviceId", deviceId)
+            infoMap.putString("osVersion", Build.VERSION.RELEASE ?: "14")
+            infoMap.putString("deviceModel", Build.MODEL ?: "Emulator")
+            infoMap.putString("manufacturer", Build.MANUFACTURER ?: "Google")
+            
+            var appVersion = "1.0.0"
+            try {
+                val packageInfo = reactContext.packageManager.getPackageInfo(reactContext.packageName, 0)
+                appVersion = packageInfo.versionName ?: "1.0.0"
+            } catch (e: Exception) {
+                // fallback
+            }
+            infoMap.putString("appVersion", appVersion)
+            
+            promise.resolve(infoMap)
+        } catch (e: Exception) {
+            promise.reject("DEVICE_INFO_ERROR", e.localizedMessage, e)
+        }
+    }
+
+    @ReactMethod
+    fun savePolicy(
+        ruleId: String,
+        blockedApps: ReadableArray,
+        scheduleStart: String,
+        scheduleEnd: String,
+        activeDays: ReadableArray,
+        reason: String,
+        version: Int,
+        promise: Promise
+    ) {
+        try {
+            val blockedList = mutableListOf<String>()
+            for (i in 0 until blockedApps.size()) {
+                val app = blockedApps.getString(i)
+                if (app != null) {
+                    blockedList.add(app)
+                }
+            }
+
+            val daysList = mutableListOf<String>()
+            for (i in 0 until activeDays.size()) {
+                val day = activeDays.getString(i)
+                if (day != null) {
+                    daysList.add(day)
+                }
+            }
+
+            // 1. Save to SharedPreferences local storage (AccessibilityService reads this)
+            val policyStorage = PolicyStorage(reactContext)
+            policyStorage.savePolicy(
+                ruleId,
+                blockedList,
+                scheduleStart,
+                scheduleEnd,
+                daysList,
+                reason,
+                version
+            )
+
+            // 2. Call Enterprise EMM Device Policy Manager (sets package suspension if app is Device Owner)
+            val mdmPolicyManager = MdmPolicyManager(reactContext)
+            val mdmEnforced = mdmPolicyManager.applyAppRestrictions(blockedList, true)
+
+            val result = Arguments.createMap()
+            result.putBoolean("success", true)
+            result.putBoolean("mdmEnforced", mdmEnforced)
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("SAVE_POLICY_ERROR", e.localizedMessage, e)
         }
     }
 }

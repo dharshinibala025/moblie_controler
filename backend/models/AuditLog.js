@@ -1,5 +1,16 @@
 const mongoose = require("mongoose");
 
+const targetSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["rule", "user", "device", "catalog", "auth", "student"],
+    },
+    id: { type: mongoose.Schema.Types.Mixed },
+  },
+  { _id: false }
+);
+
 const auditLogSchema = new mongoose.Schema(
   {
     actorId: {
@@ -33,16 +44,15 @@ const auditLogSchema = new mongoose.Schema(
         "student.register",
         "student.update",
         "student.delete",
+        "blocked_attempt",
       ],
       required: true,
     },
-    target: {
-      type: {
-        type: String,
-        enum: ["rule", "user", "device", "catalog", "auth", "student"],
-      },
-      id: { type: mongoose.Schema.Types.Mixed },
+    institutionId: {
+      type: String,
+      default: null,
     },
+    target: targetSchema,
     details: {
       type: mongoose.Schema.Types.Mixed,
       default: null,
@@ -53,6 +63,7 @@ const auditLogSchema = new mongoose.Schema(
 
 auditLogSchema.index({ actorId: 1, timestamp: -1 });
 auditLogSchema.index({ action: 1, timestamp: -1 });
+auditLogSchema.index({ institutionId: 1, timestamp: -1 });
 auditLogSchema.index({ timestamp: -1 });
 
 module.exports = mongoose.model("AuditLog", auditLogSchema);

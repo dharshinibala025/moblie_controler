@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Text,
   TouchableOpacity,
+  AppState,
 } from 'react-native';
 import HomeScreen from './HomeScreen';
 import AppsScreen from './AppsScreen';
@@ -20,6 +21,7 @@ import DeviceInfoScreen from './DeviceInfoScreen';
 import SyncStatusScreen from './SyncStatusScreen';
 import RestrictionInfoScreen from './RestrictionInfoScreen';
 import { fetchDashboard, fetchApps, fetchNotifications, fetchUnreadCount } from '../../services/studentService';
+import syncService from '../../services/syncService';
 import { colors } from '../styles/theme';
 
 export const StudentDashboardScreen = ({ onLogout }) => {
@@ -72,12 +74,41 @@ export const StudentDashboardScreen = ({ onLogout }) => {
   }, [onLogout]);
 
   useEffect(() => {
-    loadAllData(false);
+    let isMounted = true;
+    const initSyncAndLoad = async () => {
+      try {
+        await syncService.sync('login');
+      } catch (e) {
+        console.warn('Sync notice:', e.message);
+      }
+      if (isMounted) {
+        await loadAllData(false);
+      }
+    };
+    initSyncAndLoad();
+
+    // Sync on foreground AppState transitions
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      if (nextAppState === 'active') {
+        try {
+          await syncService.sync('foreground');
+        } catch (e) {}
+        loadAllData(true);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
   }, [loadAllData]);
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    loadAllData(true);
+    try {
+      await syncService.sync('reconnect');
+    } catch (e) {}
+    await loadAllData(true);
   }, [loadAllData]);
 
   // ─── Tab switching animation ───────────────────────────────────────────────

@@ -2,7 +2,7 @@ const Joi = require("joi");
 
 const schemas = {
   login: Joi.object({
-    email: Joi.string().trim().required(),
+    email: Joi.string().email().trim().required(),
     password: Joi.string().min(6).required(),
     role: Joi.string().optional(),
   }),
@@ -32,12 +32,12 @@ const schemas = {
   registerDevice: Joi.object({
     fcmToken: Joi.string().required(),
     deviceInfo: Joi.object({
-      platform: Joi.string().valid("android", "ios").required(),
-      osVersion: Joi.string().allow(null, ""),
-      appVersion: Joi.string().allow(null, ""),
-      deviceModel: Joi.string().allow(null, ""),
-      deviceId: Joi.string().required(),
-    }).required(),
+      platform: Joi.string().valid("android", "ios").default("android"),
+      osVersion: Joi.string().allow(null, "").default(""),
+      appVersion: Joi.string().allow(null, "").default(""),
+      deviceModel: Joi.string().allow(null, "").default(""),
+      deviceId: Joi.string().default("default-device-id"),
+    }).default({ platform: "android", deviceId: "default-device-id" }),
   }),
 
   scanApps: Joi.object({

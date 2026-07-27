@@ -102,7 +102,11 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
           <View style={styles.scheduleTextContainer}>
             <Text style={styles.scheduleLabel}>Today's Restriction Schedule</Text>
-            <Text style={styles.scheduleTime}>09:00 AM – 04:00 PM</Text>
+            <Text style={styles.scheduleTime}>
+              {data?.restrictionStatus?.schedule && data.restrictionStatus.schedule !== 'N/A'
+                ? data.restrictionStatus.schedule
+                : 'No active schedule'}
+            </Text>
           </View>
 
           <View style={styles.iconCircle}>

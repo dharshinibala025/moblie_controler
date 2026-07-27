@@ -502,7 +502,7 @@ describe("STUDENT - Usage Logs", () => {
     const loginRes = await request(app)
       .post("/auth/login")
       .send({ email: "nodevice@test.com", password: "Test@123" });
-    const noDeviceToken = loginRes.body.token;
+    const noDeviceToken = loginRes.body.accessToken || loginRes.body.token;
 
     const res = await request(app)
       .post("/student/usage")

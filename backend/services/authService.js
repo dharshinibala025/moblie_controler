@@ -36,7 +36,7 @@ class AuthService {
 
     if (!user) {
       await this._logAuth({ email: cleanInput, action: "login.failed", ip, userAgent, details: { reason: "user_not_found" } });
-      return { success: false, error: "Invalid email or password", status: 401 };
+      return { success: false, error: "Invalid credentials", status: 401 };
     }
 
     if (user.status === "disabled") {
@@ -73,7 +73,7 @@ class AuthService {
 
       await user.save();
       await this._logAuth({ userId: user._id, email, role: user.role, action: "login.failed", ip, userAgent, institutionId: user.institutionId, details: { reason: "wrong_password", attempts: user.failedLoginAttempts } });
-      return { success: false, error: "Invalid email or password", status: 401 };
+      return { success: false, error: "Invalid credentials", status: 401 };
     }
 
     user.failedLoginAttempts = 0;

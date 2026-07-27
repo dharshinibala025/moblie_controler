@@ -1,5 +1,6 @@
 const ScannedApp = require("../models/ScannedApp");
 const AppsCatalog = require("../models/AppsCatalog");
+const ScanHistory = require("../models/ScanHistory");
 const Rule = require("../models/Rule");
 const User = require("../models/User");
 const logger = require("../utils/logger");
@@ -11,25 +12,7 @@ exports.processScan = async (studentId, deviceId, apps) => {
     throw new NotFoundError("Student");
   }
 
-  await ScannedApp.deleteMany({ studentId, deviceId });
-
-  const catalogEntries = await AppsCatalog.find({}).lean();
-  const catalogMap = new Map(catalogEntries.map((e) => [e.packageName, e]));
-
-  const scannedDocs = apps.map((app) => {
-    const catalogMatch = catalogMap.get(app.packageName);
-    return {
-      studentId,
-      deviceId,
-      packageName: app.packageName,
-      appName: app.appName,
-      category: catalogMatch ? catalogMatch.category : "uncategorized",
-      scannedAt: new Date(),
-    };
-  });
-
-  await ScannedApp.insertMany(scannedDocs);
-
+  // 1. Fetch active restriction rules for this student
   const scopeQueries = [
     { targetClassId: student.classId },
     { "targetScope.type": "student", "targetScope.targetId": student._id.toString() },
@@ -38,7 +21,10 @@ exports.processScan = async (studentId, deviceId, apps) => {
   ];
 
   if (student.departmentId) {
-    scopeQueries.push({ "targetScope.type": "department", "targetScope.targetId": student.departmentId.toString() });
+    scopeQueries.push({
+      "targetScope.type": "department",
+      "targetScope.targetId": student.departmentId.toString(),
+    });
   }
 
   const activeRules = await Rule.find({
@@ -53,27 +39,106 @@ exports.processScan = async (studentId, deviceId, apps) => {
     }
   }
 
+  // 2. Fetch matching catalog entries for the scanned apps
+  const packageNames = apps.map((app) => app.packageName);
+  const catalogEntries = await AppsCatalog.find({ packageName: { $in: packageNames } });
+  const catalogMap = new Map(catalogEntries.map((e) => [e.packageName, e]));
+
+  // 3. Auto-create registry entries for new, unrecognized packages
+  const missingApps = [];
+  for (const app of apps) {
+    if (!catalogMap.has(app.packageName)) {
+      missingApps.push({
+        packageName: app.packageName,
+        appName: app.appName,
+        category: "uncategorized",
+        isSocialMedia: false,
+        active: false,
+      });
+    }
+  }
+
+  if (missingApps.length > 0) {
+    try {
+      await AppsCatalog.insertMany(missingApps, { ordered: false });
+    } catch (e) {
+      // Ignore duplicate key errors from concurrent writes
+    }
+    // Refresh catalog mapping
+    const newCatalogEntries = await AppsCatalog.find({ packageName: { $in: packageNames } });
+    for (const e of newCatalogEntries) {
+      catalogMap.set(e.packageName, e);
+    }
+  }
+
+  // 4. Determine social media applications (from registry or blocked by active rules)
+  const socialApps = apps.filter((app) => {
+    const catalogItem = catalogMap.get(app.packageName);
+    const isRegisteredSocial = catalogItem && catalogItem.isSocialMedia;
+    const isBlockedByPolicy = allBlockedApps.has(app.packageName);
+    return isRegisteredSocial || isBlockedByPolicy;
+  });
+
+  const rawAppCount = apps.length;
+  const socialAppCount = socialApps.length;
+
+  // 5. Log scan history
+  await ScanHistory.create({
+    studentId,
+    deviceId,
+    rawAppCount,
+    socialAppCount,
+  });
+
+  // 6. Update soft-delete status for removed social apps
+  const currentlySavedApps = await ScannedApp.find({ studentId, deviceId, removedAt: null });
+  const incomingSocialPackageNames = new Set(socialApps.map((a) => a.packageName));
+
+  const appsToRemove = currentlySavedApps.filter((app) => !incomingSocialPackageNames.has(app.packageName));
+  if (appsToRemove.length > 0) {
+    const removeIds = appsToRemove.map((app) => app._id);
+    await ScannedApp.updateMany({ _id: { $in: removeIds } }, { $set: { removedAt: new Date() } });
+  }
+
+  // 7. Upsert and restore scanned social applications
+  for (const app of socialApps) {
+    const catalogMatch = catalogMap.get(app.packageName);
+    await ScannedApp.findOneAndUpdate(
+      { studentId, deviceId, packageName: app.packageName },
+      {
+        $set: {
+          appName: app.appName,
+          category: catalogMatch ? catalogMatch.category : "social",
+          removedAt: null,
+        },
+      },
+      { upsert: true, new: true }
+    );
+  }
+
+  // 8. Flag apps blocked by active policies
   const flaggedApps = apps
     .map((app) => app.packageName)
     .filter((pkg) => allBlockedApps.has(pkg));
 
-  logger.info(`Scan processed for student ${studentId}: ${apps.length} apps, ${flaggedApps.length} flagged`);
+  logger.info(`Scan processed for student ${studentId}: ${rawAppCount} apps, ${socialAppCount} social, ${flaggedApps.length} flagged`);
 
   return {
-    scannedCount: apps.length,
+    scannedCount: rawAppCount,
+    socialAppCount,
     flaggedApps,
   };
 };
 
 exports.getScannedAppsByStudent = async (studentId) => {
-  return ScannedApp.find({ studentId }).sort({ scannedAt: -1 });
+  return ScannedApp.find({ studentId, removedAt: null }).sort({ appName: 1 });
 };
 
 exports.getScannedAppsByClass = async (classId) => {
   const students = await User.find({ classId, role: "student" }).select("_id");
   const studentIds = students.map((s) => s._id);
 
-  return ScannedApp.find({ studentId: { $in: studentIds } })
+  return ScannedApp.find({ studentId: { $in: studentIds }, removedAt: null })
     .populate("studentId", "name email")
     .sort({ scannedAt: -1 });
 };

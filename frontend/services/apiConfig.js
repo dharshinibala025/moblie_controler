@@ -6,10 +6,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ─── Base URL ────────────────────────────────────────────────────────────────
-// Change this to your production server URL when deploying.
-// For Android emulator: 10.0.2.2:5000
-// For real device on same network: your machine's LAN IP
+// Base URL for Android Emulator & Physical Device backend access:
 export const BASE_URL = 'http://10.0.2.2:5000';
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────

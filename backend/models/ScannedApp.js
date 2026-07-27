@@ -45,6 +45,10 @@ const scannedAppSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    removedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

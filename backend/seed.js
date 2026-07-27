@@ -12,6 +12,13 @@ const AcademicYear = require("./models/AcademicYear");
 const Section = require("./models/Section");
 const ClassRoom = require("./models/ClassRoom");
 const StaffAssignment = require("./models/StaffAssignment");
+const AppsCatalog = require("./models/AppsCatalog");
+const Rule = require("./models/Rule");
+const ScannedApp = require("./models/ScannedApp");
+const Device = require("./models/Device");
+const ScanHistory = require("./models/ScanHistory");
+const BlockedAttempt = require("./models/BlockedAttempt");
+const SyncLog = require("./models/SyncLog");
 const logger = require("./utils/logger");
 
 const INSTITUTION_ID = "KSRCE";
@@ -172,11 +179,11 @@ const seed = async () => {
     });
     logger.info(`Admin created: ${admin.email}`);
 
-    // 6. Create Staff (Must Change Password on First Login)
+    // 6. Create Staff (Temporary Password Account - First Login Requires Permanent Password)
     const staff = await User.create({
       name: staffData.name,
       email: staffData.email,
-      password: staffData.password,
+      password: "Temp@123",
       role: "staff",
       employeeId: staffData.employeeId,
       classId: classroom.code,
@@ -184,13 +191,13 @@ const seed = async () => {
       departmentId: dept._id,
       institutionId: INSTITUTION_ID,
       mustChangePassword: true,
-      hasSetPassword: true,
+      hasSetPassword: false,
       hasAcceptedTerms: false,
       status: "active",
       isActive: true,
       registeredBy: admin._id,
     });
-    logger.info(`Staff created: ${staff.email}`);
+    logger.info(`Staff created: ${staff.email} (Temp Password: Temp@123)`);
 
     // Assign staff to class
     await StaffAssignment.create({
@@ -201,12 +208,12 @@ const seed = async () => {
     });
     logger.info(`Staff assigned to class: ${classroom.code}`);
 
-    // 7. Create 11 Real Students (Must Change Password on First Login)
+    // 7. Create Real Student Accounts (Temporary Passwords - Must Create Permanent Password on First Login)
     for (const s of studentsData) {
       const student = await User.create({
         name: s.name,
         email: s.email,
-        password: s.password,
+        password: "Temp@123",
         role: "student",
         studentId: s.studentId,
         classId: classroom.code,
@@ -216,14 +223,135 @@ const seed = async () => {
         sectionId: section._id,
         institutionId: INSTITUTION_ID,
         mustChangePassword: true,
-        hasSetPassword: true,
+        hasSetPassword: false,
         hasAcceptedTerms: false,
         status: "active",
         isActive: true,
         registeredBy: admin._id,
       });
-      logger.info(`Student created: ${student.email} (${student.studentId})`);
+      logger.info(`Student created: ${student.email} (${student.studentId}) - Temp Password: Temp@123`);
     }
+
+    // 8. Seed Social Media Master Registry in AppsCatalog
+    const socialApps = [
+      { packageName: "com.instagram.android", appName: "Instagram", category: "social", isSocialMedia: true },
+      { packageName: "com.facebook.katana", appName: "Facebook", category: "social", isSocialMedia: true },
+      { packageName: "com.facebook.lite", appName: "Facebook Lite", category: "social", isSocialMedia: true },
+      { packageName: "com.facebook.orca", appName: "Messenger", category: "social", isSocialMedia: true },
+      { packageName: "com.whatsapp", appName: "WhatsApp", category: "social", isSocialMedia: true },
+      { packageName: "com.whatsapp.w4b", appName: "WhatsApp Business", category: "social", isSocialMedia: true },
+      { packageName: "org.telegram.messenger", appName: "Telegram", category: "social", isSocialMedia: true },
+      { packageName: "org.thunderdog.challegram", appName: "Telegram X", category: "social", isSocialMedia: true },
+      { packageName: "org.thoughtcrime.securesms", appName: "Signal", category: "social", isSocialMedia: true },
+      { packageName: "com.snapchat.android", appName: "Snapchat", category: "social", isSocialMedia: true },
+      { packageName: "com.discord", appName: "Discord", category: "social", isSocialMedia: true },
+      { packageName: "com.twitter.android", appName: "X (Twitter)", category: "social", isSocialMedia: true },
+      { packageName: "com.threads.app", appName: "Threads", category: "social", isSocialMedia: true },
+      { packageName: "com.linkedin.android", appName: "LinkedIn", category: "social", isSocialMedia: true },
+      { packageName: "com.pinterest", appName: "Pinterest", category: "social", isSocialMedia: true },
+      { packageName: "com.reddit.frontpage", appName: "Reddit", category: "social", isSocialMedia: true },
+      { packageName: "com.tumblr", appName: "Tumblr", category: "social", isSocialMedia: true },
+      { packageName: "com.zhiliaoapp.musically", appName: "TikTok", category: "social", isSocialMedia: true },
+      { packageName: "com.ss.android.ugc.trill", appName: "TikTok Lite", category: "social", isSocialMedia: true },
+      { packageName: "com.likee", appName: "Likee", category: "social", isSocialMedia: true },
+      { packageName: "in.mohalla.sharechat", appName: "ShareChat", category: "social", isSocialMedia: true },
+      { packageName: "in.mohalla.video", appName: "Moj", category: "social", isSocialMedia: true },
+      { packageName: "com.joshart.josh", appName: "Josh", category: "social", isSocialMedia: true },
+      { packageName: "com.koo.app", appName: "Koo", category: "social", isSocialMedia: true },
+      { packageName: "jp.naver.line.android", appName: "LINE", category: "social", isSocialMedia: true },
+      { packageName: "com.tencent.mm", appName: "WeChat", category: "social", isSocialMedia: true },
+      { packageName: "com.viber.voip", appName: "Viber", category: "social", isSocialMedia: true },
+      { packageName: "com.imo.android.imoim", appName: "IMO", category: "social", isSocialMedia: true },
+      { packageName: "com.skype.raider", appName: "Skype", category: "social", isSocialMedia: true },
+      { packageName: "com.clubhouse.wave", appName: "Clubhouse", category: "social", isSocialMedia: true },
+      { packageName: "com.bereal.ft", appName: "BeReal", category: "social", isSocialMedia: true },
+      { packageName: "com.lemon8.app.prod", appName: "Lemon8", category: "social", isSocialMedia: true },
+      { packageName: "com.next.gspace", appName: "MX TakaTak", category: "social", isSocialMedia: true },
+      { packageName: "com.bsb.hike", appName: "Hike", category: "social", isSocialMedia: true }
+    ];
+    await AppsCatalog.insertMany(socialApps);
+    logger.info("Successfully seeded master social media app registry.");
+
+    // 9. Seed Active Classroom Restriction Policy Rule
+    const defaultRule = await Rule.create({
+      createdBy: admin._id,
+      institutionId: INSTITUTION_ID,
+      targetScope: { type: "class", targetId: classroom.code },
+      targetClassId: classroom.code,
+      blockedApps: [
+        "com.instagram.android",
+        "com.facebook.katana",
+        "com.snapchat.android",
+        "com.zhiliaoapp.musically",
+        "com.twitter.android",
+        "com.facebook.orca",
+        "com.threads.app",
+        "com.reddit.frontpage"
+      ],
+      scheduleStart: "09:00",
+      scheduleEnd: "16:00",
+      activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      reason: "Smart Classroom Social Media Policy — Active Class Hours Restriction",
+      status: "active",
+      policyVersion: 1,
+    });
+    logger.info(`Active Class Restriction Rule created for ${classroom.code} (ID: ${defaultRule._id})`);
+
+    // 10. Seed Scanned Apps Inventory & Registered Device for all students
+    const sampleAppsInventory = [
+      { packageName: "com.instagram.android", appName: "Instagram", category: "social" },
+      { packageName: "com.facebook.katana", appName: "Facebook", category: "social" },
+      { packageName: "com.whatsapp", appName: "WhatsApp", category: "social" },
+      { packageName: "com.snapchat.android", appName: "Snapchat", category: "social" },
+      { packageName: "org.telegram.messenger", appName: "Telegram", category: "social" },
+      { packageName: "com.google.android.youtube", appName: "YouTube", category: "entertainment" },
+      { packageName: "com.spotify.music", appName: "Spotify", category: "entertainment" },
+      { packageName: "com.android.chrome", appName: "Google Chrome", category: "utilities" },
+      { packageName: "com.google.android.gm", appName: "Gmail", category: "productivity" },
+      { packageName: "us.zoom.videomeetings", appName: "Zoom", category: "productivity" },
+      { packageName: "com.discord", appName: "Discord", category: "social" },
+      { packageName: "com.twitter.android", appName: "X (Twitter)", category: "social" },
+    ];
+
+    const createdStudents = await User.find({ role: "student" });
+    for (const studentUser of createdStudents) {
+      const studentDeviceId = `device_${studentUser.studentId || studentUser._id.toString()}`;
+      const device = await Device.create({
+        userId: studentUser._id,
+        deviceId: studentDeviceId,
+        fcmToken: `fcm_token_${studentUser.studentId}`,
+        platform: "android",
+        osVersion: "14",
+        appVersion: "1.0.0",
+        deviceModel: "Android Smartphone",
+        status: "online",
+        isCompliant: true,
+        lastKnownCommand: {
+          ruleId: defaultRule._id,
+          action: "start",
+          serverTimestamp: new Date(),
+          policyVersion: 1,
+        },
+      });
+
+      const appsToInsert = sampleAppsInventory.map((app) => ({
+        studentId: studentUser._id,
+        deviceId: device._id,
+        packageName: app.packageName,
+        appName: app.appName,
+        category: app.category,
+        scannedAt: new Date(),
+      }));
+
+      await ScannedApp.insertMany(appsToInsert);
+      await ScanHistory.create({
+        studentId: studentUser._id,
+        deviceId: device._id,
+        rawAppCount: sampleAppsInventory.length,
+        socialAppCount: 8,
+      });
+    }
+    logger.info(`Successfully seeded scanned app inventories & device profiles for ${createdStudents.length} students.`);
 
     // Summary Log Output
     const totalUsers = await User.countDocuments();
@@ -236,13 +364,13 @@ const seed = async () => {
     console.log(`  Total Users:  ${totalUsers}`);
     console.log("====================================\n");
 
-    console.log("IMPORTED CREDENTIALS:");
-    console.log("====================================");
-    console.log(`Admin:  ${adminData.email} / ${adminData.password}`);
-    console.log(`Staff:  ${staffData.email} / ${staffData.password} (mustChangePassword=true)`);
-    console.log(`Students (${studentsData.length} Real Accounts - all mustChangePassword=true):`);
+    console.log("IMPORTED TEMPORARY CREDENTIALS (FIRST LOGIN REQUIRES PERMANENT PASSWORD SET):");
+    console.log("==================================================================================");
+    console.log(`Admin:    ${adminData.email} / ${adminData.password}`);
+    console.log(`Staff:    ${staffData.email} / Temp@123 (mustChangePassword=true)`);
+    console.log(`Students: All 12 student accounts / Temp@123 (mustChangePassword=true)`);
     for (const s of studentsData) {
-      console.log(`  ${s.studentId} | ${s.email} | ${s.password}`);
+      console.log(`  ${s.studentId} | ${s.email} | Temp@123`);
     }
     const emailService = require("./services/emailService");
     await emailService.sendDeveloperCredentialRoster({

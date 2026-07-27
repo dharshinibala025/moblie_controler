@@ -57,6 +57,7 @@ app.use("/auth", authRoutes);
 app.use("/admin", userLimiter, adminRoutes);
 app.use("/staff", userLimiter, staffRoutes);
 app.use("/student", userLimiter, studentRoutes);
+app.use("/policy", userLimiter, require("./routes/policy.routes"));
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
