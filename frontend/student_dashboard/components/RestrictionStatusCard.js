@@ -1,48 +1,74 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
+import VectorIcon from './VectorIcon';
 
-export const RestrictionStatusCard = ({ statusData }) => {
-  const isActive = statusData?.isActive ?? true;
-  const statusColor = isActive ? colors.active : colors.blocked;
-  const statusBg = isActive ? colors.activeLight : colors.blockedLight;
-  const statusTitle = isActive ? 'Restrictions Active' : 'Restrictions Inactive';
+/**
+ * RestrictionStatusCard Component
+ *
+ * Professional read-only card displaying:
+ * - Restriction Status (ACTIVE green badge, LIFTED green badge, or UPCOMING blue badge)
+ * - Controlled By (Department Admin HOD)
+ * - Restriction Time (09:00 AM – 04:00 PM)
+ */
+export const RestrictionStatusCard = ({
+  statusMode = 'ACTIVE',
+  scheduleText = '09:00 AM – 04:00 PM',
+  controlledBy = 'Department Admin (HOD)',
+}) => {
+  let badgeText = 'ACTIVE';
+  let badgeBg = colors.activeLight; // #DCFCE7
+  let badgeColor = colors.active; // #22C55E
+
+  if (statusMode === 'LIFTED') {
+    badgeText = 'LIFTED';
+    badgeBg = '#DCFCE7';
+    badgeColor = '#16A34A';
+  } else if (statusMode === 'BEFORE') {
+    badgeText = 'UPCOMING';
+    badgeBg = colors.primaryLight; // #EFF6FF
+    badgeColor = colors.primary; // #2563EB
+  }
 
   return (
     <View style={styles.card}>
-      {/* Top Banner Row with Large Indicator */}
-      <View style={styles.topRow}>
-        <View style={styles.statusBadgeRow}>
-          <View style={[styles.largeDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusTitle, { color: statusColor }]}>
-            {statusTitle}
-          </Text>
+      {/* Top Title & Badge Row */}
+      <View style={styles.headerRow}>
+        <View style={styles.titleGroup}>
+          <VectorIcon name="shield-account" size={20} color={colors.primary} />
+          <Text style={styles.cardTitle}>Restriction Status</Text>
         </View>
-        <View style={[styles.pillBadge, { backgroundColor: statusBg }]}>
-          <Text style={[styles.pillBadgeText, { color: statusColor }]}>
-            {isActive ? 'Active' : 'Inactive'}
-          </Text>
+
+        <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+          <View style={[styles.badgeDot, { backgroundColor: badgeColor }]} />
+          <Text style={[styles.badgeText, { color: badgeColor }]}>{badgeText}</Text>
         </View>
       </View>
 
-      {/* Main Info Box */}
-      <View style={styles.infoContainer}>
-        {/* Remaining Time */}
-        <View style={styles.timeBlock}>
-          <Text style={styles.label}>REMAINING TIME</Text>
-          <Text style={styles.remainingTimeText}>
-            {statusData?.remainingTime || '2 Hours 15 Minutes'}
-          </Text>
+      {/* Main Details Box */}
+      <View style={styles.detailsContainer}>
+        {/* Controlled By */}
+        <View style={styles.infoRow}>
+          <View style={styles.iconCircle}>
+            <VectorIcon name="office-building" size={16} color={colors.primary} />
+          </View>
+          <View style={styles.textGroup}>
+            <Text style={styles.label}>Controlled By</Text>
+            <Text style={styles.valueText}>{controlledBy}</Text>
+          </View>
         </View>
 
         <View style={styles.divider} />
 
-        {/* Schedule */}
-        <View style={styles.scheduleBlock}>
-          <Text style={styles.label}>TODAY'S SCHEDULE</Text>
-          <Text style={styles.scheduleText}>
-            {statusData?.schedule || '09:00 AM – 04:00 PM'}
-          </Text>
+        {/* Restriction Time */}
+        <View style={styles.infoRow}>
+          <View style={styles.iconCircle}>
+            <VectorIcon name="clock-outline" size={16} color={colors.primary} />
+          </View>
+          <View style={styles.textGroup}>
+            <Text style={styles.label}>Restriction Time</Text>
+            <Text style={styles.valueText}>{scheduleText}</Text>
+          </View>
         </View>
       </View>
     </View>
@@ -60,67 +86,82 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadows.card,
   },
-  topRow: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  statusBadgeRow: {
+  titleGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  largeDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-  },
-  statusTitle: {
-    fontSize: 18,
+  cardTitle: {
+    fontSize: 16,
     fontWeight: '700',
+    color: colors.textPrimary,
   },
-  pillBadge: {
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderRadius: 12,
+    gap: 6,
   },
-  pillBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
+  badgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
-  infoContainer: {
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  detailsContainer: {
     backgroundColor: colors.surface,
     borderRadius: 14,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
-  timeBlock: {
-    marginBottom: 12,
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  textGroup: {
+    flex: 1,
   },
   label: {
     fontSize: 11,
     fontWeight: '700',
     color: colors.textMuted,
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  remainingTimeText: {
-    fontSize: 20,
-    fontWeight: '800',
+  valueText: {
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.textPrimary,
   },
   divider: {
     height: 1,
     backgroundColor: colors.borderLight,
     marginVertical: 10,
-  },
-  scheduleBlock: {},
-  scheduleText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textSecondary,
   },
 });
 

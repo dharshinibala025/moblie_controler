@@ -1,71 +1,51 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { CheckCircleIcon } from '../components/AuthIcons';
 
 export const PasswordRequirements = ({ password = '' }) => {
-  const requirements = [
-    { label: 'Minimum 8 characters', satisfied: password.length >= 8 },
-    { label: 'One uppercase letter', satisfied: /[A-Z]/.test(password) },
-    { label: 'One lowercase letter', satisfied: /[a-z]/.test(password) },
-    { label: 'One number', satisfied: /[0-9]/.test(password) },
-    { label: 'One special character', satisfied: /[^A-Za-z0-9]/.test(password) },
-  ];
+  const isLengthValid = password.length >= 8;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+
+  const satisfied = isLengthValid && hasUppercase && hasLowercase && hasNumber && hasSpecial;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Password Requirements</Text>
-      <View style={styles.list}>
-        {requirements.map((req, index) => (
-          <View key={index} style={styles.ruleRow}>
-            <CheckCircleIcon size={16} satisfied={req.satisfied} />
-            <Text
-              style={[
-                styles.ruleText,
-                req.satisfied ? styles.ruleSatisfied : styles.ruleUnsatisfied,
-              ]}
-            >
-              {req.label}
-            </Text>
-          </View>
-        ))}
-      </View>
+      <Text
+        style={[
+          styles.hintText,
+          satisfied ? styles.hintSuccess : password ? styles.hintWarning : styles.hintMuted,
+        ]}
+        numberOfLines={1}
+      >
+        {satisfied
+          ? 'All password requirements met.'
+          : 'Must be min. 8 characters with A-Z, a-z, 0-9 & special char.'}
+      </Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
-    marginVertical: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  list: {
-    gap: 6,
-  },
-  ruleRow: {
-    flexDirection: 'row',
+    marginVertical: 6,
     alignItems: 'center',
   },
-  ruleText: {
+  hintText: {
     fontSize: 12,
     fontWeight: '600',
+    textAlign: 'center',
   },
-  ruleSatisfied: {
-    color: '#15803D',
-  },
-  ruleUnsatisfied: {
+  hintMuted: {
     color: '#64748B',
+  },
+  hintWarning: {
+    color: '#F97316',
+  },
+  hintSuccess: {
+    color: '#15803D',
+    fontWeight: '700',
   },
 });
 
