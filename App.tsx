@@ -29,14 +29,8 @@ function App() {
         return;
       }
 
-      // 2. Session Restore Flow via Token & Storage
-      const session = await authService.getSession();
-      if (session && session.token && session.user) {
-        setUser(session.user);
-        setScreen('dashboard');
-      } else {
-        setScreen('login');
-      }
+      // Always show Landing / Login screen on app launch
+      setScreen('login');
     } catch (error) {
       setScreen('login');
     }
