@@ -1,23 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { colors, shadows } from '../styles/theme';
-import VectorIcon from './VectorIcon';
 
 /**
- * Animated Circular Timer Component
- * Matches the design specs from Image 2 & Image 3:
- * - Top Badge: "Restriction Active" (Green) / "Restriction Inactive" (Gray)
- * - Circular progress ring (Blue during active, Amber before 9 AM, Green after 4 PM)
- * - Inside circle: TIME REMAINING / RESTRICTIONS START IN / TIME'S UP
- * - Digital clock: 02:14:35
- * - Subtext: 2 Hours 14 Minutes Remaining / Have a great day!
+ * Clean Flat Animated Circular Timer Component (No Card Wrapper)
+ * - Animated circular progress ring
+ * - Labels: TIME REMAINING / RESTRICTIONS START IN / TIME'S UP
+ * - Large digital clock (05:22:16)
+ * - Subtext (5 Hours 22 Minutes Remaining)
  */
 export const CircularTimer = ({ statusMode = 'ACTIVE', remainingSeconds = 0, progress = 1 }) => {
   const animatedProgress = useRef(new Animated.Value(progress)).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const prevStatusRef = useRef(statusMode);
 
-  // Animate progress ring when progress changes
+  // Animate progress ring smoothly when progress changes
   useEffect(() => {
     Animated.timing(animatedProgress, {
       toValue: Math.max(0, Math.min(1, progress)),
@@ -26,25 +20,6 @@ export const CircularTimer = ({ statusMode = 'ACTIVE', remainingSeconds = 0, pro
       useNativeDriver: false,
     }).start();
   }, [progress, animatedProgress]);
-
-  // Trigger smooth fade animation when status mode changes
-  useEffect(() => {
-    if (prevStatusRef.current !== statusMode) {
-      prevStatusRef.current = statusMode;
-      Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 0.3,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [statusMode, fadeAnim]);
 
   // Format seconds into HH:MM:SS format
   const formatTime = (totalSec) => {
@@ -56,40 +31,26 @@ export const CircularTimer = ({ statusMode = 'ACTIVE', remainingSeconds = 0, pro
     return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
   };
 
-  // Format remaining time text (e.g. "2 Hours 14 Minutes Remaining")
+  // Format remaining time subtext (e.g. "5 Hours 22 Minutes Remaining")
   const formatRemainingText = (totalSec) => {
-    if (totalSec <= 0) return 'Have a great day!';
+    if (totalSec <= 0) return 'Restrictions lifted for today';
     const hrs = Math.floor(totalSec / 3600);
     const mins = Math.floor((totalSec % 3600) / 60);
 
     if (hrs > 0) {
-      return `${hrs} ${hrs === 1 ? 'Hour' : 'Hours'} ${mins} ${mins === 1 ? 'Minute' : 'Minutes'}\nRemaining`;
+      return `${hrs} ${hrs === 1 ? 'Hour' : 'Hours'} ${mins} ${mins === 1 ? 'Minute' : 'Minutes'} Remaining`;
     }
-    return `${mins} ${mins === 1 ? 'Minute' : 'Minutes'}\nRemaining`;
+    return `${mins} ${mins === 1 ? 'Minute' : 'Minutes'} Remaining`;
   };
 
-  // Configure colors and labels based on status mode
-  let ringColor = colors.primary; // #2563EB (Blue)
-  let topBadgeText = 'Restriction Active';
-  let topBadgeColor = '#22C55E'; // Green
-  let topBadgeIcon = 'shield-check';
-  let topBadgeBg = '#DCFCE7';
-
+  let ringColor = '#2563EB'; // Primary #2563EB
   let centerLabel = 'TIME REMAINING';
 
   if (statusMode === 'LIFTED') {
-    ringColor = colors.active; // #22C55E (Green)
-    topBadgeText = 'Restriction Inactive';
-    topBadgeColor = '#6B7280'; // Gray
-    topBadgeIcon = 'shield-off-outline';
-    topBadgeBg = '#F3F4F6';
+    ringColor = '#22C55E'; // Success #22C55E
     centerLabel = "TIME'S UP";
   } else if (statusMode === 'BEFORE') {
-    ringColor = '#F97316'; // #F97316 (Orange/Amber)
-    topBadgeText = 'Restriction Inactive';
-    topBadgeColor = '#6B7280'; // Gray
-    topBadgeIcon = 'clock-outline';
-    topBadgeBg = '#F3F4F6';
+    ringColor = '#F97316';
     centerLabel = 'RESTRICTIONS START IN';
   }
 
@@ -104,11 +65,10 @@ export const CircularTimer = ({ statusMode = 'ACTIVE', remainingSeconds = 0, pro
     outputRange: ['-180deg', '-180deg', '0deg'],
   });
 
-  const SIZE = 230;
-  const STROKE = 12;
+  const SIZE = 240;
+  const STROKE = 10;
   const RADIUS = SIZE / 2;
 
-  // Pre-calculated half-container styles to avoid inline style lints
   const rightHalfStyle = {
     position: 'absolute',
     top: 0,
@@ -154,18 +114,7 @@ export const CircularTimer = ({ statusMode = 'ACTIVE', remainingSeconds = 0, pro
   };
 
   return (
-    <View style={styles.cardContainer}>
-      {/* Top Restriction Badge inside Card */}
-      <Animated.View style={[styles.topBadgeWrapper, { opacity: fadeAnim }]}>
-        <View style={[styles.topBadge, { backgroundColor: topBadgeBg }]}>
-          <VectorIcon name={topBadgeIcon} size={16} color={topBadgeColor} />
-          <Text style={[styles.topBadgeText, { color: topBadgeColor }]}>
-            {topBadgeText}
-          </Text>
-        </View>
-      </Animated.View>
-
-      {/* Center Animated Circular Progress Ring */}
+    <View style={styles.timerContainer}>
       <View style={styles.timerCircleWrapper}>
         {/* Background Track Ring */}
         <View
@@ -191,64 +140,36 @@ export const CircularTimer = ({ statusMode = 'ACTIVE', remainingSeconds = 0, pro
         </View>
 
         {/* Inside Circle Content Display */}
-        <Animated.View style={[styles.innerContent, { opacity: fadeAnim }]}>
-          {/* Top Label inside Circle */}
+        <View style={styles.innerContent}>
           <Text style={styles.centerLabelText}>{centerLabel}</Text>
-
-          {/* Large Digital Clock Display */}
           <Text style={styles.clockDisplayText}>
             {formatTime(remainingSeconds)}
           </Text>
-
-          {/* Subtext below Digital Clock */}
           <Text style={styles.clockSubtext}>
             {statusMode === 'LIFTED'
-              ? 'Have a great day!'
+              ? 'Restrictions Lifted'
               : formatRemainingText(remainingSeconds)}
           </Text>
-        </Animated.View>
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  cardContainer: {
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    marginHorizontal: 20,
-    marginVertical: 10,
+  timerContainer: {
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...shadows.card,
-  },
-  topBadgeWrapper: {
-    marginBottom: 16,
-  },
-  topBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    gap: 6,
-  },
-  topBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
+    justifyContent: 'center',
+    paddingVertical: 12,
   },
   timerCircleWrapper: {
-    width: 230,
-    height: 230,
+    width: 240,
+    height: 240,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 4,
   },
   trackRing: {
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
     position: 'absolute',
   },
   innerContent: {
@@ -259,15 +180,15 @@ const styles = StyleSheet.create({
   centerLabelText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
-    letterSpacing: 0.8,
+    color: '#6B7280',
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
     marginBottom: 6,
   },
   clockDisplayText: {
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#111827',
     letterSpacing: 0.5,
     fontVariant: ['tabular-nums'],
     marginVertical: 2,
@@ -275,9 +196,8 @@ const styles = StyleSheet.create({
   clockSubtext: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 18,
     marginTop: 4,
   },
 });
