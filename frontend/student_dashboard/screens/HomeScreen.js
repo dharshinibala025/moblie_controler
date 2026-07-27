@@ -1,26 +1,75 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Text } from 'react-native';
-import { colors, borderRadius, shadows } from '../styles/theme';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { colors, shadows } from '../styles/theme';
 import Header from '../components/Header';
-import RestrictionStatusCard from '../components/RestrictionStatusCard';
-import AppGridCard from '../components/AppGridCard';
-import RecentActivityCard from '../components/RecentActivityCard';
+import CircularTimer from '../components/CircularTimer';
 import VectorIcon from '../components/VectorIcon';
 
-export const HomeScreen = ({
-  data,
-  onNavigateTab,
-  onOpenProfile,
-  onViewActivityTimeline,
-  onOpenRestrictionInfo,
-  refreshing,
-  onRefresh,
-}) => {
-  const unreadCount = data?.unreadNotificationCount ?? 0;
+/**
+ * Modern Student Dashboard Home Screen
+ * Features:
+ * - Header component with College Logo, Student Greeting, Department & Profile Avatar
+ * - Proper status bar offset padding (prevents notch/camera punch-hole overlap)
+ * - Real-Time Animated Circular Countdown Timer Card
+ * - Today's Restriction Schedule Card
+ * - Motivational Quote Card
+ * - NO Blocked Applications section on Home page
+ */
+export const HomeScreen = ({ data, onOpenProfile }) => {
+  const [refreshing, setRefreshing] = useState(false);
+  const [statusMode, setStatusMode] = useState('ACTIVE'); // 'ACTIVE' | 'LIFTED' | 'BEFORE'
+  const [remainingSeconds, setRemainingSeconds] = useState(8075);
+  const [progress, setProgress] = useState(0.75);
+
+  useEffect(() => {
+    const updateRestrictionState = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+      const currentSec = hours * 3600 + minutes * 60 + seconds;
+
+      const startSec = 9 * 3600; // 09:00:00 AM (32400s)
+      const endSec = 16 * 3600; // 04:00:00 PM (57600s)
+      const totalDuration = endSec - startSec; // 7 hours (25200s)
+
+      if (currentSec >= startSec && currentSec < endSec) {
+        // 09:00 AM - 04:00 PM: Restrictions Active
+        const remaining = endSec - currentSec;
+        const prog = remaining / totalDuration;
+        setStatusMode('ACTIVE');
+        setRemainingSeconds(remaining);
+        setProgress(prog);
+      } else if (currentSec >= endSec) {
+        // After 04:00 PM: Restrictions Lifted / Time's Up
+        setStatusMode('LIFTED');
+        setRemainingSeconds(0);
+        setProgress(1.0);
+      } else {
+        // Before 09:00 AM: Restrictions Start In
+        const remaining = startSec - currentSec;
+        const prog = remaining / startSec;
+        setStatusMode('BEFORE');
+        setRemainingSeconds(remaining);
+        setProgress(prog);
+      }
+    };
+
+    updateRestrictionState();
+    const intervalId = setInterval(updateRestrictionState, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header displaying Logo, Greeting, Student Name, Department, Profile Avatar */}
+      {/* Top Header with College Logo, Student Info & Profile Avatar */}
       <Header
         student={data?.student}
         onOpenProfile={onOpenProfile}
@@ -38,45 +87,40 @@ export const HomeScreen = ({
           />
         }
       >
-        {/* Section 1: Restriction Status Card (tappable → detail) */}
-        <RestrictionStatusCard
-          statusData={data?.restrictionStatus}
-          onPress={onOpenRestrictionInfo}
+        {/* Main Animated Circular Countdown Timer Card */}
+        <CircularTimer
+          statusMode={statusMode}
+          remainingSeconds={remainingSeconds}
+          progress={progress}
         />
 
-        {/* Section 2: Blocked Applications */}
-        <AppGridCard blockedApps={data?.blockedApps || []} />
-
-        {/* Section 3: Recent Activity */}
-        <RecentActivityCard
-          activities={data?.recentActivity || []}
-          onViewAll={onViewActivityTimeline}
-        />
-
-        {/* Section 4: Notifications Quick Link */}
-        <TouchableOpacity
-          style={styles.notifCard}
-          activeOpacity={0.7}
-          onPress={() => onNavigateTab('notifications')}
-        >
-          <View style={styles.notifIconCircle}>
-            <VectorIcon name="bell" size={22} color={colors.primary} />
+        {/* Today's Restriction Schedule Card */}
+        <View style={styles.scheduleCard}>
+          <View style={styles.iconCircle}>
+            <VectorIcon name="calendar-month" size={20} color="#2563EB" />
           </View>
-          <View style={styles.notifContent}>
-            <Text style={styles.notifTitle}>Notifications</Text>
-            <Text style={styles.notifSub}>
-              {unreadCount > 0
-                ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
-                : 'No new notifications'}
-            </Text>
+
+          <View style={styles.scheduleTextContainer}>
+            <Text style={styles.scheduleLabel}>Today's Restriction Schedule</Text>
+            <Text style={styles.scheduleTime}>09:00 AM – 04:00 PM</Text>
           </View>
-          {unreadCount > 0 ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
-            </View>
-          ) : null}
-          <VectorIcon name="chevron-right" size={18} color={colors.textMuted} />
-        </TouchableOpacity>
+
+          <View style={styles.iconCircle}>
+            <VectorIcon name="clock-outline" size={20} color="#2563EB" />
+          </View>
+        </View>
+
+        {/* Motivational Quote Card */}
+        <View style={styles.quoteCard}>
+          <View style={styles.quoteIconContainer}>
+            <VectorIcon name="format-quote-open" size={24} color="#2563EB" />
+          </View>
+
+          <View style={styles.quoteTextContainer}>
+            <Text style={styles.quoteLine}>Discipline today,</Text>
+            <Text style={styles.quoteLine}>Freedom tomorrow.</Text>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -88,55 +132,78 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingTop: 10,
+    paddingBottom: 100, // Clearance above bottom navigation bar
   },
-  notifCard: {
+
+  // Today's Restriction Schedule Card
+  scheduleCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: borderRadius.card,
+    borderRadius: 16,
     padding: 16,
     marginHorizontal: 20,
-    marginVertical: 10,
+    marginVertical: 8,
     borderWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
-    ...shadows.card,
+    borderColor: '#F1F5F9',
+    ...shadows.soft,
   },
-  notifIconCircle: {
+  iconCircle: {
     width: 42,
     height: 42,
-    borderRadius: 12,
-    backgroundColor: colors.primaryLight,
+    borderRadius: 21,
+    backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  notifContent: {
+  scheduleTextContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  scheduleLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 3,
+  },
+  scheduleTime: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+
+  // Motivational Quote Card
+  quoteCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    marginHorizontal: 20,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...shadows.soft,
+    gap: 14,
+  },
+  quoteIconContainer: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quoteTextContainer: {
     flex: 1,
   },
-  notifTitle: {
+  quoteLine: {
     fontSize: 15,
     fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  notifSub: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  badge: {
-    backgroundColor: colors.primary,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: 20,
   },
 });
 
