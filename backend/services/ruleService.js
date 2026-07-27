@@ -179,5 +179,20 @@ async function dispatchRule(rule, action) {
     }
   }
 
-  logger.info(`Dispatched scoped [${scopeType}] rule ${rule._id} [${action}] to ${targetDevices.length} devices`);
+  const Notification = require("../models/Notification");
+  const notificationTitle = action === "start" ? "Classroom Restriction Activated" : action === "pause" ? "Policy Restriction Paused" : "Classroom Policy Stopped";
+  const notificationMsg = rule.reason ? `Admin Instruction: ${rule.reason}` : `Classroom restriction rule ${action}ed for schedule ${rule.scheduleStart} – ${rule.scheduleEnd}.`;
+
+  if (targetStudentIds.length > 0) {
+    const notificationsToCreate = targetStudentIds.map((sId) => ({
+      studentId: sId,
+      title: notificationTitle,
+      message: notificationMsg,
+      type: "restriction",
+      read: false,
+    }));
+    await Notification.insertMany(notificationsToCreate);
+  }
+
+  logger.info(`Dispatched scoped [${scopeType}] rule ${rule._id} [${action}] to ${targetDevices.length} devices and ${targetStudentIds.length} students.`);
 }

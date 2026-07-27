@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar, StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import LandingScreen from './frontend/login/screens/LandingScreen';
 import LoginScreen from './frontend/login/screens/LoginScreen';
 import PasswordResetScreen from './frontend/login/screens/PasswordResetScreen';
 import AdminDashboard from './frontend/screens/AdminDashboard';
@@ -11,7 +12,7 @@ import OfflineScreen from './frontend/screens/OfflineScreen';
 import authService from './frontend/services/authService';
 
 function App() {
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'offline' | 'login' | 'passwordReset' | 'dashboard'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'offline' | 'landing' | 'login' | 'passwordReset' | 'dashboard'
   const [user, setUser] = useState(null);
   const [authData, setAuthData] = useState(null);
 
@@ -29,10 +30,10 @@ function App() {
         return;
       }
 
-      // Always show Landing / Login screen on app launch
-      setScreen('login');
+      // Show Landing screen on app launch
+      setScreen('landing');
     } catch (error) {
-      setScreen('login');
+      setScreen('landing');
     }
   };
 
@@ -54,12 +55,12 @@ function App() {
     await authService.logout();
     setUser(null);
     setAuthData(null);
-    setScreen('login');
+    setScreen('landing');
   };
 
-  const handleBackToLogin = () => {
+  const handleBackToLanding = () => {
     setAuthData(null);
-    setScreen('login');
+    setScreen('landing');
   };
 
   const renderScreen = () => {
@@ -75,8 +76,11 @@ function App() {
       case 'offline':
         return <OfflineScreen onRetry={initApp} />;
 
+      case 'landing':
+        return <LandingScreen onGetStarted={() => setScreen('login')} />;
+
       case 'login':
-        return <LoginScreen onLoginSuccess={handleLoginSuccess} onBack={handleBackToLogin} />;
+        return <LoginScreen onLoginSuccess={handleLoginSuccess} onBack={handleBackToLanding} />;
 
       case 'passwordReset':
         return (

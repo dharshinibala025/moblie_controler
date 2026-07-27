@@ -816,4 +816,57 @@ router.get("/reports/blocked-attempts", async (req, res, next) => {
   }
 });
 
+router.post("/notifications/broadcast", async (req, res, next) => {
+  try {
+    const { title, message, targetClassId, type = "general" } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: "Notification message is required" });
+    }
+
+    const Notification = require("../models/Notification");
+    const User = require("../models/User");
+
+    const query = { role: "student", status: "active" };
+    if (targetClassId) {
+      query.classId = targetClassId;
+    }
+    if (req.scopeInstitutionId) {
+      query.institutionId = req.scopeInstitutionId;
+    }
+
+    const students = await User.find(query);
+
+    if (students.length === 0) {
+      return res.status(404).json({ error: "No active students found for broadcast" });
+    }
+
+    const notificationsToCreate = students.map((s) => ({
+      studentId: s._id,
+      title: title || "Department HOD / Admin Instruction",
+      message: message,
+      type: type || "general",
+      read: false,
+    }));
+
+    await Notification.insertMany(notificationsToCreate);
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "notification_broadcast",
+      { type: "class", id: targetClassId || "ALL" },
+      { title, message, studentCount: students.length },
+      req.scopeInstitutionId
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `Broadcast instruction sent to ${students.length} student(s)`,
+      count: students.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

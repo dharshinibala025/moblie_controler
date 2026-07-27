@@ -344,14 +344,35 @@ const seed = async () => {
       }));
 
       await ScannedApp.insertMany(appsToInsert);
-      await ScanHistory.create({
-        studentId: studentUser._id,
-        deviceId: device._id,
-        rawAppCount: sampleAppsInventory.length,
-        socialAppCount: 8,
-      });
+      const Notification = require("./models/Notification");
+      await Notification.insertMany([
+        {
+          studentId: studentUser._id,
+          title: "Department HOD / Admin Instruction",
+          message: "HOD Notice: Mobile usage during active class & lab hours is strictly restricted to educational tools. Ensure your device synchronization is active.",
+          type: "general",
+          read: false,
+          createdAt: new Date(Date.now() - 1000 * 60 * 15), // 15 mins ago
+        },
+        {
+          studentId: studentUser._id,
+          title: "Social Media Policy Active",
+          message: "Classroom restriction policy active for CSE-II-A. Target social media applications are restricted between 09:00 AM and 04:00 PM.",
+          type: "restriction",
+          read: false,
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
+        },
+        {
+          studentId: studentUser._id,
+          title: "Device Profile Registered",
+          message: "Your Android mobile device profile was successfully registered and synchronized with Smart Classroom Portal.",
+          type: "system",
+          read: true,
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
+        },
+      ]);
     }
-    logger.info(`Successfully seeded scanned app inventories & device profiles for ${createdStudents.length} students.`);
+    logger.info(`Successfully seeded scanned app inventories, device profiles & notifications for ${createdStudents.length} students.`);
 
     // Summary Log Output
     const totalUsers = await User.countDocuments();
