@@ -248,6 +248,7 @@ export const StudentDashboardScreen = ({ onLogout }) => {
             deviceStatus={dashboardData?.deviceStatus}
             onOpenDeviceInfo={openDeviceInfo}
             onOpenSyncStatus={openSyncStatus}
+            onLogout={onLogout}
           />
         );
       default:

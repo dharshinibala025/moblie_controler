@@ -88,7 +88,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    paddingTop: 8,
     paddingBottom: 100,
   },
   notifCard: {

@@ -64,7 +64,6 @@ export const NotificationsScreen = ({ data, refreshing, onRefresh, onNotificatio
     if (diffDays === 1) return 'Yesterday';
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
   };
-
   return (
     <ScrollView
       style={styles.container}

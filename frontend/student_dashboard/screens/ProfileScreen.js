@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
   Platform,
   StatusBar,
 } from 'react-native';
@@ -13,7 +14,7 @@ import VectorIcon from '../components/VectorIcon';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
-export const ProfileScreen = ({ student, deviceStatus, onOpenDeviceInfo, onOpenSyncStatus }) => {
+export const ProfileScreen = ({ student, deviceStatus, onOpenDeviceInfo, onOpenSyncStatus, onLogout }) => {
   const initials = student?.name
     ? student.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
     : 'ST';
@@ -41,6 +42,21 @@ export const ProfileScreen = ({ student, deviceStatus, onOpenDeviceInfo, onOpenS
       onPress: onOpenSyncStatus,
     },
   ];
+
+  const handleLogoutPress = () => {
+    Alert.alert(
+      'Sign Out Confirmation',
+      'Are you sure you want to sign out of Student Portal?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: onLogout,
+        },
+      ]
+    );
+  };
 
   return (
     <ScrollView
@@ -121,6 +137,16 @@ export const ProfileScreen = ({ student, deviceStatus, onOpenDeviceInfo, onOpenS
           This application operates under view-only mode for students. Mobile application restrictions during class hours are enforced centrally by the Head of Department (HOD) and Department Admin.
         </Text>
       </View>
+
+      {/* Sign Out Button */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={handleLogoutPress}
+        style={styles.logoutButton}
+      >
+        <VectorIcon name="logout" size={18} color={colors.danger} />
+        <Text style={styles.logoutText}>Sign Out</Text>
+      </TouchableOpacity>
 
       <Text style={styles.copyrightText}>
         Department Controller Student Portal • View Only
@@ -280,6 +306,24 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
     marginBottom: 8,
+  },
+  logoutButton: {
+    backgroundColor: colors.blockedLight,
+    height: 50,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.danger,
   },
 });
 
