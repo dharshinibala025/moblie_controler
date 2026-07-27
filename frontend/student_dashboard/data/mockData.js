@@ -1,14 +1,14 @@
 export const mockData = {
   student: {
-    name: 'Rohit Sharma',
-    registerNumber: '21CS084',
+    name: 'Dharani V V',
+    registerNumber: '221CS000',
     department: 'CSE Department',
-    fullDepartment: 'Computer Science & Engineering',
+    fullDepartment: 'Computer Science and Engineering',
     year: '3rd Year',
-    section: 'Section A',
-    email: 'rohit.sharma@college.edu',
+    section: 'A',
+    email: 'vvdharani57cse24_27@ksrce.ac.in',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
-    initials: 'RS',
+    initials: 'DV',
   },
 
   restrictionStatus: {

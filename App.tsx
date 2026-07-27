@@ -9,7 +9,7 @@ import StudentDashboardScreen from './frontend/student_dashboard/screens/Student
 type Screen = 'welcome' | 'login' | 'set_password' | 'dashboard';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
 
   return (
     <SafeAreaProvider>

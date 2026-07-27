@@ -48,7 +48,6 @@ export const StudentDashboardScreen = ({ onLogout }) => {
         return (
           <ProfileScreen
             student={mockData.student}
-            onLogout={onLogout}
           />
         );
       default:
