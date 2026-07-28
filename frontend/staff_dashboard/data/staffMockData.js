@@ -9,6 +9,7 @@ export const staffMockData = {
     roleAssignment: 'Professor & Head (CSE Monitoring)',
     avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
     initials: 'RK',
+    assignedClass: 'III CSE - A',
   },
 
   stats: {
