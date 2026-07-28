@@ -31,7 +31,7 @@ const TABS = [
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
-const AdminPanel = () => {
+const AdminPanel = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
   const renderActiveScreen = () => {
@@ -43,7 +43,7 @@ const AdminPanel = () => {
       case 'devices':
         return <DevicesScreen />;
       case 'settings':
-        return <SettingsScreen />;
+        return <SettingsScreen onLogout={onLogout} />;
       case 'dashboard':
       default:
         return <DashboardScreen />;

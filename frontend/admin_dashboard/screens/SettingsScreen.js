@@ -10,12 +10,14 @@ import colors from '../styles/colors';
 import typography from '../styles/typography';
 import { spacing, radius } from '../styles/globalStyles';
 
-const SettingsScreen = () => {
+const SettingsScreen = ({ onLogout }) => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
 
   const handleRowPress = (rowId) => {
-    // Intentionally left as a no-op: UI only, ready for backend/navigation integration.
+    if (rowId === 'logout' && onLogout) {
+      onLogout();
+    }
   };
 
   return (

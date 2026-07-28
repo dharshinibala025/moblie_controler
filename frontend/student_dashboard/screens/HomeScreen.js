@@ -1,29 +1,52 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { colors, shadows } from '../styles/theme';
-import Header from '../components/Header';
-import CircularTimer from '../components/CircularTimer';
-import VectorIcon from '../components/VectorIcon';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  Image,
+  Animated,
+  Platform,
+  StatusBar,
+} from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Import Reusable Modular Components
+import LiveRestrictionClock from '../components/LiveRestrictionClock';
+import ScheduleInfo from '../components/ScheduleInfo';
+
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 12;
 
 /**
- * Modern Student Dashboard Home Screen
- * Features:
- * - Header component with College Logo, Student Greeting, Department & Profile Avatar
- * - Proper status bar offset padding (prevents notch/camera punch-hole overlap)
- * - Real-Time Animated Circular Countdown Timer Card
- * - Today's Restriction Schedule Card
- * - Motivational Quote Card
- * - NO Blocked Applications section on Home page
+ * Perfectly Centered Student Dashboard Home Screen
+ * - Header: Logo + Greeting & Student Name + Profile Icon
+ * - Centerpiece: Live Restriction Clock vertically & horizontally centered on page
+ * - Restriction Schedule info row (09:00 AM – 04:00 PM)
+ * - 100% Flat Enterprise Layout on #F8FAFC
  */
 export const HomeScreen = ({ data, onOpenProfile }) => {
   const [refreshing, setRefreshing] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const [statusMode, setStatusMode] = useState('ACTIVE'); // 'ACTIVE' | 'LIFTED' | 'BEFORE'
-  const [remainingSeconds, setRemainingSeconds] = useState(8075);
-  const [progress, setProgress] = useState(0.75);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [progress, setProgress] = useState(0.5);
+
+  // Fade-in animation on mount
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const updateRestrictionState = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+
+    const updateState = () => {
       const now = new Date();
+      setCurrentTime(now);
+
       const hours = now.getHours();
       const minutes = now.getMinutes();
       const seconds = now.getSeconds();
@@ -34,19 +57,19 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       const totalDuration = endSec - startSec; // 7 hours (25200s)
 
       if (currentSec >= startSec && currentSec < endSec) {
-        // 09:00 AM - 04:00 PM: Restrictions Active
+        // Active between 09:00 AM and 04:00 PM
         const remaining = endSec - currentSec;
         const prog = remaining / totalDuration;
         setStatusMode('ACTIVE');
         setRemainingSeconds(remaining);
         setProgress(prog);
       } else if (currentSec >= endSec) {
-        // After 04:00 PM: Restrictions Lifted / Time's Up
+        // Completed after 04:00 PM
         setStatusMode('LIFTED');
         setRemainingSeconds(0);
         setProgress(1.0);
       } else {
-        // Before 09:00 AM: Restrictions Start In
+        // Upcoming before 09:00 AM
         const remaining = startSec - currentSec;
         const prog = remaining / startSec;
         setStatusMode('BEFORE');
@@ -55,10 +78,10 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       }
     };
 
-    updateRestrictionState();
-    const intervalId = setInterval(updateRestrictionState, 1000);
-    return () => clearInterval(intervalId);
-  }, []);
+    updateState();
+    const interval = setInterval(updateState, 1000);
+    return () => clearInterval(interval);
+  }, [fadeAnim]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -67,13 +90,48 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     }, 1000);
   };
 
+  // Determine Greeting based on time
+  const getGreeting = () => {
+    const hour = currentTime.getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
+  const studentName = data?.student?.name || 'Dharani V V';
+  const studentDept = data?.student?.fullDepartment || data?.student?.department || 'Computer Science and Engineering';
+
   return (
     <View style={styles.container}>
-      {/* Top Header with College Logo, Student Info & Profile Avatar */}
-      <Header
-        student={data?.student}
-        onOpenProfile={onOpenProfile}
-      />
+      {/* 1. Header (Logo + Greeting & Student Name + Profile Icon) */}
+      <View style={styles.headerContainer}>
+        <View style={styles.headerLeftGroup}>
+          <View style={styles.logoBadge}>
+            <Image
+              source={require('../../welcome/assets/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.textGroup}>
+            <Text style={styles.greetingText}>{getGreeting()}</Text>
+            <Text style={styles.studentNameText}>{studentName}</Text>
+            <Text style={styles.departmentText}>{studentDept}</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={onOpenProfile}
+          style={styles.avatarButton}
+        >
+          <MaterialCommunityIcons
+            name="account-circle-outline"
+            size={36}
+            color="#2563EB"
+          />
+        </TouchableOpacity>
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -82,49 +140,23 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+            colors={['#2563EB']}
+            tintColor="#2563EB"
           />
         }
       >
-        {/* Main Animated Circular Countdown Timer Card */}
-        <CircularTimer
-          statusMode={statusMode}
-          remainingSeconds={remainingSeconds}
-          progress={progress}
-        />
+        <Animated.View style={[styles.mainBodyWrapper, { opacity: fadeAnim }]}>
+          {/* 2. Live Restriction Clock Centerpiece */}
+          <LiveRestrictionClock
+            currentTime={currentTime}
+            remainingSeconds={remainingSeconds}
+            progress={progress}
+            statusMode={statusMode}
+          />
 
-        {/* Today's Restriction Schedule Card */}
-        <View style={styles.scheduleCard}>
-          <View style={styles.iconCircle}>
-            <VectorIcon name="calendar-month" size={20} color="#2563EB" />
-          </View>
-
-          <View style={styles.scheduleTextContainer}>
-            <Text style={styles.scheduleLabel}>Today's Restriction Schedule</Text>
-            <Text style={styles.scheduleTime}>
-              {data?.restrictionStatus?.schedule && data.restrictionStatus.schedule !== 'N/A'
-                ? data.restrictionStatus.schedule
-                : 'No active schedule'}
-            </Text>
-          </View>
-
-          <View style={styles.iconCircle}>
-            <VectorIcon name="clock-outline" size={20} color="#2563EB" />
-          </View>
-        </View>
-
-        {/* Motivational Quote Card */}
-        <View style={styles.quoteCard}>
-          <View style={styles.quoteIconContainer}>
-            <VectorIcon name="format-quote-open" size={24} color="#2563EB" />
-          </View>
-
-          <View style={styles.quoteTextContainer}>
-            <Text style={styles.quoteLine}>Discipline today,</Text>
-            <Text style={styles.quoteLine}>Freedom tomorrow.</Text>
-          </View>
-        </View>
+          {/* 3. Restriction Schedule Info */}
+          <ScheduleInfo scheduleText="09:00 AM – 04:00 PM" />
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -133,81 +165,72 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
   },
-  scrollContent: {
-    paddingTop: 10,
-    paddingBottom: 100, // Clearance above bottom navigation bar
-  },
-
-  // Today's Restriction Schedule Card
-  scheduleCard: {
+  headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 20,
-    marginVertical: 8,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...shadows.soft,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: STATUSBAR_OFFSET,
+    paddingBottom: 8,
+    backgroundColor: '#F8FAFC',
   },
-  iconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  headerLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+  },
+  logoBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    padding: 3,
   },
-  scheduleTextContainer: {
+  logoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  textGroup: {
     flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 8,
   },
-  scheduleLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 3,
+  greetingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 1,
   },
-  scheduleTime: {
-    fontSize: 14,
-    fontWeight: '700',
+  studentNameText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 1,
+  },
+  departmentText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#2563EB',
   },
-
-  // Motivational Quote Card
-  quoteCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 18,
-    marginHorizontal: 20,
-    marginVertical: 8,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...shadows.soft,
-    gap: 14,
+  avatarButton: {
+    padding: 2,
   },
-  quoteIconContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#EFF6FF',
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
     justifyContent: 'center',
+    paddingBottom: 60, // Clearance for bottom navigation bar
+  },
+  mainBodyWrapper: {
+    width: '100%',
     alignItems: 'center',
-  },
-  quoteTextContainer: {
-    flex: 1,
-  },
-  quoteLine: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-    lineHeight: 20,
+    justifyContent: 'center',
   },
 });
 

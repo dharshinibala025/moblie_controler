@@ -2,6 +2,7 @@ package com.mobile_controller
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import java.util.Calendar
 
@@ -12,6 +13,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
     override fun onCreate() {
         super.onCreate()
         policyStorage = PolicyStorage(applicationContext)
+        Log.i("RestrictionService", "RestrictionAccessibilityService created")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -20,14 +22,17 @@ class RestrictionAccessibilityService : AccessibilityService() {
         val packageName = event.packageName?.toString() ?: return
 
         // Ignore system UI and own package
-        if (packageName == "com.mobile_controller" || packageName.startsWith("com.android.systemui")) {
+        if (packageName == "com.mobile_controller" || packageName.startsWith("com.android.systemui") || packageName == "com.android.launcher") {
             return
         }
 
         val blockedApps = policyStorage.getBlockedApps()
         if (blockedApps.contains(packageName)) {
             if (isWithinSchedule()) {
+                Log.w("RestrictionService", "Blocking restricted package: $packageName")
                 launchBlockOverlay(packageName)
+            } else {
+                Log.i("RestrictionService", "Package $packageName is restricted, but currently outside restriction schedule.")
             }
         }
     }
@@ -56,7 +61,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
 
     private fun launchBlockOverlay(packageName: String) {
         val intent = Intent(this, BlockOverlayActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra("packageName", packageName)
             putExtra("reason", policyStorage.getReason())
         }
