@@ -1,21 +1,32 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, StatusBar } from 'react-native';
 import { colors, shadows } from '../styles/theme';
+import VectorIcon from './VectorIcon';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 12;
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 16;
 
 export const Header = ({ student, onOpenProfile }) => {
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
+    if (hour < 12) return 'Good Morning,';
+    if (hour < 17) return 'Good Afternoon,';
+    return 'Good Evening,';
+  };
+
+  const getInitials = (name) => {
+    if (!name) return 'ST';
+    return name
+      .split(' ')
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
     <View style={styles.headerContainer}>
       <View style={styles.leftSection}>
-        {/* College Logo */}
+        {/* College Logo Badge */}
         <View style={styles.logoBadge}>
           <Image
             source={require('../../welcome/assets/logo.png')}
@@ -26,19 +37,20 @@ export const Header = ({ student, onOpenProfile }) => {
 
         {/* Greeting & Student Info */}
         <View style={styles.textContainer}>
-          <Text style={styles.greetingText}>
-            {getGreeting()}
-          </Text>
+          <Text style={styles.greetingText}>{getGreeting()}</Text>
           <Text style={styles.studentName} numberOfLines={1}>
-            {student?.name || 'Rohit Sharma'}
+            {student?.name || 'Student'}
           </Text>
-          <Text style={styles.departmentText} numberOfLines={1}>
-            {student?.department || 'CSE Department'}
-          </Text>
+          <View style={styles.subtitleRow}>
+            <Text style={styles.departmentText} numberOfLines={1}>
+              {student?.department || 'CSE Department'}
+            </Text>
+            <VectorIcon name="auto-fix" size={14} color="#2563EB" />
+          </View>
         </View>
       </View>
 
-      {/* Profile Avatar */}
+      {/* Profile Avatar Button */}
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={onOpenProfile}
@@ -46,7 +58,7 @@ export const Header = ({ student, onOpenProfile }) => {
       >
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>
-            {student?.initials || 'RS'}
+            {getInitials(student?.name)}
           </Text>
         </View>
       </TouchableOpacity>
@@ -59,12 +71,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: STATUSBAR_OFFSET, // Ensures text is positioned comfortably below notch & camera punch-hole
-    paddingBottom: 14,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    paddingHorizontal: 16,
+    paddingTop: STATUSBAR_OFFSET,
+    paddingBottom: 8,
+    backgroundColor: '#F8FAFC',
   },
   leftSection: {
     flexDirection: 'row',
@@ -73,9 +83,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   logoBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
@@ -96,19 +106,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   studentName: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: colors.textPrimary,
-    lineHeight: 20,
+    lineHeight: 22,
+  },
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
   departmentText: {
     fontSize: 12,
     fontWeight: '600',
     color: colors.primary,
-    marginTop: 1,
   },
   avatarButton: {
     ...shadows.soft,

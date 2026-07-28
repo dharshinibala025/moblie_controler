@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-na
 import { colors, shadows } from '../styles/theme';
 import VectorIcon from './VectorIcon';
 
-export const BottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
+export const BottomNavBar = ({ activeTab = 'home', onSelectTab, unreadCount = 0 }) => {
   const tabs = [
     { id: 'home', label: 'Home', icon: 'home' },
     { id: 'apps', label: 'Blocked Apps', icon: 'cellphone' },
-    { id: 'notifications', label: 'Notifications', icon: 'bell', badge: 6 },
+    { id: 'notifications', label: 'Notifications', icon: 'bell', badge: unreadCount },
     { id: 'profile', label: 'Profile', icon: 'account-circle' },
   ];
 
@@ -29,11 +29,11 @@ export const BottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
                   size={26} // Bottom Navigation icon size 26
                   color={isActive ? colors.primary : '#64748B'}
                 />
-                {tab.badge && tab.badge > 0 && (
+                {Boolean(tab.badge && tab.badge > 0) ? (
                   <View style={styles.redBadge}>
                     <Text style={styles.redBadgeText}>{tab.badge}</Text>
                   </View>
-                )}
+                ) : null}
               </View>
 
               <Text

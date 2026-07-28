@@ -18,6 +18,7 @@ import typography from '../styles/typography';
 import RoleSelector from '../components/RoleSelector';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
+import authService from '../../services/authService';
 
 export const LoginScreen = ({ onBack, onLoginSuccess }) => {
   // State variables
@@ -52,10 +53,7 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
     let newErrors = {};
 
     if (!email.trim()) {
-      newErrors.email = 'Email address is required';
-      valid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Please enter a valid email address';
+      newErrors.email = 'Email address or Student ID is required';
       valid = false;
     }
 
@@ -71,21 +69,30 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
     return valid;
   };
 
-  const handleSignIn = () => {
-    if (validate()) {
-      setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
-        if (onLoginSuccess) {
-          onLoginSuccess({ role, email });
-        } else {
-          Alert.alert(
-            'Login Successful',
-            `Welcome to FocusSync!\nRole: ${role.toUpperCase()}\nEmail: ${email}`,
-            [{ text: 'OK' }]
-          );
-        }
-      }, 1000);
+  const handleSignIn = async () => {
+    if (!validate()) return;
+
+    setLoading(true);
+    try {
+      const result = await authService.login(email.trim(), password);
+
+      if (onLoginSuccess) {
+        onLoginSuccess(result);
+      }
+    } catch (err) {
+      const message = err?.message || 'Login failed. Please try again.';
+      // Friendly error mapping
+      if (err?.status === 423) {
+        setErrors({ password: message });
+      } else if (err?.status === 401) {
+        setErrors({ password: 'Invalid email/ID or password' });
+      } else if (err?.status === 403) {
+        Alert.alert('Account Restricted', message);
+      } else {
+        Alert.alert('Connection Error', 'Unable to reach the server. Please check your internet connection.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -138,13 +145,13 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
 
               {/* Input Fields */}
               <InputField
-                label="Email Address"
+                label="Email / Student ID"
                 value={email}
                 onChangeText={(text) => {
                   setEmail(text);
                   if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
                 }}
-                placeholder="enter.your.email@college.edu"
+                placeholder="email@college.edu or 21CS084"
                 iconType="email"
                 keyboardType="email-address"
                 autoCapitalize="none"
