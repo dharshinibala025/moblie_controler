@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import GetStartedScreen from './frontend/welcome/screens/GetStartedScreen';
 import LoginScreen from './frontend/login/screens/LoginScreen';
 import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswordScreen';
@@ -17,12 +18,18 @@ function App() {
     <SafeAreaProvider>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={currentScreen === 'welcome' || currentScreen === 'set_password' ? '#FFFFFF' : '#F8FAFC'}
+        backgroundColor={
+          currentScreen === 'welcome' || currentScreen === 'set_password'
+            ? '#FFFFFF'
+            : '#F8FAFC'
+        }
       />
+
       <View style={styles.container}>
         {currentScreen === 'welcome' && (
           <GetStartedScreen onGetStarted={() => setCurrentScreen('login')} />
         )}
+
         {currentScreen === 'login' && (
           <LoginScreen
             onBack={() => setCurrentScreen('welcome')}
@@ -32,6 +39,7 @@ function App() {
             }}
           />
         )}
+
         {currentScreen === 'set_password' && (
           <SetNewPasswordScreen
             onPasswordUpdated={() => {
