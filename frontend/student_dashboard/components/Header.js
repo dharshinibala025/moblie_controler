@@ -13,6 +13,16 @@ export const Header = ({ student, onOpenProfile }) => {
     return 'Good Evening,';
   };
 
+  const getInitials = (name) => {
+    if (!name) return 'ST';
+    return name
+      .split(' ')
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
     <View style={styles.headerContainer}>
       <View style={styles.leftSection}>
@@ -29,7 +39,7 @@ export const Header = ({ student, onOpenProfile }) => {
         <View style={styles.textContainer}>
           <Text style={styles.greetingText}>{getGreeting()}</Text>
           <Text style={styles.studentName} numberOfLines={1}>
-            {student?.name || 'Rohit Sharma'}
+            {student?.name || 'Student'}
           </Text>
           <View style={styles.subtitleRow}>
             <Text style={styles.departmentText} numberOfLines={1}>
@@ -48,7 +58,7 @@ export const Header = ({ student, onOpenProfile }) => {
       >
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>
-            {student?.initials || 'RS'}
+            {getInitials(student?.name)}
           </Text>
         </View>
       </TouchableOpacity>

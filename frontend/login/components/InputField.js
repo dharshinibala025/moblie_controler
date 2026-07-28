@@ -5,8 +5,37 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Animated,
 } from 'react-native';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import colors from '../styles/colors';
+import typography from '../styles/typography';
+
+/**
+ * Custom SVG-like Vector Icons using React Native Views
+ */
+const MailIcon = ({ color }) => (
+  <View style={iconStyles.iconContainer}>
+    <View style={[iconStyles.mailBox, { borderColor: color }]}>
+      <View style={[iconStyles.mailV, { borderBottomColor: color }]} />
+    </View>
+  </View>
+);
+
+const LockIcon = ({ color }) => (
+  <View style={iconStyles.iconContainer}>
+    <View style={[iconStyles.lockShackle, { borderColor: color }]} />
+    <View style={[iconStyles.lockBody, { backgroundColor: color }]} />
+  </View>
+);
+
+const EyeIcon = ({ visible, color }) => (
+  <View style={iconStyles.iconContainer}>
+    <View style={[iconStyles.eyeOuter, { borderColor: color }]}>
+      <View style={[iconStyles.eyeInner, { backgroundColor: color }]} />
+      {!visible && <View style={[iconStyles.eyeSlash, { backgroundColor: color }]} />}
+    </View>
+  </View>
+);
 
 export const InputField = ({
   label,
@@ -22,13 +51,12 @@ export const InputField = ({
   const [isFocused, setIsFocused] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
 
-  const iconName = iconType === 'email' ? 'mail-outline' : 'lock-outline';
-  const iconColor = isFocused ? '#2563EB' : '#94A3B8';
+  const iconColor = isFocused ? colors.primary : colors.textMuted;
 
   return (
     <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
-
+      {label && <Text style={typography.inputLabel}>{label}</Text>}
+      
       <View
         style={[
           styles.inputWrapper,
@@ -36,9 +64,10 @@ export const InputField = ({
           error && styles.inputWrapperError,
         ]}
       >
-        {/* Left Material Icon */}
+        {/* Left Icon */}
         <View style={styles.leftIconWrapper}>
-          <MaterialIcons name={iconName} size={20} color={iconColor} />
+          {iconType === 'email' && <MailIcon color={iconColor} />}
+          {iconType === 'password' && <LockIcon color={iconColor} />}
         </View>
 
         {/* Text Input */}
@@ -47,7 +76,7 @@ export const InputField = ({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={colors.textMuted}
           secureTextEntry={isPassword && !passwordVisible}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
@@ -55,7 +84,7 @@ export const InputField = ({
           onBlur={() => setIsFocused(false)}
         />
 
-        {/* Right Password Visibility Toggle Icon */}
+        {/* Right Password Toggle Icon */}
         {isPassword && (
           <TouchableOpacity
             activeOpacity={0.7}
@@ -63,11 +92,7 @@ export const InputField = ({
             style={styles.rightIconWrapper}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <MaterialIcons
-              name={passwordVisible ? 'visibility-off' : 'visibility'}
-              size={20}
-              color="#94A3B8"
-            />
+            <EyeIcon visible={passwordVisible} color={colors.textMuted} />
           </TouchableOpacity>
         )}
       </View>
@@ -82,33 +107,36 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     width: '100%',
   },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 6,
-  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 50,
+    backgroundColor: colors.inputBg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    height: 56,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   inputWrapperFocused: {
-    borderColor: '#2563EB',
-    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.inputBgFocused,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
   },
   inputWrapperError: {
-    borderColor: '#EF4444',
+    borderColor: colors.error,
   },
   leftIconWrapper: {
-    marginRight: 10,
+    marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    width: 24,
   },
   rightIconWrapper: {
     padding: 4,
@@ -117,16 +145,78 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    fontSize: 14,
-    color: '#111827',
+    fontSize: 15,
+    color: colors.textPrimary,
     fontWeight: '500',
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   errorText: {
     fontSize: 12,
-    color: '#EF4444',
+    color: colors.error,
     marginTop: 4,
-    marginLeft: 2,
+    marginLeft: 4,
+  },
+});
+
+const iconStyles = StyleSheet.create({
+  iconContainer: {
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mailBox: {
+    width: 18,
+    height: 13,
+    borderWidth: 1.8,
+    borderRadius: 3,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  mailV: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 7,
+    borderRightWidth: 7,
+    borderBottomWidth: 5,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderStyle: 'solid',
+  },
+  lockShackle: {
+    width: 10,
+    height: 9,
+    borderWidth: 1.8,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 5,
+    borderTopRightRadius: 5,
+    marginBottom: -1,
+  },
+  lockBody: {
+    width: 16,
+    height: 11,
+    borderRadius: 3,
+  },
+  eyeOuter: {
+    width: 18,
+    height: 12,
+    borderWidth: 1.8,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  eyeInner: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  eyeSlash: {
+    position: 'absolute',
+    width: 20,
+    height: 2,
+    transform: [{ rotate: '-45deg' }],
   },
 });
 

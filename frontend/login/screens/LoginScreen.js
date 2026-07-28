@@ -13,24 +13,15 @@ import {
   SafeAreaView,
   Alert,
 } from 'react-native';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import colors from '../styles/colors';
+import typography from '../styles/typography';
 import RoleSelector from '../components/RoleSelector';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
+import authService from '../../services/authService';
 
-/**
- * Premium Enterprise Login Screen
- * - No white cards or containers
- * - Flat layout on #F8FAFC
- * - Header: Back Button, College Logo, FocusSync, Department Mobile Controller
- * - Welcome Text: Welcome Back, Sign in using your institutional account
- * - Segmented Control Role Selector (Student | Staff | Admin)
- * - Outlined Input Fields with Material Icons
- * - Remember Me Checkbox
- * - 56px Primary Blue Sign In Button
- * - Footer: FocusSync System, Department Mobile Controller, Version 1.0
- */
 export const LoginScreen = ({ onBack, onLoginSuccess }) => {
+  // State variables
   const [role, setRole] = useState('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,26 +29,31 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Fade-in animation on screen mount
+  // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const translateYAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]);
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateYAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const validate = () => {
     let valid = true;
     let newErrors = {};
 
     if (!email.trim()) {
-      newErrors.email = 'Email address is required';
-      valid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Please enter a valid email address';
+      newErrors.email = 'Email address or Student ID is required';
       valid = false;
     }
 
@@ -73,28 +69,37 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
     return valid;
   };
 
-  const handleSignIn = () => {
-    if (validate()) {
-      setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
-        if (onLoginSuccess) {
-          onLoginSuccess({ role, email });
-        } else {
-          Alert.alert(
-            'Login Successful',
-            `Welcome to FocusSync!\nRole: ${role.toUpperCase()}\nEmail: ${email}`,
-            [{ text: 'OK' }]
-          );
-        }
-      }, 1000);
+  const handleSignIn = async () => {
+    if (!validate()) return;
+
+    setLoading(true);
+    try {
+      const result = await authService.login(email.trim(), password);
+
+      if (onLoginSuccess) {
+        onLoginSuccess(result);
+      }
+    } catch (err) {
+      const message = err?.message || 'Login failed. Please try again.';
+      // Friendly error mapping
+      if (err?.status === 423) {
+        setErrors({ password: message });
+      } else if (err?.status === 401) {
+        setErrors({ password: 'Invalid email/ID or password' });
+      } else if (err?.status === 403) {
+        Alert.alert('Account Restricted', message);
+      } else {
+        Alert.alert('Connection Error', 'Unable to reach the server. Please check your internet connection.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
@@ -104,60 +109,49 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View style={[styles.contentWrapper, { opacity: fadeAnim }]}>
-            {/* Back Button (Top Left) */}
-            {onBack && (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={onBack}
-                style={styles.backButton}
-              >
-                <MaterialIcons name="arrow-back" size={20} color="#2563EB" />
-                <Text style={styles.backText}>Welcome</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* 1. Header Section (Logo, FocusSync, Dept Controller) - No Card */}
+          <View style={styles.animatedContainer}>
+            {/* Header Section with Single College Logo */}
             <View style={styles.headerSection}>
-              <View style={styles.logoWrapper}>
+              {onBack && (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={onBack}
+                  style={styles.backButton}
+                >
+                  <Text style={styles.backArrow}>←</Text>
+                  <Text style={styles.backText}>Welcome</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Single Logo Display */}
+              <View style={styles.logoBadgeContainer}>
                 <Image
                   source={require('../assets/logo.png')}
                   style={styles.logoImage}
                   resizeMode="contain"
                 />
               </View>
-
-              <Text style={styles.appNameText}>FocusSync</Text>
-              <Text style={styles.appSubtext}>Department Mobile Controller</Text>
+              
+              <Text style={typography.headerTitle}>FocusSync</Text>
             </View>
 
-            <View style={styles.divider} />
+            {/* Floating White Login Card */}
+            <View style={styles.card}>
+              <Text style={typography.cardTitle}>Welcome Back</Text>
+              <Text style={typography.cardSubtitle}>Sign in to your account</Text>
 
-            {/* 2. Welcome Text (Typography Only, No Container) */}
-            <View style={styles.welcomeSection}>
-              <Text style={styles.welcomeTitle}>Welcome Back</Text>
-              <Text style={styles.welcomeSubtitle}>
-                Sign in using your institutional account.
-              </Text>
-            </View>
-
-            {/* 3. Role Selector (Segmented Control Pill Bar) */}
-            <View style={styles.sectionContainer}>
+              {/* Compact Role Selection (Student, Staff, Admin) */}
               <RoleSelector selectedRole={role} onSelectRole={setRole} />
-            </View>
 
-            <View style={styles.divider} />
-
-            {/* 4. Login Form Fields & Action */}
-            <View style={styles.sectionContainer}>
+              {/* Input Fields */}
               <InputField
-                label="Email Address"
+                label="Email / Student ID"
                 value={email}
                 onChangeText={(text) => {
                   setEmail(text);
                   if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
                 }}
-                placeholder="enter.your.email@college.edu"
+                placeholder="email@college.edu or 21CS084"
                 iconType="email"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -180,7 +174,7 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
               {/* Remember Me Checkbox */}
               <View style={styles.optionsRow}>
                 <TouchableOpacity
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                   onPress={() => setRememberMe(!rememberMe)}
                   style={styles.rememberMeContainer}
                 >
@@ -190,15 +184,13 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
                       rememberMe && styles.checkboxChecked,
                     ]}
                   >
-                    {rememberMe && (
-                      <MaterialIcons name="check" size={14} color="#FFFFFF" />
-                    )}
+                    {rememberMe && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                   <Text style={styles.rememberMeText}>Remember Me</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* 5. 56px Primary Blue Sign In Button */}
+              {/* Sign In Button */}
               <PrimaryButton
                 title="Sign In"
                 onPress={handleSignIn}
@@ -206,15 +198,13 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
               />
             </View>
 
-            <View style={styles.divider} />
-
-            {/* 6. Clean Footer Section */}
+            {/* Clean Footer */}
             <View style={styles.footerSection}>
-              <Text style={styles.footerLine}>FocusSync System</Text>
-              <Text style={styles.footerLine}>Department Mobile Controller</Text>
-              <Text style={styles.footerLine}>Version 1.0</Text>
+              <Text style={typography.footerText}>
+                FocusSync System • Department Controller
+              </Text>
             </View>
-          </Animated.View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -224,103 +214,102 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 32,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  contentWrapper: {
+  animatedContainer: {
     width: '100%',
     maxWidth: 440,
-    alignSelf: 'center',
+    alignItems: 'center',
   },
 
-  /* Back Button */
+  // Header Section
+  headerSection: {
+    alignItems: 'center',
+    marginBottom: 16,
+    width: '100%',
+    position: 'relative',
+  },
   backButton: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 6,
+    borderColor: colors.border,
+  },
+  backArrow: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
+    marginRight: 4,
   },
   backText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#6B7280',
+    color: colors.textSecondary,
   },
 
-  /* Header Section */
-  headerSection: {
+  // Single Logo Badge Container
+  logoBadgeContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  logoWrapper: {
-    width: 68,
-    height: 68,
-    marginBottom: 12,
+    marginBottom: 10,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 6,
   },
   logoImage: {
     width: '100%',
     height: '100%',
   },
-  appNameText: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 2,
-  },
-  appSubtext: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
+
+  // Card Container
+  card: {
+    width: '100%',
+    backgroundColor: colors.card,
+    borderRadius: 22,
+    paddingHorizontal: 22,
+    paddingVertical: 20,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
 
-  /* Welcome Section */
-  welcomeSection: {
-    marginVertical: 10,
-    alignItems: 'flex-start',
-  },
-  welcomeTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  welcomeSubtitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-
-  /* Section Spacing & Dividers */
-  sectionContainer: {
-    marginVertical: 10,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 12,
-  },
-
-  /* Options Row */
+  // Options Row
   optionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
+    marginVertical: 10,
+    paddingHorizontal: 2,
   },
   rememberMeContainer: {
     flexDirection: 'row',
@@ -329,35 +318,35 @@ const styles = StyleSheet.create({
   checkbox: {
     width: 18,
     height: 18,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: '#D1D5DB',
+    borderRadius: 5,
+    borderWidth: 1.8,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.inputBg,
   },
   checkboxChecked: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: -2,
   },
   rememberMeText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#4B5563',
+    color: colors.textSecondary,
   },
 
-  /* Footer */
+  // Footer Section
   footerSection: {
-    marginTop: 8,
+    marginTop: 20,
     alignItems: 'center',
-  },
-  footerLine: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#94A3B8',
-    lineHeight: 16,
-    textAlign: 'center',
+    justifyContent: 'center',
   },
 });
 
