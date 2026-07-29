@@ -28,7 +28,12 @@ export const mockData = {
     { id: '5', name: 'Telegram', category: 'Messaging', icon: 'telegram', blocked: true },
     { id: '6', name: 'Snapchat', category: 'Social Media', icon: 'snapchat', blocked: true },
     { id: '7', name: 'X (Twitter)', category: 'Social Media', icon: 'twitter', blocked: true },
-    { id: '8', name: 'Games', category: 'Gaming', icon: 'gamepad', blocked: true },
+    { id: '8', name: 'Games', category: 'Gaming', icon: 'gamepad-variant', blocked: true },
+    { id: '9', name: 'Phone', category: 'System', icon: 'phone', blocked: false },
+    { id: '10', name: 'Camera', category: 'System', icon: 'camera', blocked: false },
+    { id: '11', name: 'Maps', category: 'Navigation', icon: 'map-marker', blocked: false },
+    { id: '12', name: 'Calculator', category: 'Utilities', icon: 'calculator', blocked: false },
+    { id: '13', name: 'Notes', category: 'Utilities', icon: 'note-text', blocked: false },
   ],
 
   recentActivity: [

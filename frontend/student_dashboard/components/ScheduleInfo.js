@@ -42,7 +42,8 @@ export const ScheduleInfo = ({ scheduleText = '09:00 AM – 04:00 PM' }) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 16,
+    marginTop: 32,
+    marginBottom: 16,
     width: '100%',
   },
   banner: {

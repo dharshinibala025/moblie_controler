@@ -7,34 +7,43 @@ import { spacing, radius } from '../styles/globalStyles';
 
 /**
  * ImportExcelCard
- * UI-only card representing an Excel (.xlsx) import action. No file
- * picker or parsing logic is wired up; onPress is exposed so a future
- * backend/file-picker integration can be attached without touching
- * this component's markup.
- *
- * Props:
- * - title: string
- * - subtitle: string
- * - onPress: function
+ * Professional Excel (.xlsx) Import Card with Download Template and Upload Excel buttons.
  */
 const ImportExcelCard = ({
   title = 'Import Excel (.xlsx)',
   subtitle = 'Upload a spreadsheet to bulk add records',
-  onPress,
+  onDownloadTemplate,
+  onUploadExcel,
 }) => {
   return (
     <View style={styles.card}>
       <View style={styles.iconWrapper}>
-        <Icon name="upload-file" size={22} color={colors.primaryBlue} />
+        <Icon name="upload-file" size={24} color={colors.primaryBlue} />
       </View>
       <View style={styles.textWrapper}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
-      <TouchableOpacity style={styles.button} onPress={onPress} activeOpacity={0.8}>
-        <Icon name="file-upload" size={14} color={colors.white} />
-        <Text style={styles.buttonText}>Choose file</Text>
-      </TouchableOpacity>
+
+      <View style={styles.buttonGroup}>
+        <TouchableOpacity
+          style={styles.downloadButton}
+          onPress={onDownloadTemplate}
+          activeOpacity={0.8}
+        >
+          <Icon name="file-download" size={16} color={colors.primaryBlue} />
+          <Text style={styles.downloadButtonText}>Download Template</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.uploadButton}
+          onPress={onUploadExcel}
+          activeOpacity={0.8}
+        >
+          <Icon name="file-upload" size={16} color={colors.white} />
+          <Text style={styles.uploadButtonText}>Upload Excel</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -50,31 +59,67 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconWrapper: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     borderRadius: radius.md,
     backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  textWrapper: { alignItems: 'center', marginBottom: spacing.md },
-  title: { ...typography.bodyMedium, color: colors.textPrimary, textAlign: 'center' },
+  textWrapper: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  title: {
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   subtitle: {
     ...typography.caption,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 2,
   },
-  button: {
+  buttonGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.primaryBlue,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.md,
+  },
+  downloadButtonText: {
+    ...typography.button,
+    fontSize: 12,
+    color: colors.primaryBlue,
+    marginLeft: spacing.xs,
+  },
+  uploadButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primaryBlue,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
     borderRadius: radius.md,
   },
-  buttonText: { ...typography.button, color: colors.white, marginLeft: spacing.xs },
+  uploadButtonText: {
+    ...typography.button,
+    fontSize: 12,
+    color: colors.white,
+    marginLeft: spacing.xs,
+  },
 });
 
 export default ImportExcelCard;

@@ -102,6 +102,7 @@ export const StudentDashboardScreen = ({ onLogout }) => {
           <ProfileScreen
             key="profile"
             student={currentData.student}
+            onLogout={onLogout}
           />
         );
       default:

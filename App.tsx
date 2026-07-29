@@ -5,11 +5,32 @@ import GetStartedScreen from './frontend/welcome/screens/GetStartedScreen';
 import LoginScreen from './frontend/login/screens/LoginScreen';
 import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswordScreen';
 import StudentDashboardScreen from './frontend/student_dashboard/screens/StudentDashboardScreen';
+import StaffDashboardScreen from './frontend/staff_dashboard/screens/StaffDashboardScreen';
+import AdminPanel from './frontend/admin_dashboard/AdminPanel';
 
 type Screen = 'welcome' | 'login' | 'set_password' | 'dashboard';
+type Role = 'student' | 'staff' | 'admin';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState('welcome');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
+  const [userRole, setUserRole] = useState<Role>('student');
+
+  const handleLoginSuccess = (result: { role: Role }) => {
+    setUserRole(result.role);
+    setCurrentScreen('dashboard');
+  };
+
+  const renderDashboard = () => {
+    switch (userRole) {
+      case 'staff':
+        return <StaffDashboardScreen onLogout={() => setCurrentScreen('login')} />;
+      case 'admin':
+        return <AdminPanel onLogout={() => setCurrentScreen('login')} />;
+      case 'student':
+      default:
+        return <StudentDashboardScreen onLogout={() => setCurrentScreen('login')} />;
+    }
+  };
 
   return (
     <SafeAreaProvider>
@@ -24,7 +45,7 @@ function App() {
         {currentScreen === 'login' && (
           <LoginScreen
             onBack={() => setCurrentScreen('welcome')}
-            onLoginSuccess={() => setCurrentScreen('dashboard')}
+            onLoginSuccess={handleLoginSuccess}
           />
         )}
         {currentScreen === 'set_password' && (
@@ -32,9 +53,7 @@ function App() {
             onPasswordUpdated={() => setCurrentScreen('dashboard')}
           />
         )}
-        {currentScreen === 'dashboard' && (
-          <StudentDashboardScreen onLogout={() => setCurrentScreen('login')} />
-        )}
+        {currentScreen === 'dashboard' && renderDashboard()}
       </View>
     </SafeAreaProvider>
   );
