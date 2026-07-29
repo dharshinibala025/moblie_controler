@@ -7,8 +7,8 @@ import { spacing, radius } from '../styles/globalStyles';
 
 /**
  * PersonRecordCard
- * Reusable card displaying a Student or Staff record with status badges,
- * department/year details, and a Block/Unblock toggle action.
+ * Professional record card for Students and Staff with status badges,
+ * department/year/section pills, and Block/Unblock actions.
  */
 const PersonRecordCard = ({
   avatarText = 'ST',
@@ -16,11 +16,15 @@ const PersonRecordCard = ({
   name,
   idLabel = 'ID',
   idValue,
+  email,
   department,
   year,
   section,
-  deviceStatus = 'Not Connected',
+  deviceStatus = 'Connected',
   isBlocked = false,
+  onView,
+  onEdit,
+  onDelete,
   onToggleBlock,
 }) => {
   const isConnected = deviceStatus === 'Connected';
@@ -29,8 +33,8 @@ const PersonRecordCard = ({
     <View style={[styles.card, isBlocked && styles.blockedCard]}>
       {/* Top Header Row: Avatar, Info, Status Badge */}
       <View style={styles.topRow}>
-        <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-          <Text style={styles.avatarText}>{avatarText}</Text>
+        <View style={[styles.avatar, { backgroundColor: colors.secondaryBackground }]}>
+          <Text style={[styles.avatarText, { color: avatarColor }]}>{avatarText}</Text>
         </View>
 
         <View style={styles.infoWrapper}>
@@ -40,6 +44,7 @@ const PersonRecordCard = ({
           <Text style={styles.idText}>
             {idLabel}: {idValue}
           </Text>
+          {email ? <Text style={styles.emailText} numberOfLines={1}>{email}</Text> : null}
         </View>
 
         <View
@@ -67,9 +72,11 @@ const PersonRecordCard = ({
 
       {/* Middle Details Pill Row */}
       <View style={styles.detailsRow}>
-        <View style={styles.detailPill}>
-          <Text style={styles.detailPillText}>{department}</Text>
-        </View>
+        {department ? (
+          <View style={styles.detailPill}>
+            <Text style={styles.detailPillText}>{department}</Text>
+          </View>
+        ) : null}
 
         {year ? (
           <View style={styles.detailPill}>
@@ -132,7 +139,6 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     ...typography.bodyMedium,
-    color: colors.white,
     fontWeight: '700',
   },
   infoWrapper: {
@@ -148,6 +154,12 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  emailText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 1,
   },
   statusBadge: {
     flexDirection: 'row',

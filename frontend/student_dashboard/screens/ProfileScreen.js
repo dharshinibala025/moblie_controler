@@ -6,19 +6,46 @@ import {
   ScrollView,
   Platform,
   StatusBar,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
 import VectorIcon from '../components/VectorIcon';
+import authService from '../../services/authService';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
-export const ProfileScreen = ({ student }) => {
+export const ProfileScreen = ({ student, onLogout }) => {
   const studentName = student?.name || 'Dharani V V';
   const registerNo = student?.registerNumber || '221CS000';
   const deptName = student?.fullDepartment || student?.department || 'Computer Science and Engineering';
   const email = student?.email || 'vvdharani57cse24_27@ksrce.ac.in';
   const section = student?.section || 'A';
   const initials = student?.initials || 'DV';
+
+  const handleLogoutPress = () => {
+    Alert.alert(
+      'Log Out Confirmation',
+      'Are you sure you want to log out of the Student Portal?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await authService.logout();
+            } catch (err) {
+              // Silently ignore network failures on logout
+            }
+            if (onLogout) {
+              onLogout();
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <ScrollView
@@ -111,6 +138,16 @@ export const ProfileScreen = ({ student }) => {
           This application operates under view-only mode for students. Mobile application restrictions during class hours are enforced centrally by the Head of Department (HOD) and Department Admin.
         </Text>
       </View>
+
+      {/* 4. Log Out Button */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={handleLogoutPress}
+        style={styles.logoutButton}
+      >
+        <VectorIcon name="logout" size={18} color={colors.danger} />
+        <Text style={styles.logoutText}>Log Out of Portal</Text>
+      </TouchableOpacity>
 
       <Text style={styles.copyrightText}>
         Department Controller Student Portal • View Only
@@ -252,12 +289,33 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
+  /* Log Out Button */
+  logoutButton: {
+    backgroundColor: colors.blockedLight || '#FEE2E2',
+    height: 48,
+    borderRadius: borderRadius.button || 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    marginTop: 4,
+    marginBottom: 16,
+    ...shadows.soft,
+  },
+  logoutText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.danger || '#EF4444',
+  },
+
   copyrightText: {
     fontSize: 11,
     fontWeight: '500',
     color: '#94A3B8',
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: 4,
     marginBottom: 20,
   },
 });

@@ -5,18 +5,37 @@ import GetStartedScreen from './frontend/welcome/screens/GetStartedScreen';
 import LoginScreen from './frontend/login/screens/LoginScreen';
 import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswordScreen';
 import StudentDashboardScreen from './frontend/student_dashboard/screens/StudentDashboardScreen';
-import AdminPanel from './frontend/admin_dashboard/AdminPanel';
 import StaffDashboardScreen from './frontend/staff_dashboard/screens/StaffDashboardScreen';
+import AdminPanel from './frontend/admin_dashboard/AdminPanel';
 
 type Screen = 'welcome' | 'login' | 'set_password' | 'dashboard';
+type Role = 'student' | 'staff' | 'admin';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('welcome');
-  const [userRole, setUserRole] = useState(null);
+  const [userRole, setUserRole] = useState('student');
 
   const handleLogout = () => {
-    setUserRole(null);
+    setUserRole('student');
     setCurrentScreen('login');
+  };
+
+  const handleLoginSuccess = (user: any) => {
+    const role = typeof user === 'string' ? user : (user?.role || 'student');
+    setUserRole(role);
+    setCurrentScreen('dashboard');
+  };
+
+  const renderDashboard = () => {
+    switch (userRole) {
+      case 'staff':
+        return <StaffDashboardScreen onLogout={handleLogout} />;
+      case 'admin':
+        return <AdminPanel onLogout={handleLogout} />;
+      case 'student':
+      default:
+        return <StudentDashboardScreen onLogout={handleLogout} />;
+    }
   };
 
   return (
@@ -32,10 +51,7 @@ function App() {
         {currentScreen === 'login' && (
           <LoginScreen
             onBack={() => setCurrentScreen('welcome')}
-            onLoginSuccess={(user: any) => {
-              setUserRole(user?.role || 'student');
-              setCurrentScreen('dashboard');
-            }}
+            onLoginSuccess={handleLoginSuccess}
           />
         )}
         {currentScreen === 'set_password' && (
@@ -43,17 +59,7 @@ function App() {
             onPasswordUpdated={() => setCurrentScreen('dashboard')}
           />
         )}
-        {currentScreen === 'dashboard' && (
-          <>
-            {userRole === 'admin' ? (
-              <AdminPanel onLogout={handleLogout} />
-            ) : userRole === 'staff' ? (
-              <StaffDashboardScreen onLogout={handleLogout} />
-            ) : (
-              <StudentDashboardScreen onLogout={handleLogout} />
-            )}
-          </>
-        )}
+        {currentScreen === 'dashboard' && renderDashboard()}
       </View>
     </SafeAreaProvider>
   );

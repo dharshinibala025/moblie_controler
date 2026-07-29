@@ -5,12 +5,16 @@ import VectorIcon from './VectorIcon';
 
 /**
  * Individual Application Card Component
+ * Uses app.blocked boolean to show status per-app.
  */
-export const AppCard = ({ app, isBlocked = true }) => {
+export const AppCard = ({ app }) => {
+  // Use per-app blocked status; fallback to true if not defined
+  const isBlocked = app.blocked !== undefined ? app.blocked : true;
+
   return (
     <View style={styles.appCard}>
-      <View style={styles.iconContainer}>
-        <VectorIcon name={app.icon || 'cellphone'} size={24} color={colors.primary} />
+      <View style={[styles.iconContainer, isBlocked ? styles.iconContainerBlocked : styles.iconContainerUnblocked]}>
+        <VectorIcon name={app.icon || 'cellphone'} size={24} color={isBlocked ? colors.blocked : colors.active} />
       </View>
       <Text style={styles.appName} numberOfLines={1}>
         {app.name}
@@ -33,7 +37,7 @@ export const AppCard = ({ app, isBlocked = true }) => {
             { color: isBlocked ? colors.blocked : colors.active },
           ]}
         >
-          {isBlocked ? 'Blocked' : 'Available'}
+          {isBlocked ? 'Blocked' : 'Unblocked'}
         </Text>
       </View>
     </View>
@@ -43,39 +47,61 @@ export const AppCard = ({ app, isBlocked = true }) => {
 /**
  * AppGridCard Component
  *
- * Renders a responsive two-column grid of blocked/available applications.
+ * Renders a responsive two-column grid of apps with individual blocked/unblocked status.
+ * Accepts `apps` array where each app has a `blocked: boolean` property.
+ *
+ * Also supports legacy `blockedApps` prop for backward compatibility.
  */
-export const AppGridCard = ({ blockedApps = [], statusMode = 'ACTIVE' }) => {
-  const isBlocked = statusMode === 'ACTIVE';
+export const AppGridCard = ({ apps = [], blockedApps, statusMode }) => {
+  // Support legacy props
+  let displayApps = apps;
+
+  // Legacy: if apps empty but blockedApps provided, map them
+  if (displayApps.length === 0 && blockedApps && blockedApps.length > 0) {
+    const isBlocked = !statusMode || statusMode === 'ACTIVE';
+    displayApps = blockedApps.map((app) => ({ ...app, blocked: isBlocked }));
+  }
+
+  const blockedCount = displayApps.filter((a) => a.blocked).length;
+  const unblockedCount = displayApps.filter((a) => !a.blocked).length;
 
   return (
     <View style={styles.container}>
+      {/* Section Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Blocked Applications</Text>
-        <View
-          style={[
-            styles.countBadge,
-            { backgroundColor: isBlocked ? colors.blockedLight : colors.activeLight },
-          ]}
-        >
-          <Text
-            style={[
-              styles.countBadgeText,
-              { color: isBlocked ? colors.blocked : colors.active },
-            ]}
-          >
-            {blockedApps.length} {isBlocked ? 'Blocked' : 'Available'}
-          </Text>
+        <Text style={styles.sectionTitle}>
+          {displayApps.length === 0 ? 'Applications' : `Applications (${displayApps.length})`}
+        </Text>
+        <View style={styles.statsRow}>
+          {blockedCount > 0 && (
+            <View style={styles.statBadgeRed}>
+              <View style={[styles.statDot, { backgroundColor: colors.blocked }]} />
+              <Text style={[styles.statBadgeText, { color: colors.blocked }]}>{blockedCount} Blocked</Text>
+            </View>
+          )}
+          {unblockedCount > 0 && (
+            <View style={styles.statBadgeGreen}>
+              <View style={[styles.statDot, { backgroundColor: colors.active }]} />
+              <Text style={[styles.statBadgeText, { color: colors.active }]}>{unblockedCount} Unblocked</Text>
+            </View>
+          )}
         </View>
       </View>
 
-      <View style={styles.grid}>
-        {blockedApps.map((app) => (
-          <View key={app.id} style={styles.gridColumn}>
-            <AppCard app={app} isBlocked={isBlocked} />
-          </View>
-        ))}
-      </View>
+      {displayApps.length === 0 ? (
+        <View style={styles.emptyState}>
+          <VectorIcon name="apps" size={40} color={colors.textMuted} />
+          <Text style={styles.emptyText}>No applications found</Text>
+        </View>
+      ) : (
+        <View style={styles.grid}>
+          {displayApps.map((app, idx) => (
+            <View key={app.id || idx} style={styles.gridColumn}>
+              <AppCard app={app} />
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 };
@@ -90,6 +116,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 14,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   sectionTitle: {
     fontSize: 18,
@@ -97,12 +125,34 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     letterSpacing: -0.3,
   },
-  countBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+  statsRow: {
+    flexDirection: 'row',
+    gap: 6,
   },
-  countBadgeText: {
+  statBadgeRed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.blockedLight,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    gap: 4,
+  },
+  statBadgeGreen: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.activeLight,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    gap: 4,
+  },
+  statDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statBadgeText: {
     fontSize: 11,
     fontWeight: '800',
   },
@@ -117,7 +167,7 @@ const styles = StyleSheet.create({
   },
   appCard: {
     backgroundColor: colors.card,
-    borderRadius: borderRadius.card, // 18px
+    borderRadius: borderRadius.card,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
@@ -128,12 +178,18 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+  },
+  iconContainerBlocked: {
+    backgroundColor: colors.blockedLight,
+    borderColor: '#FECACA',
+  },
+  iconContainerUnblocked: {
+    backgroundColor: colors.activeLight,
+    borderColor: '#BBF7D0',
   },
   appName: {
     fontSize: 14,
@@ -158,6 +214,17 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 10,
+  },
+  emptyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
 });
 
