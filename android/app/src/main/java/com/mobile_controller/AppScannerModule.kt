@@ -140,4 +140,62 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             promise.reject("SAVE_POLICY_ERROR", e.localizedMessage, e)
         }
     }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val expectedService = "${reactContext.packageName}/${RestrictionAccessibilityService::class.java.canonicalName}"
+        val enabledServices = Settings.Secure.getString(
+            reactContext.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: ""
+        return enabledServices.contains(expectedService) || enabledServices.contains("RestrictionAccessibilityService")
+    }
+
+    private fun canDrawOverlays(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(reactContext)
+        } else {
+            true
+        }
+    }
+
+    @ReactMethod
+    fun checkPermissions(promise: Promise) {
+        try {
+            val result = Arguments.createMap()
+            result.putBoolean("accessibilityEnabled", isAccessibilityServiceEnabled())
+            result.putBoolean("overlayEnabled", canDrawOverlays())
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("CHECK_PERMISSIONS_ERROR", e.localizedMessage, e)
+        }
+    }
+
+    @ReactMethod
+    fun openAccessibilitySettings() {
+        try {
+            val intent = android.content.Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            reactContext.startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    @ReactMethod
+    fun openOverlaySettings() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val intent = android.content.Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:${reactContext.packageName}")
+                ).apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                reactContext.startActivity(intent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }

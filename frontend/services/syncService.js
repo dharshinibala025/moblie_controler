@@ -60,26 +60,46 @@ class SyncService {
         method: 'GET',
       });
 
-      // 6. Check policy version differences and write updates to native side
-      const cachedVersionStr = await AsyncStorage.getItem(CACHE_KEYS.POLICY_VERSION);
-      const cachedVersion = cachedVersionStr ? parseInt(cachedVersionStr, 10) : 0;
-
-      if (policy && policy.policyVersion > cachedVersion) {
+      // 6. Save latest policy to native storage for Accessibility Service
+      if (policy) {
         await AppScannerModule.savePolicy(
-          policy.policyVersion.toString(),
+          (policy.policyVersion || 1).toString(),
           policy.blockedPackages || [],
           policy.scheduleStart || '09:00',
           policy.scheduleEnd || '16:00',
           policy.activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
           policy.restrictionReason || 'Institutional restriction policy',
-          policy.policyVersion
+          policy.policyVersion || 1
         );
-        await AsyncStorage.setItem(CACHE_KEYS.POLICY_VERSION, policy.policyVersion.toString());
+        await AsyncStorage.setItem(CACHE_KEYS.POLICY_VERSION, (policy.policyVersion || 1).toString());
       }
     } catch (error) {
       console.warn('FocusSync: Background Synchronization failed:', error.message);
     } finally {
       this.isSyncing = false;
+    }
+  }
+
+  async checkPermissions() {
+    if (AppScannerModule && AppScannerModule.checkPermissions) {
+      try {
+        return await AppScannerModule.checkPermissions();
+      } catch (e) {
+        return { accessibilityEnabled: false, overlayEnabled: false };
+      }
+    }
+    return { accessibilityEnabled: false, overlayEnabled: false };
+  }
+
+  openAccessibilitySettings() {
+    if (AppScannerModule && AppScannerModule.openAccessibilitySettings) {
+      AppScannerModule.openAccessibilitySettings();
+    }
+  }
+
+  openOverlaySettings() {
+    if (AppScannerModule && AppScannerModule.openOverlaySettings) {
+      AppScannerModule.openOverlaySettings();
     }
   }
 

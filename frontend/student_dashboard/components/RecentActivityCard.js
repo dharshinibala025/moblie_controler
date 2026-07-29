@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
 import VectorIcon from './VectorIcon';
 
-export const RecentActivityCard = ({ activities = [], onViewAll }) => {
+export const RecentActivityCard = ({ activities = [] }) => {
   // Only display top 5 items
   const displayActivities = activities.slice(0, 5);
 
@@ -44,21 +44,6 @@ export const RecentActivityCard = ({ activities = [], onViewAll }) => {
             </React.Fragment>
           );
         })}
-
-        {/* View All link */}
-        {Boolean(onViewAll && activities.length > 0) ? (
-          <>
-            <View style={styles.divider} />
-            <TouchableOpacity
-              style={styles.viewAllRow}
-              activeOpacity={0.7}
-              onPress={onViewAll}
-            >
-              <Text style={styles.viewAllText}>View Full Activity Timeline</Text>
-              <VectorIcon name="chevron-right" size={16} color={colors.primary} />
-            </TouchableOpacity>
-          </>
-        ) : null}
       </View>
     </View>
   );
@@ -125,18 +110,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textSecondary,
     lineHeight: 18,
-  },
-  viewAllRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primary,
   },
 });
 

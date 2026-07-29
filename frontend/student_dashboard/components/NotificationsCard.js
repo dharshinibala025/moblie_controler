@@ -4,21 +4,6 @@ import { colors, shadows, borderRadius } from '../styles/theme';
 import VectorIcon from './VectorIcon';
 
 export const NotificationsCard = ({ notifications = [], onViewAll }) => {
-  const formatTime = (createdAt) => {
-    if (!createdAt) return '';
-    const date = new Date(createdAt);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-  };
-
-  const displayNotifications = notifications.slice(0, 5);
-
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -33,47 +18,35 @@ export const NotificationsCard = ({ notifications = [], onViewAll }) => {
         )}
       </View>
 
-      {displayNotifications.length === 0 ? (
-        <View style={[styles.card, styles.emptyCard]}>
-          <VectorIcon name="bell" size={24} color={colors.textMuted} />
-          <Text style={styles.emptyText}>No notifications yet</Text>
-        </View>
-      ) : (
-        <View style={styles.card}>
-          {displayNotifications.map((item, index) => (
-            <React.Fragment key={item._id || item.id || index}>
-              {index > 0 && <View style={styles.divider} />}
-              <View style={styles.notificationRow}>
-                {/* Notification Bell Icon */}
-                <View style={styles.iconWrapper}>
-                  <VectorIcon name="bell" size={18} color={colors.primary} />
-                </View>
-
-                {/* Message Content */}
-                <View style={styles.contentWrapper}>
-                  {item.title ? (
-                    <Text style={[styles.titleText, !item.read && styles.unreadTitleText]}>
-                      {item.title}
-                    </Text>
-                  ) : null}
-                  <Text
-                    style={[
-                      styles.messageText,
-                      !item.read && styles.unreadMessageText,
-                    ]}
-                  >
-                    {item.message}
-                  </Text>
-                  <Text style={styles.timeText}>{formatTime(item.createdAt || item.time)}</Text>
-                </View>
-
-                {/* Unread Dot Indicator */}
-                {!item.read && <View style={styles.unreadDot} />}
+      <View style={styles.card}>
+        {notifications.map((item, index) => (
+          <React.Fragment key={item.id || index}>
+            {index > 0 && <View style={styles.divider} />}
+            <View style={styles.notificationRow}>
+              {/* Notification Bell Icon */}
+              <View style={styles.iconWrapper}>
+                <VectorIcon name="bell" size={18} color={colors.primary} />
               </View>
-            </React.Fragment>
-          ))}
-        </View>
-      )}
+
+              {/* Message Content */}
+              <View style={styles.contentWrapper}>
+                <Text
+                  style={[
+                    styles.messageText,
+                    !item.read && styles.unreadMessageText,
+                  ]}
+                >
+                  {item.message}
+                </Text>
+                <Text style={styles.timeText}>{item.time}</Text>
+              </View>
+
+              {/* Unread Dot Indicator */}
+              {!item.read && <View style={styles.unreadDot} />}
+            </View>
+          </React.Fragment>
+        ))}
+      </View>
     </View>
   );
 };
@@ -155,28 +128,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.primary,
     marginLeft: 8,
-  },
-  titleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  unreadTitleText: {
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  emptyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 20,
-  },
-  emptyText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textMuted,
   },
 });
 
