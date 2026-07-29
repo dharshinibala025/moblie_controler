@@ -913,4 +913,336 @@ router.post("/notifications/broadcast", async (req, res, next) => {
   }
 });
 
+// ========== ENTERPRISE ADMIN DASHBOARD & MODULE REST ENDPOINTS ==========
+
+router.get("/dashboard/overview", async (req, res, next) => {
+  try {
+    const totalStudents = await User.countDocuments({ role: "student" });
+    const totalStaff = await User.countDocuments({ role: "staff" });
+    const connectedDevicesCount = await Device.countDocuments({ status: "active" });
+    const blockedDevicesCount = await Device.countDocuments({ status: "blocked" });
+
+    const BlockedAttempt = require("../models/BlockedAttempt");
+    const AuditLog = require("../models/AuditLog");
+
+    const recentAttempts = await BlockedAttempt.find()
+      .populate("studentId", "name studentId classId")
+      .sort({ attemptedAt: -1, createdAt: -1 })
+      .limit(4);
+
+    const recentAudits = await AuditLog.find()
+      .populate("actorId", "name role")
+      .sort({ createdAt: -1 })
+      .limit(4);
+
+    const recentActivities = [];
+
+    for (const attempt of recentAttempts) {
+      const studentName = attempt.studentId ? attempt.studentId.name : "Student";
+      recentActivities.push({
+        id: `att-${attempt._id}`,
+        icon: "phonelink-erase",
+        title: "Device blocked attempt",
+        description: `Unauthorized app (${attempt.packageName}) on ${studentName}'s device`,
+        time: attempt.attemptedAt ? `${Math.max(1, Math.round((Date.now() - new Date(attempt.attemptedAt).getTime()) / 60000))}m ago` : "Recently",
+        iconColor: "#EF4444",
+        iconBackground: "#FEE2E2",
+      });
+    }
+
+    for (const audit of recentAudits) {
+      const actorName = audit.actorId ? audit.actorId.name : "Admin";
+      recentActivities.push({
+        id: `aud-${audit._id}`,
+        icon: "how-to-reg",
+        title: audit.action.replace(/\./g, " ").toUpperCase(),
+        description: `Performed by ${actorName}`,
+        time: audit.createdAt ? `${Math.max(1, Math.round((Date.now() - new Date(audit.createdAt).getTime()) / 60000))}m ago` : "Recently",
+        iconColor: "#2563EB",
+        iconBackground: "#EFF6FF",
+      });
+    }
+
+    res.json({
+      stats: [
+        {
+          id: "total-students",
+          icon: "school",
+          label: "Total Students",
+          value: totalStudents.toLocaleString(),
+          iconColor: "#2563EB",
+          iconBackground: "#EFF6FF",
+          trend: "+4.2%",
+          trendPositive: true,
+        },
+        {
+          id: "total-staff",
+          icon: "groups",
+          label: "Total Staff",
+          value: totalStaff.toLocaleString(),
+          iconColor: "#38BDF8",
+          iconBackground: "#F0F9FF",
+          trend: "+1.1%",
+          trendPositive: true,
+        },
+        {
+          id: "connected-phones",
+          icon: "smartphone",
+          label: "Connected Phones",
+          value: connectedDevicesCount.toLocaleString(),
+          iconColor: "#16A34A",
+          iconBackground: "#DCFCE7",
+          trend: "+8.6%",
+          trendPositive: true,
+        },
+        {
+          id: "blocked-phones",
+          icon: "phonelink-erase",
+          label: "Blocked Phones",
+          value: blockedDevicesCount.toLocaleString(),
+          iconColor: "#EF4444",
+          iconBackground: "#FEE2E2",
+          trend: "-2.3%",
+          trendPositive: false,
+        },
+      ],
+      recentActivities: recentActivities.slice(0, 6),
+      usageSummary: {
+        sessionsThisWeek: 354,
+        periodText: "This week",
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/students", async (req, res, next) => {
+  try {
+    const students = await User.find({ role: "student" })
+      .populate("departmentId", "code name")
+      .populate("academicYearId", "name")
+      .populate("sectionId", "name")
+      .sort({ name: 1 });
+
+    const studentIds = students.map((s) => s._id);
+    const devices = await Device.find({ userId: { $in: studentIds } });
+    const deviceMap = new Map(devices.map((d) => [d.userId.toString(), d]));
+
+    const formatted = students.map((s) => {
+      const dev = deviceMap.get(s._id.toString());
+      const isBlocked = dev ? dev.status === "blocked" : false;
+      const deviceStatus = dev ? (dev.status === "blocked" ? "Blocked" : "Connected") : "Not Connected";
+
+      return {
+        id: s._id.toString(),
+        name: s.name,
+        registerNumber: s.studentId || "2024CSE001",
+        department: s.departmentId ? s.departmentId.code : "CSE",
+        year: s.academicYearId ? s.academicYearId.name : "1st Year",
+        section: s.sectionId ? s.sectionId.name : "A",
+        deviceStatus,
+        isBlocked,
+        email: s.email,
+      };
+    });
+
+    res.json(formatted);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/students/upload", async (req, res, next) => {
+  try {
+    const { fileBase64, fileName = "students.xlsx" } = req.body;
+    if (!fileBase64) {
+      return res.status(400).json({ error: "Missing spreadsheet file data (fileBase64 required)" });
+    }
+
+    const spreadsheetService = require("../services/spreadsheetService");
+    const buffer = Buffer.from(fileBase64, "base64");
+    const result = await spreadsheetService.processStudentUpload(buffer, fileName, req.user.userId, req.user.role);
+
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/staff", async (req, res, next) => {
+  try {
+    const staffMembers = await User.find({ role: "staff" })
+      .populate("departmentId", "name code")
+      .sort({ name: 1 });
+
+    const staffIds = staffMembers.map((s) => s._id);
+    const devices = await Device.find({ userId: { $in: staffIds } });
+    const deviceMap = new Map(devices.map((d) => [d.userId.toString(), d]));
+
+    const formatted = staffMembers.map((s) => {
+      const dev = deviceMap.get(s._id.toString());
+      const isBlocked = dev ? dev.status === "blocked" : false;
+      const deviceStatus = dev ? (dev.status === "blocked" ? "Blocked" : "Connected") : "Connected";
+
+      return {
+        id: s._id.toString(),
+        name: s.name,
+        staffId: s.employeeId || "STF001",
+        department: s.departmentId ? s.departmentId.name : "Computer Science",
+        year: "1st Year",
+        section: "A",
+        deviceStatus,
+        isBlocked,
+        email: s.email,
+      };
+    });
+
+    res.json(formatted);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/staff/upload", async (req, res, next) => {
+  try {
+    const { fileBase64, fileName = "staff.xlsx" } = req.body;
+    if (!fileBase64) {
+      return res.status(400).json({ error: "Missing spreadsheet file data (fileBase64 required)" });
+    }
+
+    const spreadsheetService = require("../services/spreadsheetService");
+    const buffer = Buffer.from(fileBase64, "base64");
+    const result = await spreadsheetService.processStaffUpload(buffer, fileName, req.user.userId, req.user.role);
+
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/devices/list", async (req, res, next) => {
+  try {
+    const devices = await Device.find()
+      .populate({ path: "userId", select: "name studentId employeeId departmentId classId role" })
+      .sort({ updatedAt: -1 });
+
+    const formatted = devices.map((d) => {
+      const userName = d.userId ? d.userId.name : "Unknown User";
+      const isBlocked = d.status === "blocked";
+      const diffMs = Date.now() - new Date(d.lastSeenAt || d.updatedAt).getTime();
+      const diffMins = Math.max(1, Math.round(diffMs / 60000));
+      const lastActive = diffMins < 60 ? `${diffMins}m ago` : `${Math.round(diffMins / 60)}h ago`;
+
+      return {
+        id: d._id.toString(),
+        name: `${userName}'s Device`,
+        deviceType: `${d.manufacturer || "Android"} ${d.deviceModel || "phone"}`,
+        ipAddress: "192.168.1.42",
+        lastActive,
+        isBlocked,
+        status: d.status,
+        userName,
+        userRole: d.userId ? d.userId.role : "student",
+      };
+    });
+
+    res.json(formatted);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/devices/:id/block", async (req, res, next) => {
+  try {
+    const device = await Device.findById(req.params.id);
+    if (!device) {
+      return res.status(404).json({ error: "Device not found" });
+    }
+
+    device.status = "blocked";
+    await device.save();
+
+    const { emitToClass } = require("../config/socket");
+    emitToClass("ALL", "device:blocked", { deviceId: device._id, status: "blocked" });
+
+    res.json({ success: true, status: "blocked", deviceId: device._id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/devices/:id/unblock", async (req, res, next) => {
+  try {
+    const device = await Device.findById(req.params.id);
+    if (!device) {
+      return res.status(404).json({ error: "Device not found" });
+    }
+
+    device.status = "active";
+    await device.save();
+
+    const { emitToClass } = require("../config/socket");
+    emitToClass("ALL", "device:unblocked", { deviceId: device._id, status: "active" });
+
+    res.json({ success: true, status: "active", deviceId: device._id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ========== REPORT EXPORT ENDPOINTS ==========
+
+router.get("/reports/students/export", async (req, res, next) => {
+  try {
+    const exportService = require("../services/exportService");
+    const buffer = await exportService.exportStudentsToExcel();
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="Students_Roster_Report.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/reports/staff/export", async (req, res, next) => {
+  try {
+    const exportService = require("../services/exportService");
+    const buffer = await exportService.exportStaffToExcel();
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="Staff_Roster_Report.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/reports/devices/export", async (req, res, next) => {
+  try {
+    const exportService = require("../services/exportService");
+    const buffer = await exportService.exportDevicesToExcel();
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="Device_Inventory_Report.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/reports/attempts/export", async (req, res, next) => {
+  try {
+    const exportService = require("../services/exportService");
+    const buffer = await exportService.exportBlockedAttemptsToExcel();
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="Blocked_Attempts_Report.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

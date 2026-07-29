@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -8,21 +8,18 @@ import SectionTitle from '../components/SectionTitle';
 import DashboardCard from '../components/DashboardCard';
 import ActivityCard from '../components/ActivityCard';
 import PlaceholderChart from '../components/PlaceholderChart';
+import adminService from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
 import { spacing, radius } from '../styles/globalStyles';
 
-// ---------------------------------------------------------------------------
-// Dummy data (no backend / no API calls)
-// ---------------------------------------------------------------------------
-
-const STATS_DATA = [
+const INITIAL_STATS = [
   {
     id: 'total-students',
     icon: 'school',
     label: 'Total Students',
-    value: '1,248',
+    value: '12',
     iconColor: colors.primaryBlue,
     iconBackground: colors.secondaryBackground,
     trend: '+4.2%',
@@ -32,7 +29,7 @@ const STATS_DATA = [
     id: 'total-staff',
     icon: 'groups',
     label: 'Total Staff',
-    value: '86',
+    value: '1',
     iconColor: colors.skyBlue,
     iconBackground: colors.secondaryBackground,
     trend: '+1.1%',
@@ -42,7 +39,7 @@ const STATS_DATA = [
     id: 'connected-phones',
     icon: 'smartphone',
     label: 'Connected Phones',
-    value: '742',
+    value: '1',
     iconColor: colors.success,
     iconBackground: colors.successSoft,
     trend: '+8.6%',
@@ -52,49 +49,22 @@ const STATS_DATA = [
     id: 'blocked-phones',
     icon: 'phonelink-erase',
     label: 'Blocked Phones',
-    value: '19',
+    value: '0',
     iconColor: colors.danger,
     iconBackground: colors.dangerSoft,
-    trend: '-2.3%',
+    trend: '0%',
     trendPositive: false,
   },
 ];
 
-const RECENT_ACTIVITY = [
+const INITIAL_ACTIVITIES = [
   {
     id: 'activity-1',
     icon: 'person-add',
     title: 'New student registered',
-    description: 'Aarav Sharma joined Grade 10 - B',
+    description: 'Dharani V V joined CSE - 1st Year',
     time: '2m ago',
     iconColor: colors.primaryBlue,
-    iconBackground: colors.secondaryBackground,
-  },
-  {
-    id: 'activity-2',
-    icon: 'phonelink-erase',
-    title: 'Device blocked',
-    description: 'Unauthorized app detected on Device #482',
-    time: '18m ago',
-    iconColor: colors.danger,
-    iconBackground: colors.dangerSoft,
-  },
-  {
-    id: 'activity-3',
-    icon: 'how-to-reg',
-    title: 'Staff attendance updated',
-    description: 'Priya Nair marked present',
-    time: '46m ago',
-    iconColor: colors.success,
-    iconBackground: colors.successSoft,
-  },
-  {
-    id: 'activity-4',
-    icon: 'description',
-    title: 'Monthly report generated',
-    description: 'October attendance report is ready',
-    time: '1h ago',
-    iconColor: colors.skyBlue,
     iconBackground: colors.secondaryBackground,
   },
 ];
@@ -110,6 +80,28 @@ const USAGE_SUMMARY_DATA = [
 ];
 
 const DashboardScreen = () => {
+  const [stats, setStats] = useState(INITIAL_STATS);
+  const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchOverview = async () => {
+      const res = await adminService.getDashboardOverview();
+      if (res && isMounted) {
+        if (res.stats && res.stats.length > 0) {
+          setStats(res.stats);
+        }
+        if (res.recentActivities && res.recentActivities.length > 0) {
+          setActivities(res.recentActivities);
+        }
+      }
+    };
+    fetchOverview();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <ScrollView
       style={styles.flex}
@@ -135,7 +127,7 @@ const DashboardScreen = () => {
       <View style={styles.section}>
         <SectionTitle title="Overview" subtitle="Live snapshot of your institution" />
         <View style={styles.statsGrid}>
-          {STATS_DATA.map((stat) => (
+          {stats.map((stat) => (
             <View key={stat.id} style={styles.statsGridItem}>
               <StatsCard
                 icon={stat.icon}
@@ -154,7 +146,7 @@ const DashboardScreen = () => {
       <View style={styles.section}>
         <SectionTitle title="Recent Activity" />
         <DashboardCard noPadding>
-          {RECENT_ACTIVITY.map((activity, index) => (
+          {activities.map((activity, index) => (
             <View key={activity.id} style={styles.activityPadding}>
               <ActivityCard
                 icon={activity.icon}
@@ -163,7 +155,7 @@ const DashboardScreen = () => {
                 time={activity.time}
                 iconColor={activity.iconColor}
                 iconBackground={activity.iconBackground}
-                isLast={index === RECENT_ACTIVITY.length - 1}
+                isLast={index === activities.length - 1}
               />
             </View>
           ))}

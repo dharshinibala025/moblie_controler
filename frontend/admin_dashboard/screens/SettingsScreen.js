@@ -10,9 +10,12 @@ import colors from '../styles/colors';
 import typography from '../styles/typography';
 import { spacing, radius } from '../styles/globalStyles';
 
-const SettingsScreen = ({ onLogout }) => {
+const SettingsScreen = ({ adminData, onLogout }) => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+
+  const adminName = adminData?.name || 'System Administrator';
+  const adminEmail = adminData?.email || 'admin@ksrce.ac.in';
 
   const handleRowPress = (rowId) => {
     if (rowId === 'logout' && onLogout) {
@@ -33,8 +36,8 @@ const SettingsScreen = ({ onLogout }) => {
           <View style={styles.profileAvatar}>
             <Text style={styles.profileAvatarText}>AD</Text>
           </View>
-          <Text style={styles.profileName}>Admin</Text>
-          <Text style={styles.profileEmail}>admin@ksrce.edu.in</Text>
+          <Text style={styles.profileName}>{adminName}</Text>
+          <Text style={styles.profileEmail}>{adminEmail}</Text>
         </View>
       </View>
 

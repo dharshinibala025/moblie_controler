@@ -11,8 +11,8 @@ import StaffDashboardScreen from './frontend/staff_dashboard/screens/StaffDashbo
 type Screen = 'welcome' | 'login' | 'set_password' | 'dashboard';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [currentScreen, setCurrentScreen] = useState('welcome');
+  const [userRole, setUserRole] = useState(null);
 
   const handleLogout = () => {
     setUserRole(null);

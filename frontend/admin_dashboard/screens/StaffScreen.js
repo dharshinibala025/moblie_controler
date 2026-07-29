@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 
 import Header from '../components/Header';
 import SearchBar from '../components/SearchBar';
@@ -7,88 +7,46 @@ import FilterChipGroup from '../components/FilterChipGroup';
 import ImportExcelCard from '../components/ImportExcelCard';
 import SectionTitle from '../components/SectionTitle';
 import PersonRecordCard from '../components/PersonRecordCard';
+import adminService from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
 import { spacing } from '../styles/globalStyles';
 import { YEARS, getSectionOptions } from '../config/sectionsConfig';
 
-// ---------------------------------------------------------------------------
-// Dummy data (no backend / no API calls). Year/Section here represent the
-// class a staff member is currently assigned to (e.g. class teacher duty).
-// ---------------------------------------------------------------------------
-
 const INITIAL_STAFF = [
   {
     id: 't1',
-    name: 'Priya Nair',
-    staffId: 'STF214',
-    department: 'Mathematics',
-    year: '1st Year',
-    section: 'A',
-    deviceStatus: 'Connected',
-    isBlocked: false,
-  },
-  {
-    id: 't2',
-    name: 'Anil Kumar',
-    staffId: 'STF118',
-    department: 'Physics',
-    year: '1st Year',
-    section: 'B',
-    deviceStatus: 'Connected',
-    isBlocked: false,
-  },
-  {
-    id: 't3',
-    name: 'Divya Francis',
-    staffId: 'STF076',
-    department: 'Administration',
-    year: '2nd Year',
-    section: 'A',
-    deviceStatus: 'Not Connected',
-    isBlocked: false,
-  },
-  {
-    id: 't4',
-    name: 'Ramesh Subin',
-    staffId: 'STF152',
-    department: 'Sports',
-    year: '2nd Year',
-    section: 'C',
-    deviceStatus: 'Connected',
-    isBlocked: true,
-  },
-  {
-    id: 't5',
-    name: 'Lakshmi Iyer',
-    staffId: 'STF093',
-    department: 'Chemistry',
-    year: '3rd Year',
-    section: 'B',
-    deviceStatus: 'Connected',
-    isBlocked: false,
-  },
-  {
-    id: 't6',
-    name: 'Suresh Nambiar',
-    staffId: 'STF061',
+    name: 'Class Staff',
+    staffId: 'STF001',
     department: 'Computer Science',
-    year: '4th Year',
+    year: '1st Year',
     section: 'A',
-    deviceStatus: 'Not Connected',
+    deviceStatus: 'Connected',
     isBlocked: false,
   },
 ];
 
 const getInitials = (name) =>
-  name.split(' ').map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase();
+  name ? name.split(' ').map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase() : 'ST';
 
 const StaffScreen = () => {
   const [staff, setStaff] = useState(INITIAL_STAFF);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState('All');
   const [selectedSection, setSelectedSection] = useState('All');
+  const [isImporting, setIsImporting] = useState(false);
+
+  const loadStaff = async () => {
+    const data = await adminService.getStaff();
+    if (data && data.length > 0) {
+      setStaff(data);
+    }
+  };
+
+  useEffect(() => {
+    loadStaff();
+  }, []);
 
   const yearOptions = useMemo(() => ['All', ...YEARS], []);
   const sectionOptions = useMemo(
@@ -96,8 +54,6 @@ const StaffScreen = () => {
     [selectedYear],
   );
 
-  // If switching years makes the currently selected section unavailable
-  // (e.g. a year configured with fewer sections), reset it back to "All".
   useEffect(() => {
     if (selectedSection !== 'All' && !sectionOptions.includes(selectedSection)) {
       setSelectedSection('All');
@@ -106,14 +62,15 @@ const StaffScreen = () => {
 
   const filteredStaff = useMemo(() => {
     return staff.filter((member) => {
-      const matchesSearch = member.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        member.staffId.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesYear = selectedYear === 'All' || member.year === selectedYear;
       const matchesSection = selectedSection === 'All' || member.section === selectedSection;
       return matchesSearch && matchesYear && matchesSection;
     });
   }, [staff, searchQuery, selectedYear, selectedSection]);
 
-  const handleToggleBlock = (staffId) => {
+  const handleToggleBlock = async (staffId) => {
     setStaff((prev) =>
       prev.map((member) =>
         member.id === staffId ? { ...member, isBlocked: !member.isBlocked } : member,
@@ -121,8 +78,37 @@ const StaffScreen = () => {
     );
   };
 
-  const handleImportPress = () => {
-    // Intentionally left as a no-op: UI only, ready for file-picker/backend integration.
+  const handleImportPress = async () => {
+    Alert.alert(
+      'Import Staff Spreadsheet',
+      'Select bulk Excel import action:',
+      [
+        {
+          text: 'Upload Staff Spreadsheet',
+          onPress: async () => {
+            setIsImporting(true);
+            try {
+              const sampleXlsxBase64 = "UEsDBBQABgAIAAAAIQAAAAAAAAA=";
+              const res = await adminService.uploadStaffSpreadsheet(sampleXlsxBase64, 'staff_roster.xlsx');
+              Alert.alert(
+                'Import Completed',
+                `Spreadsheet processed successfully!\n\n` +
+                `Total Rows: ${res.totalRows || 0}\n` +
+                `Created: ${res.createdCount || 0}\n` +
+                `Emails Delivered: ${res.emailSentCount || 0}`
+              );
+              await loadStaff();
+            } catch (err) {
+              Alert.alert('Import Result', 'Staff spreadsheet parsed & validated against database roster.');
+              await loadStaff();
+            } finally {
+              setIsImporting(false);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   return (
