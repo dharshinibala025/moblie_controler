@@ -1,8 +1,8 @@
 import React from 'react';
-import VectorIcon from '../../student_dashboard/components/VectorIcon';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 export const StudentIcon = ({ size = 20, color, active = false }) => (
-  <VectorIcon
+  <MaterialCommunityIcons
     name="account"
     size={size}
     color={color || (active ? '#FFFFFF' : '#2563EB')}
@@ -10,15 +10,15 @@ export const StudentIcon = ({ size = 20, color, active = false }) => (
 );
 
 export const StaffIcon = ({ size = 20, color, active = false }) => (
-  <VectorIcon
-    name="office"
+  <MaterialCommunityIcons
+    name="briefcase"
     size={size}
     color={color || (active ? '#FFFFFF' : '#2563EB')}
   />
 );
 
 export const AdminIcon = ({ size = 20, color, active = false }) => (
-  <VectorIcon
+  <MaterialCommunityIcons
     name="shield-account"
     size={size}
     color={color || (active ? '#FFFFFF' : '#2563EB')}
@@ -26,27 +26,27 @@ export const AdminIcon = ({ size = 20, color, active = false }) => (
 );
 
 export const LockIcon = ({ size = 20, color = '#64748B' }) => (
-  <VectorIcon name="lock" size={size} color={color} />
+  <MaterialCommunityIcons name="lock" size={size} color={color} />
 );
 
 export const EyeIcon = ({ size = 20, color = '#64748B' }) => (
-  <VectorIcon name="eye" size={size} color={color} />
+  <MaterialCommunityIcons name="eye" size={size} color={color} />
 );
 
 export const EyeOffIcon = ({ size = 20, color = '#64748B' }) => (
-  <VectorIcon name="eye-off" size={size} color={color} />
+  <MaterialCommunityIcons name="eye-off" size={size} color={color} />
 );
 
 export const InfoIcon = ({ size = 20, color = '#2563EB' }) => (
-  <VectorIcon name="information" size={size} color={color} />
+  <MaterialCommunityIcons name="information" size={size} color={color} />
 );
 
 export const SuccessCheckIcon = ({ size = 64, color = '#22C55E' }) => (
-  <VectorIcon name="check-circle" size={size} color={color} />
+  <MaterialCommunityIcons name="check-circle" size={size} color={color} />
 );
 
 export const CheckCircleIcon = ({ size = 18, satisfied = false }) => (
-  <VectorIcon
+  <MaterialCommunityIcons
     name={satisfied ? 'check-circle' : 'circle-outline'}
     size={size}
     color={satisfied ? '#22C55E' : '#94A3B8'}

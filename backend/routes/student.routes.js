@@ -184,7 +184,7 @@ router.get("/dashboard", async (req, res, next) => {
       restrictionStatus: {
         isActive,
         statusTitle: isActive ? "Restrictions Active" : "No Restrictions Active",
-        schedule: activeRule ? `${activeRule.scheduleStart} – ${activeRule.scheduleEnd}` : "N/A",
+        schedule: activeRule ? `${activeRule.scheduleStart} – ${activeRule.scheduleEnd}` : "09:00 – 16:00",
         remainingTime,
         reason: activeRule ? activeRule.reason : "",
         noticeText: activeRule

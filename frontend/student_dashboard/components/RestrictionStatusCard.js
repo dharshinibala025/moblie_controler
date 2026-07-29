@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
 import VectorIcon from './VectorIcon';
 
@@ -15,7 +15,6 @@ export const RestrictionStatusCard = ({
   statusMode = 'ACTIVE',
   scheduleText = '09:00 AM – 04:00 PM',
   controlledBy = 'Department Admin (HOD)',
-  onPress,
 }) => {
   let badgeText = 'ACTIVE';
   let badgeBg = colors.activeLight; // #DCFCE7
@@ -31,7 +30,7 @@ export const RestrictionStatusCard = ({
     badgeColor = colors.primary; // #2563EB
   }
 
-  const cardContent = (
+  return (
     <View style={styles.card}>
       {/* Top Title & Badge Row */}
       <View style={styles.headerRow}>
@@ -72,23 +71,8 @@ export const RestrictionStatusCard = ({
           </View>
         </View>
       </View>
-
-      {/* Tap hint when tappable */}
-      {onPress && (
-        <Text style={styles.tapHint}>Tap to view restriction details →</Text>
-      )}
     </View>
   );
-
-  if (onPress) {
-    return (
-      <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
-        {cardContent}
-      </TouchableOpacity>
-    );
-  }
-
-  return cardContent;
 };
 
 const styles = StyleSheet.create({
@@ -179,14 +163,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.borderLight,
     marginVertical: 10,
   },
-  tapHint: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-    textAlign: 'right',
-    marginTop: 10,
-  },
 });
 
 export default RestrictionStatusCard;
-

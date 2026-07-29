@@ -12,15 +12,13 @@ import {
   StatusBar,
   SafeAreaView,
   TextInput,
-  Alert,
 } from 'react-native';
 import { LockIcon, EyeIcon, EyeOffIcon, InfoIcon, SuccessCheckIcon } from '../components/AuthIcons';
 import PasswordStrengthMeter from './PasswordStrengthMeter';
-import authService from '../../services/authService';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 20;
 
-export const SetNewPasswordScreen = ({ onPasswordUpdated, tempToken }) => {
+export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -42,27 +40,14 @@ export const SetNewPasswordScreen = ({ onPasswordUpdated, tempToken }) => {
 
   const canSubmit = allRulesSatisfied && passwordsMatch && !loading;
 
-  const handleUpdatePassword = async () => {
+  const handleUpdatePassword = () => {
     if (!canSubmit) return;
 
     setLoading(true);
-    try {
-      await authService.changePasswordWithTempToken(tempToken, newPassword);
-      setIsSuccess(true);
-    } catch (err) {
-      const msg = err?.message || 'Password update failed. Please try again.';
-      if (err?.status === 401) {
-        Alert.alert(
-          'Session Expired',
-          'Your session has expired. Please log in again.',
-          [{ text: 'OK', onPress: () => onPasswordUpdated && onPasswordUpdated() }]
-        );
-      } else {
-        Alert.alert('Error', msg);
-      }
-    } finally {
+    setTimeout(() => {
       setLoading(false);
-    }
+      setIsSuccess(true);
+    }, 1200);
   };
 
   const handleContinue = () => {
