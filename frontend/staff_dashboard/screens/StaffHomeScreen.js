@@ -19,7 +19,6 @@ import staffMockData from '../data/staffMockData';
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
 export const StaffHomeScreen = ({ onNavigateTab }) => {
-  const [selectedSection, setSelectedSection] = useState('2nd Year - A');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'blocked' | 'offline'
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -59,8 +58,29 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
   }, []);
 
   const staffInfo = staffMockData.staff;
-  const stats = staffMockData.stats;
-  const sectionStudents = staffMockData.sections[selectedSection] || [];
+
+  // Map mentor class (e.g., 'III CSE - A') to internal mock section key (e.g., '3rd Year - A')
+  const classMapping = {
+    'III CSE - A': '3rd Year - A',
+    'III CSE - B': '3rd Year - B',
+    'III CSE - C': '3rd Year - C',
+    'II CSE - A': '2nd Year - A',
+    'II CSE - B': '2nd Year - B',
+    'II CSE - C': '2nd Year - C',
+    'IV CSE - A': 'Final Year - A',
+    'IV CSE - B': 'Final Year - B',
+    'IV CSE - C': 'Final Year - C',
+  };
+
+  const mentorClass = staffInfo.assignedClass; // Obtained dynamically from logged-in staff info
+  const targetSectionKey = mentorClass ? (classMapping[mentorClass] || mentorClass) : null;
+  const sectionStudents = targetSectionKey ? (staffMockData.sections[targetSectionKey] || []) : [];
+
+  // Dynamically calculate stats for the mentor's class
+  const totalStudents = sectionStudents.length;
+  const activeStudents = sectionStudents.filter((s) => s.status === 'active').length;
+  const blockedStudents = sectionStudents.filter((s) => s.status === 'blocked').length;
+  const warningCount = sectionStudents.reduce((sum, s) => sum + (s.attempts || 0), 0);
 
   // Filter students based on search and status filter
   const filteredStudents = sectionStudents.filter((student) => {
@@ -155,31 +175,6 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
     );
   };
 
-  const renderSectionButton = (year, sec) => {
-    const key = `${year} Year - ${sec}`;
-    const isActive = selectedSection === key;
-
-    return (
-      <TouchableOpacity
-        key={key}
-        activeOpacity={0.8}
-        onPress={() => {
-          setSelectedSection(key);
-          setSearchQuery('');
-          setStatusFilter('all');
-        }}
-        style={[
-          styles.secButton,
-          isActive && styles.secButtonActive,
-        ]}
-      >
-        <Text style={[styles.secButtonText, isActive && styles.secButtonTextActive]}>
-          Section {sec}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
   return (
     <View style={styles.container}>
       {/* Dynamic Top Bar */}
@@ -211,6 +206,12 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
           <View style={styles.welcomeInfo}>
             <Text style={styles.welcomeLabel}>WELCOME BACK,</Text>
             <Text style={styles.staffNameText}>{staffInfo.name}</Text>
+            <View style={styles.mentorClassBadge}>
+              <VectorIcon name="school" size={14} color={colors.primaryDark} />
+              <Text style={styles.mentorClassBadgeText}>
+                Class Mentor - {mentorClass || 'Not Assigned'}
+              </Text>
+            </View>
             <Text style={styles.staffMetaText}>
               ID: {staffInfo.id}  •  Dept: {staffInfo.department}
             </Text>
@@ -228,18 +229,8 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
               <VectorIcon name="school" size={20} color={colors.primary} />
             </View>
             <View>
-              <Text style={styles.statValue}>{stats.totalStudents}</Text>
+              <Text style={styles.statValue}>{totalStudents}</Text>
               <Text style={styles.statLabel}>Total Students</Text>
-            </View>
-          </View>
-
-          <View style={[styles.statCard, { borderLeftColor: colors.primaryDark }]}>
-            <View style={styles.statIconContainer}>
-              <VectorIcon name="book" size={20} color={colors.primaryDark} />
-            </View>
-            <View>
-              <Text style={styles.statValue}>{stats.totalClasses}</Text>
-              <Text style={styles.statLabel}>Total Classes</Text>
             </View>
           </View>
 
@@ -248,8 +239,8 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
               <VectorIcon name="cellphone" size={20} color={colors.active} />
             </View>
             <View>
-              <Text style={styles.statValue}>{stats.activeDevices}</Text>
-              <Text style={styles.statLabel}>Active Devices</Text>
+              <Text style={styles.statValue}>{activeStudents}</Text>
+              <Text style={styles.statLabel}>Active Students</Text>
             </View>
           </View>
 
@@ -258,49 +249,18 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
               <VectorIcon name="cellphone-off" size={20} color={colors.blocked} />
             </View>
             <View>
-              <Text style={styles.statValue}>{stats.blockedDevices}</Text>
-              <Text style={styles.statLabel}>Blocked Devices</Text>
+              <Text style={styles.statValue}>{blockedStudents}</Text>
+              <Text style={styles.statLabel}>Blocked Students</Text>
             </View>
           </View>
-        </View>
 
-        {/* Classroom Supervision Section */}
-        <View style={styles.sectionHeaderCard}>
-          <View style={styles.headerTitleRow}>
-            <VectorIcon name="school" size={20} color={colors.primary} />
-            <Text style={styles.headerTitleText}>{staffInfo.department}</Text>
-          </View>
-          <Text style={styles.headerSubtitleText}>
-            Monitored classrooms under mobile usage supervision rules. Select any section to view real-time student device statuses.
-          </Text>
-
-          {/* Year Groups */}
-          <View style={styles.classroomGroups}>
-            <View style={styles.yearRow}>
-              <Text style={styles.yearRowLabel}>SECOND YEAR</Text>
-              <View style={styles.yearButtonsRow}>
-                {renderSectionButton('2nd', 'A')}
-                {renderSectionButton('2nd', 'B')}
-                {renderSectionButton('2nd', 'C')}
-              </View>
+          <View style={[styles.statCard, { borderLeftColor: '#F59E0B' }]}>
+            <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
+              <VectorIcon name="alert-circle" size={20} color="#F59E0B" />
             </View>
-
-            <View style={styles.yearRow}>
-              <Text style={styles.yearRowLabel}>THIRD YEAR</Text>
-              <View style={styles.yearButtonsRow}>
-                {renderSectionButton('3rd', 'A')}
-                {renderSectionButton('3rd', 'B')}
-                {renderSectionButton('3rd', 'C')}
-              </View>
-            </View>
-
-            <View style={styles.yearRow}>
-              <Text style={styles.yearRowLabel}>FINAL YEAR</Text>
-              <View style={styles.yearButtonsRow}>
-                {renderSectionButton('Final', 'A')}
-                {renderSectionButton('Final', 'B')}
-                {renderSectionButton('Final', 'C')}
-              </View>
+            <View>
+              <Text style={styles.statValue}>{warningCount}</Text>
+              <Text style={styles.statLabel}>Warning Count</Text>
             </View>
           </View>
         </View>
@@ -308,111 +268,123 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
         {/* Student Mobile Status list */}
         <View style={styles.listContainer}>
           <View style={styles.listHeaderRow}>
-            <Text style={styles.listTitleText}>
-              Students List — {selectedSection}
-            </Text>
-            <Text style={styles.listCountText}>
-              ({filteredStudents.length} Students)
-            </Text>
-          </View>
-
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <VectorIcon name="magnify" size={20} color="#94A3B8" />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search by student name or roll number..."
-              placeholderTextColor="#94A3B8"
-              style={styles.searchInput}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <VectorIcon name="close-circle" size={16} color="#94A3B8" />
-              </TouchableOpacity>
+            <Text style={styles.listTitleText}>My Class Students</Text>
+            {mentorClass && (
+              <Text style={styles.listCountText}>
+                ({filteredStudents.length} Students)
+              </Text>
             )}
           </View>
 
-          {/* Filter Badges */}
-          <View style={styles.filterRow}>
-            <TouchableOpacity
-              onPress={() => setStatusFilter('all')}
-              style={[styles.filterBadge, statusFilter === 'all' && styles.filterBadgeActive]}
-            >
-              <Text style={[styles.filterBadgeText, statusFilter === 'all' && styles.filterBadgeTextActive]}>
-                All
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setStatusFilter('active')}
-              style={[
-                styles.filterBadge,
-                statusFilter === 'active' && [styles.filterBadgeActive, { backgroundColor: colors.activeLight, borderColor: '#BBF7D0' }],
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterBadgeText,
-                  statusFilter === 'active' && { color: colors.active, fontWeight: '700' },
-                ]}
-              >
-                Active ({sectionStudents.filter(s => s.status === 'active').length})
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setStatusFilter('blocked')}
-              style={[
-                styles.filterBadge,
-                statusFilter === 'blocked' && [styles.filterBadgeActive, { backgroundColor: colors.blockedLight, borderColor: '#FECACA' }],
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterBadgeText,
-                  statusFilter === 'blocked' && { color: colors.blocked, fontWeight: '700' },
-                ]}
-              >
-                Blocked ({sectionStudents.filter(s => s.status === 'blocked').length})
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setStatusFilter('offline')}
-              style={[
-                styles.filterBadge,
-                statusFilter === 'offline' && [styles.filterBadgeActive, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }],
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterBadgeText,
-                  statusFilter === 'offline' && { color: '#475569', fontWeight: '700' },
-                ]}
-              >
-                Offline ({sectionStudents.filter(s => s.status === 'offline').length})
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* List display */}
-          {filteredStudents.length === 0 ? (
+          {sectionStudents.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <VectorIcon name="cellphone-off" size={42} color="#94A3B8" />
-              <Text style={styles.emptyTitleText}>No Student Devices Found</Text>
+              <VectorIcon name="cellphone-off" size={48} color="#94A3B8" />
+              <Text style={styles.emptyTitleText}>No Assigned Students</Text>
               <Text style={styles.emptySubtitleText}>
-                No students in this class match the selected search query or status filter.
+                No students are assigned to your class.
               </Text>
             </View>
           ) : (
-            <FlatList
-              data={filteredStudents}
-              renderItem={renderStudentItem}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-            />
+            <>
+              {/* Search Bar */}
+              <View style={styles.searchContainer}>
+                <VectorIcon name="magnify" size={20} color="#94A3B8" />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search by student name or roll number..."
+                  placeholderTextColor="#94A3B8"
+                  style={styles.searchInput}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <VectorIcon name="close-circle" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Filter Badges */}
+              <View style={styles.filterRow}>
+                <TouchableOpacity
+                  onPress={() => setStatusFilter('all')}
+                  style={[styles.filterBadge, statusFilter === 'all' && styles.filterBadgeActive]}
+                >
+                  <Text style={[styles.filterBadgeText, statusFilter === 'all' && styles.filterBadgeTextActive]}>
+                    My Class Students ({sectionStudents.length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setStatusFilter('active')}
+                  style={[
+                    styles.filterBadge,
+                    statusFilter === 'active' && [styles.filterBadgeActive, { backgroundColor: colors.activeLight, borderColor: '#BBF7D0' }],
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterBadgeText,
+                      statusFilter === 'active' && { color: colors.active, fontWeight: '700' },
+                    ]}
+                  >
+                    Active ({sectionStudents.filter(s => s.status === 'active').length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setStatusFilter('blocked')}
+                  style={[
+                    styles.filterBadge,
+                    statusFilter === 'blocked' && [styles.filterBadgeActive, { backgroundColor: colors.blockedLight, borderColor: '#FECACA' }],
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterBadgeText,
+                      statusFilter === 'blocked' && { color: colors.blocked, fontWeight: '700' },
+                    ]}
+                  >
+                    Blocked ({sectionStudents.filter(s => s.status === 'blocked').length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setStatusFilter('offline')}
+                  style={[
+                    styles.filterBadge,
+                    statusFilter === 'offline' && [styles.filterBadgeActive, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }],
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterBadgeText,
+                      statusFilter === 'offline' && { color: '#475569', fontWeight: '700' },
+                    ]}
+                  >
+                    Offline ({sectionStudents.filter(s => s.status === 'offline').length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* List display */}
+              {filteredStudents.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <VectorIcon name="cellphone-off" size={42} color="#94A3B8" />
+                  <Text style={styles.emptyTitleText}>No Student Devices Found</Text>
+                  <Text style={styles.emptySubtitleText}>
+                    No students in this class match the selected search query or status filter.
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={filteredStudents}
+                  renderItem={renderStudentItem}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+                />
+              )}
+            </>
           )}
         </View>
       </ScrollView>
@@ -639,11 +611,27 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginTop: 2,
   },
+  mentorClassBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primaryLight,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    gap: 5,
+  },
+  mentorClassBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primaryDark,
+  },
   staffMetaText: {
     fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
-    marginTop: 4,
+    marginTop: 6,
   },
   datePill: {
     flexDirection: 'row',
@@ -700,78 +688,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
     marginTop: 1,
-  },
-  sectionHeaderCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: borderRadius.card,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    ...shadows.card,
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  headerTitleText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.primaryDark,
-  },
-  headerSubtitleText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    fontWeight: '500',
-  },
-  classroomGroups: {
-    marginTop: 16,
-    gap: 12,
-  },
-  yearRow: {
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
-  },
-  yearRowLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  yearButtonsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  secButton: {
-    flex: 1,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  secButtonActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: colors.primary,
-    borderWidth: 1.5,
-    ...shadows.soft,
-  },
-  secButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  secButtonTextActive: {
-    color: colors.primary,
-    fontWeight: '800',
   },
   listContainer: {
     backgroundColor: '#FFFFFF',

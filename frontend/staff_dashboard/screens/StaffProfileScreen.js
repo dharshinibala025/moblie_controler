@@ -123,6 +123,18 @@ export const StaffProfileScreen = ({ onLogout }) => {
               <Text style={styles.detailValue}>{staff.roleAssignment}</Text>
             </View>
           </View>
+
+          {staff.assignedClass && (
+            <View style={styles.detailRow}>
+              <View style={styles.detailIconContainer}>
+                <VectorIcon name="school" size={18} color="#2563EB" />
+              </View>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>ASSIGNED MENTOR CLASS</Text>
+                <Text style={styles.detailValue}>{staff.assignedClass}</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={styles.divider} />
