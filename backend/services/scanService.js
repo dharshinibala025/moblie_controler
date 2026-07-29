@@ -44,16 +44,19 @@ exports.processScan = async (studentId, deviceId, apps) => {
   const catalogEntries = await AppsCatalog.find({ packageName: { $in: packageNames } });
   const catalogMap = new Map(catalogEntries.map((e) => [e.packageName, e]));
 
+  const catalogService = require("./catalogService");
+
   // 3. Auto-create registry entries for new, unrecognized packages
   const missingApps = [];
   for (const app of apps) {
     if (!catalogMap.has(app.packageName)) {
+      const isSocial = catalogService.isSocialMediaPackage(app.packageName, app.appName);
       missingApps.push({
         packageName: app.packageName,
         appName: app.appName,
-        category: "uncategorized",
-        isSocialMedia: false,
-        active: false,
+        category: isSocial ? "social" : "uncategorized",
+        isSocialMedia: isSocial,
+        active: true,
       });
     }
   }

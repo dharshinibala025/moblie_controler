@@ -5,11 +5,19 @@ import GetStartedScreen from './frontend/welcome/screens/GetStartedScreen';
 import LoginScreen from './frontend/login/screens/LoginScreen';
 import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswordScreen';
 import StudentDashboardScreen from './frontend/student_dashboard/screens/StudentDashboardScreen';
+import AdminPanel from './frontend/admin_dashboard/AdminPanel';
+import StaffDashboardScreen from './frontend/staff_dashboard/screens/StaffDashboardScreen';
 
 type Screen = 'welcome' | 'login' | 'set_password' | 'dashboard';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState('welcome');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  const handleLogout = () => {
+    setUserRole(null);
+    setCurrentScreen('login');
+  };
 
   return (
     <SafeAreaProvider>
@@ -24,7 +32,10 @@ function App() {
         {currentScreen === 'login' && (
           <LoginScreen
             onBack={() => setCurrentScreen('welcome')}
-            onLoginSuccess={() => setCurrentScreen('dashboard')}
+            onLoginSuccess={(user: any) => {
+              setUserRole(user?.role || 'student');
+              setCurrentScreen('dashboard');
+            }}
           />
         )}
         {currentScreen === 'set_password' && (
@@ -33,7 +44,15 @@ function App() {
           />
         )}
         {currentScreen === 'dashboard' && (
-          <StudentDashboardScreen onLogout={() => setCurrentScreen('login')} />
+          <>
+            {userRole === 'admin' ? (
+              <AdminPanel onLogout={handleLogout} />
+            ) : userRole === 'staff' ? (
+              <StaffDashboardScreen onLogout={handleLogout} />
+            ) : (
+              <StudentDashboardScreen onLogout={handleLogout} />
+            )}
+          </>
         )}
       </View>
     </SafeAreaProvider>

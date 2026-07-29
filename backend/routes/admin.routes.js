@@ -555,6 +555,50 @@ router.post("/rules/:id/command", validate("commandBody"), async (req, res, next
   }
 });
 
+// Admin Real-Time Emergency Overrides (Pause / Resume / Emergency Unlock)
+router.post("/override/pause", async (req, res, next) => {
+  try {
+    const { targetScope = { type: "institution", targetId: "KSRCE" }, reason = "Administrator disabled social media blocking", durationMinutes = 60 } = req.body;
+    const Rule = require("../models/Rule");
+    const activeRules = await Rule.find({ status: "active" });
+
+    for (const rule of activeRules) {
+      await ruleService.sendCommand(rule._id, "pause", req.user.userId, req.scopeInstitutionId);
+    }
+
+    res.json({
+      success: true,
+      override: "paused",
+      reason,
+      durationMinutes,
+      affectedRules: activeRules.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/override/resume", async (req, res, next) => {
+  try {
+    const Rule = require("../models/Rule");
+    const pausedRules = await Rule.find({ status: "paused" });
+
+    for (const rule of pausedRules) {
+      await ruleService.sendCommand(rule._id, "start", req.user.userId, req.scopeInstitutionId);
+    }
+
+    res.json({
+      success: true,
+      override: "resumed",
+      affectedRules: pausedRules.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/devices", async (req, res, next) => {
   try {
     const devices = await deviceService.getDevices(req.query.classId, req.scopeInstitutionId);
