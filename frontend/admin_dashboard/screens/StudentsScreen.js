@@ -1,58 +1,143 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 
 import Header from '../components/Header';
 import SearchBar from '../components/SearchBar';
-import FilterButton from '../components/FilterButton';
+import FilterChipGroup from '../components/FilterChipGroup';
 import ImportExcelCard from '../components/ImportExcelCard';
 import SectionTitle from '../components/SectionTitle';
-import DashboardCard from '../components/DashboardCard';
-import TableRow from '../components/TableRow';
+import PersonRecordCard from '../components/PersonRecordCard';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
 import { spacing } from '../styles/globalStyles';
+import { YEARS, getSectionOptions } from '../config/sectionsConfig';
 
 // ---------------------------------------------------------------------------
 // Dummy data (no backend / no API calls)
 // ---------------------------------------------------------------------------
 
-const STUDENTS = [
-  { id: 's1', name: 'Aarav Sharma', className: 'Grade 10 - B', roll: '24', status: 'Active' },
-  { id: 's2', name: 'Meera Krishnan', className: 'Grade 9 - A', roll: '07', status: 'Active' },
-  { id: 's3', name: 'Rohan Verma', className: 'Grade 10 - B', roll: '11', status: 'Blocked' },
-  { id: 's4', name: 'Sneha Pillai', className: 'Grade 11 - C', roll: '18', status: 'Active' },
-  { id: 's5', name: 'Karthik Jayan', className: 'Grade 9 - A', roll: '29', status: 'Active' },
-  { id: 's6', name: 'Divya Menon', className: 'Grade 11 - C', roll: '05', status: 'Inactive' },
+const INITIAL_STUDENTS = [
+  {
+    id: 's1',
+    name: 'Aarav Sharma',
+    registerNumber: '2024CSE024',
+    department: 'CSE',
+    year: '1st Year',
+    section: 'A',
+    deviceStatus: 'Connected',
+    isBlocked: false,
+  },
+  {
+    id: 's2',
+    name: 'Meera Krishnan',
+    registerNumber: '2024CSE007',
+    department: 'CSE',
+    year: '1st Year',
+    section: 'B',
+    deviceStatus: 'Not Connected',
+    isBlocked: false,
+  },
+  {
+    id: 's3',
+    name: 'Rohan Verma',
+    registerNumber: '2023ECE011',
+    department: 'ECE',
+    year: '2nd Year',
+    section: 'A',
+    deviceStatus: 'Connected',
+    isBlocked: true,
+  },
+  {
+    id: 's4',
+    name: 'Sneha Pillai',
+    registerNumber: '2023ECE018',
+    department: 'ECE',
+    year: '2nd Year',
+    section: 'C',
+    deviceStatus: 'Connected',
+    isBlocked: false,
+  },
+  {
+    id: 's5',
+    name: 'Karthik Jayan',
+    registerNumber: '2022MECH029',
+    department: 'MECH',
+    year: '3rd Year',
+    section: 'B',
+    deviceStatus: 'Not Connected',
+    isBlocked: false,
+  },
+  {
+    id: 's6',
+    name: 'Divya Menon',
+    registerNumber: '2022MECH005',
+    department: 'MECH',
+    year: '3rd Year',
+    section: 'D',
+    deviceStatus: 'Connected',
+    isBlocked: true,
+  },
+  {
+    id: 's7',
+    name: 'Farhan Ali',
+    registerNumber: '2021CSE041',
+    department: 'CSE',
+    year: '4th Year',
+    section: 'A',
+    deviceStatus: 'Connected',
+    isBlocked: false,
+  },
+  {
+    id: 's8',
+    name: 'Anjali Rao',
+    registerNumber: '2021CSE036',
+    department: 'CSE',
+    year: '4th Year',
+    section: 'C',
+    deviceStatus: 'Not Connected',
+    isBlocked: false,
+  },
 ];
 
 const getInitials = (name) =>
   name.split(' ').map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase();
 
-const getStatusVariant = (status) => {
-  if (status === 'Active') return 'success';
-  if (status === 'Blocked') return 'danger';
-  return 'neutral';
-};
-
 const StudentsScreen = () => {
+  const [students, setStudents] = useState(INITIAL_STUDENTS);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeOnly, setActiveOnly] = useState(false);
+  const [selectedYear, setSelectedYear] = useState('All');
+  const [selectedSection, setSelectedSection] = useState('All');
+
+  const yearOptions = useMemo(() => ['All', ...YEARS], []);
+  const sectionOptions = useMemo(
+    () => ['All', ...getSectionOptions(selectedYear)],
+    [selectedYear],
+  );
+
+  // If switching years makes the currently selected section unavailable
+  // (e.g. a year configured with fewer sections), reset it back to "All".
+  useEffect(() => {
+    if (selectedSection !== 'All' && !sectionOptions.includes(selectedSection)) {
+      setSelectedSection('All');
+    }
+  }, [sectionOptions, selectedSection]);
 
   const filteredStudents = useMemo(() => {
-    return STUDENTS.filter((student) => {
+    return students.filter((student) => {
       const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesFilter = activeOnly ? student.status === 'Active' : true;
-      return matchesSearch && matchesFilter;
+      const matchesYear = selectedYear === 'All' || student.year === selectedYear;
+      const matchesSection = selectedSection === 'All' || student.section === selectedSection;
+      return matchesSearch && matchesYear && matchesSection;
     });
-  }, [searchQuery, activeOnly]);
+  }, [students, searchQuery, selectedYear, selectedSection]);
 
-  const handleEdit = (studentId) => {
-    // Intentionally left as a no-op: UI only, ready for backend integration.
-  };
-
-  const handleDelete = (studentId) => {
-    // Intentionally left as a no-op: UI only, ready for backend integration.
+  const handleToggleBlock = (studentId) => {
+    setStudents((prev) =>
+      prev.map((student) =>
+        student.id === studentId ? { ...student, isBlocked: !student.isBlocked } : student,
+      ),
+    );
   };
 
   const handleImportPress = () => {
@@ -68,19 +153,29 @@ const StudentsScreen = () => {
       <Header title="Students" subtitle="Manage student records" />
 
       <View style={styles.section}>
-        <View style={styles.searchRow}>
-          <SearchBar
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search students"
-          />
-          <View style={{ width: spacing.sm }} />
-          <FilterButton
-            label="Active"
-            active={activeOnly}
-            onPress={() => setActiveOnly((prev) => !prev)}
-          />
-        </View>
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search students"
+        />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.filterLabel}>Year</Text>
+        <FilterChipGroup
+          options={yearOptions}
+          selectedValue={selectedYear}
+          onSelect={setSelectedYear}
+        />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.filterLabel}>Section</Text>
+        <FilterChipGroup
+          options={sectionOptions}
+          selectedValue={selectedSection}
+          onSelect={setSelectedSection}
+        />
       </View>
 
       <View style={styles.section}>
@@ -94,27 +189,27 @@ const StudentsScreen = () => {
       <View style={styles.section}>
         <SectionTitle
           title={`All Students (${filteredStudents.length})`}
-          subtitle="Tap edit or delete to manage a record"
+          subtitle="Tap Block or Unblock to manage device access"
         />
-        <DashboardCard noPadding>
-          {filteredStudents.length === 0 ? (
-            <Text style={styles.emptyText}>No students match your search.</Text>
-          ) : (
-            filteredStudents.map((student, index) => (
-              <TableRow
-                key={student.id}
-                avatarText={getInitials(student.name)}
-                title={student.name}
-                subtitle={`${student.className}  ·  Roll ${student.roll}`}
-                statusLabel={student.status}
-                statusVariant={getStatusVariant(student.status)}
-                onEdit={() => handleEdit(student.id)}
-                onDelete={() => handleDelete(student.id)}
-                isLast={index === filteredStudents.length - 1}
-              />
-            ))
-          )}
-        </DashboardCard>
+        {filteredStudents.length === 0 ? (
+          <Text style={styles.emptyText}>No students match your filters.</Text>
+        ) : (
+          filteredStudents.map((student) => (
+            <PersonRecordCard
+              key={student.id}
+              avatarText={getInitials(student.name)}
+              name={student.name}
+              idLabel="Register No."
+              idValue={student.registerNumber}
+              department={student.department}
+              year={student.year}
+              section={student.section}
+              deviceStatus={student.deviceStatus}
+              isBlocked={student.isBlocked}
+              onToggleBlock={() => handleToggleBlock(student.id)}
+            />
+          ))
+        )}
       </View>
     </ScrollView>
   );
@@ -124,7 +219,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingBottom: spacing.xxxl },
   section: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
-  searchRow: { flexDirection: 'row', alignItems: 'center' },
+  filterLabel: {
+    ...typography.captionMedium,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
   emptyText: {
     ...typography.body,
     color: colors.textSecondary,

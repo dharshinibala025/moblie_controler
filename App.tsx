@@ -7,8 +7,15 @@ import LoginScreen from './frontend/login/screens/LoginScreen';
 import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswordScreen';
 import StudentDashboardScreen from './frontend/student_dashboard/screens/StudentDashboardScreen';
 import StaffDashboardScreen from './frontend/staff_dashboard/screens/StaffDashboardScreen';
+import AdminPanel from './frontend/admin_dashboard';
 
-type Screen = 'welcome' | 'login' | 'set_password' | 'student_dashboard' | 'staff_dashboard';
+type Screen =
+  | 'welcome'
+  | 'login'
+  | 'set_password'
+  | 'student_dashboard'
+  | 'staff_dashboard'
+  | 'admin_dashboard';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
@@ -43,16 +50,26 @@ function App() {
         {currentScreen === 'set_password' && (
           <SetNewPasswordScreen
             onPasswordUpdated={() => {
-              setCurrentScreen(selectedRole === 'staff' ? 'staff_dashboard' : 'student_dashboard');
+              if (selectedRole === 'staff') {
+                setCurrentScreen('staff_dashboard');
+              } else if (selectedRole === 'admin') {
+                setCurrentScreen('admin_dashboard');
+              } else {
+                setCurrentScreen('student_dashboard');
+              }
             }}
           />
         )}
+
         {currentScreen === 'student_dashboard' && (
           <StudentDashboardScreen onLogout={() => setCurrentScreen('login')} />
         )}
+
         {currentScreen === 'staff_dashboard' && (
           <StaffDashboardScreen onLogout={() => setCurrentScreen('login')} />
         )}
+
+        {currentScreen === 'admin_dashboard' && <AdminPanel />}
       </View>
     </SafeAreaProvider>
   );
