@@ -1,57 +1,124 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 
 import Header from '../components/Header';
 import SearchBar from '../components/SearchBar';
-import FilterButton from '../components/FilterButton';
+import FilterChipGroup from '../components/FilterChipGroup';
 import ImportExcelCard from '../components/ImportExcelCard';
 import SectionTitle from '../components/SectionTitle';
-import DashboardCard from '../components/DashboardCard';
-import TableRow from '../components/TableRow';
+import PersonRecordCard from '../components/PersonRecordCard';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
 import { spacing } from '../styles/globalStyles';
+import { YEARS, getSectionOptions } from '../config/sectionsConfig';
 
 // ---------------------------------------------------------------------------
-// Dummy data (no backend / no API calls)
+// Dummy data (no backend / no API calls). Year/Section here represent the
+// class a staff member is currently assigned to (e.g. class teacher duty).
 // ---------------------------------------------------------------------------
 
-const STAFF = [
-  { id: 't1', name: 'Priya Nair', department: 'Mathematics', staffId: '214', status: 'Active' },
-  { id: 't2', name: 'Anil Kumar', department: 'Physics', staffId: '118', status: 'Active' },
-  { id: 't3', name: 'Divya Francis', department: 'Administration', staffId: '076', status: 'On leave' },
-  { id: 't4', name: 'Ramesh Subin', department: 'Sports', staffId: '152', status: 'Active' },
-  { id: 't5', name: 'Lakshmi Iyer', department: 'Chemistry', staffId: '093', status: 'Active' },
+const INITIAL_STAFF = [
+  {
+    id: 't1',
+    name: 'Priya Nair',
+    staffId: 'STF214',
+    department: 'Mathematics',
+    year: '1st Year',
+    section: 'A',
+    deviceStatus: 'Connected',
+    isBlocked: false,
+  },
+  {
+    id: 't2',
+    name: 'Anil Kumar',
+    staffId: 'STF118',
+    department: 'Physics',
+    year: '1st Year',
+    section: 'B',
+    deviceStatus: 'Connected',
+    isBlocked: false,
+  },
+  {
+    id: 't3',
+    name: 'Divya Francis',
+    staffId: 'STF076',
+    department: 'Administration',
+    year: '2nd Year',
+    section: 'A',
+    deviceStatus: 'Not Connected',
+    isBlocked: false,
+  },
+  {
+    id: 't4',
+    name: 'Ramesh Subin',
+    staffId: 'STF152',
+    department: 'Sports',
+    year: '2nd Year',
+    section: 'C',
+    deviceStatus: 'Connected',
+    isBlocked: true,
+  },
+  {
+    id: 't5',
+    name: 'Lakshmi Iyer',
+    staffId: 'STF093',
+    department: 'Chemistry',
+    year: '3rd Year',
+    section: 'B',
+    deviceStatus: 'Connected',
+    isBlocked: false,
+  },
+  {
+    id: 't6',
+    name: 'Suresh Nambiar',
+    staffId: 'STF061',
+    department: 'Computer Science',
+    year: '4th Year',
+    section: 'A',
+    deviceStatus: 'Not Connected',
+    isBlocked: false,
+  },
 ];
 
 const getInitials = (name) =>
   name.split(' ').map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase();
 
-const getStatusVariant = (status) => {
-  if (status === 'Active') return 'success';
-  if (status === 'On leave') return 'warning';
-  return 'neutral';
-};
-
 const StaffScreen = () => {
+  const [staff, setStaff] = useState(INITIAL_STAFF);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeOnly, setActiveOnly] = useState(false);
+  const [selectedYear, setSelectedYear] = useState('All');
+  const [selectedSection, setSelectedSection] = useState('All');
+
+  const yearOptions = useMemo(() => ['All', ...YEARS], []);
+  const sectionOptions = useMemo(
+    () => ['All', ...getSectionOptions(selectedYear)],
+    [selectedYear],
+  );
+
+  // If switching years makes the currently selected section unavailable
+  // (e.g. a year configured with fewer sections), reset it back to "All".
+  useEffect(() => {
+    if (selectedSection !== 'All' && !sectionOptions.includes(selectedSection)) {
+      setSelectedSection('All');
+    }
+  }, [sectionOptions, selectedSection]);
 
   const filteredStaff = useMemo(() => {
-    return STAFF.filter((member) => {
+    return staff.filter((member) => {
       const matchesSearch = member.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesFilter = activeOnly ? member.status === 'Active' : true;
-      return matchesSearch && matchesFilter;
+      const matchesYear = selectedYear === 'All' || member.year === selectedYear;
+      const matchesSection = selectedSection === 'All' || member.section === selectedSection;
+      return matchesSearch && matchesYear && matchesSection;
     });
-  }, [searchQuery, activeOnly]);
+  }, [staff, searchQuery, selectedYear, selectedSection]);
 
-  const handleEdit = (staffId) => {
-    // Intentionally left as a no-op: UI only, ready for backend integration.
-  };
-
-  const handleDelete = (staffId) => {
-    // Intentionally left as a no-op: UI only, ready for backend integration.
+  const handleToggleBlock = (staffId) => {
+    setStaff((prev) =>
+      prev.map((member) =>
+        member.id === staffId ? { ...member, isBlocked: !member.isBlocked } : member,
+      ),
+    );
   };
 
   const handleImportPress = () => {
@@ -67,19 +134,29 @@ const StaffScreen = () => {
       <Header title="Staff" subtitle="Manage staff records" />
 
       <View style={styles.section}>
-        <View style={styles.searchRow}>
-          <SearchBar
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search staff"
-          />
-          <View style={{ width: spacing.sm }} />
-          <FilterButton
-            label="Active"
-            active={activeOnly}
-            onPress={() => setActiveOnly((prev) => !prev)}
-          />
-        </View>
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search staff"
+        />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.filterLabel}>Year</Text>
+        <FilterChipGroup
+          options={yearOptions}
+          selectedValue={selectedYear}
+          onSelect={setSelectedYear}
+        />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.filterLabel}>Section</Text>
+        <FilterChipGroup
+          options={sectionOptions}
+          selectedValue={selectedSection}
+          onSelect={setSelectedSection}
+        />
       </View>
 
       <View style={styles.section}>
@@ -93,28 +170,28 @@ const StaffScreen = () => {
       <View style={styles.section}>
         <SectionTitle
           title={`All Staff (${filteredStaff.length})`}
-          subtitle="Tap edit or delete to manage a record"
+          subtitle="Tap Block or Unblock to manage device access"
         />
-        <DashboardCard noPadding>
-          {filteredStaff.length === 0 ? (
-            <Text style={styles.emptyText}>No staff match your search.</Text>
-          ) : (
-            filteredStaff.map((member, index) => (
-              <TableRow
-                key={member.id}
-                avatarText={getInitials(member.name)}
-                avatarColor={colors.skyBlue}
-                title={member.name}
-                subtitle={`${member.department}  ·  Staff ID ${member.staffId}`}
-                statusLabel={member.status}
-                statusVariant={getStatusVariant(member.status)}
-                onEdit={() => handleEdit(member.id)}
-                onDelete={() => handleDelete(member.id)}
-                isLast={index === filteredStaff.length - 1}
-              />
-            ))
-          )}
-        </DashboardCard>
+        {filteredStaff.length === 0 ? (
+          <Text style={styles.emptyText}>No staff match your filters.</Text>
+        ) : (
+          filteredStaff.map((member) => (
+            <PersonRecordCard
+              key={member.id}
+              avatarText={getInitials(member.name)}
+              avatarColor={colors.skyBlue}
+              name={member.name}
+              idLabel="Staff ID"
+              idValue={member.staffId}
+              department={member.department}
+              year={member.year}
+              section={member.section}
+              deviceStatus={member.deviceStatus}
+              isBlocked={member.isBlocked}
+              onToggleBlock={() => handleToggleBlock(member.id)}
+            />
+          ))
+        )}
       </View>
     </ScrollView>
   );
@@ -124,7 +201,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingBottom: spacing.xxxl },
   section: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
-  searchRow: { flexDirection: 'row', alignItems: 'center' },
+  filterLabel: {
+    ...typography.captionMedium,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
   emptyText: {
     ...typography.body,
     color: colors.textSecondary,
