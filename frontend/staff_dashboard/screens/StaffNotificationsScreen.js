@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,20 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import staffMockData from '../data/staffMockData';
+import staffMockData, { getNotificationsForClass } from '../data/staffMockData';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
-export const StaffNotificationsScreen = () => {
-  const [notifications, setNotifications] = useState(staffMockData.notifications);
+export const StaffNotificationsScreen = ({ staffData }) => {
+  const staffInfo = staffData || staffMockData.staff;
+  const [notifications, setNotifications] = useState(
+    getNotificationsForClass(staffInfo.assignedClass)
+  );
+
+  useEffect(() => {
+    setNotifications(getNotificationsForClass(staffInfo.assignedClass));
+  }, [staffData?.email, staffInfo.assignedClass]);
 
   const handleMarkAllRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
@@ -38,7 +44,7 @@ export const StaffNotificationsScreen = () => {
           <VectorIcon
             name="alert-circle"
             size={18}
-            color={!item.read ? colors.blocked : '#64748B'}
+            color={!item.read ? '#EF4444' : '#64748B'}
           />
         </View>
 
@@ -59,10 +65,10 @@ export const StaffNotificationsScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.titleText}>Monitoring Logs</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.titleText}>Notifications</Text>
           <Text style={styles.subtitleText}>
-            Real-time notifications of student compliance activity.
+            Compliance alerts for your class
           </Text>
         </View>
 
@@ -101,57 +107,58 @@ export const StaffNotificationsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   header: {
-    paddingHorizontal: 16,
     paddingTop: STATUSBAR_OFFSET,
-    paddingBottom: 14,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 24,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    ...shadows.soft,
+  },
+  headerLeft: {
+    flex: 1,
   },
   titleText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
   },
   subtitleText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
     marginTop: 2,
   },
   markReadBtn: {
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
   markReadText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.primaryDark,
+    color: '#2563EB',
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 60,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 24,
   },
   notificationCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E7EB',
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
     position: 'relative',
-    ...shadows.soft,
   },
   unreadCard: {
     borderColor: '#FCA5A5',
@@ -205,7 +212,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.blocked,
+    backgroundColor: '#EF4444',
     position: 'absolute',
     top: 12,
     right: 12,

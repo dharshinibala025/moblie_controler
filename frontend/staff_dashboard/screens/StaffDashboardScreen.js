@@ -1,78 +1,44 @@
-import React, { useState, useRef } from 'react';
-import { View, StyleSheet, Animated, StatusBar, SafeAreaView } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, StatusBar } from 'react-native';
 import StaffHomeScreen from './StaffHomeScreen';
+import StaffStudentsScreen from './StaffStudentsScreen';
+import StaffMonitorScreen from './StaffMonitorScreen';
 import StaffNotificationsScreen from './StaffNotificationsScreen';
 import StaffProfileScreen from './StaffProfileScreen';
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
 
-export const StaffDashboardScreen = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState('home'); // 'home' | 'notifications' | 'profile'
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-
-  const handleTabChange = (newTab) => {
-    if (newTab === activeTab) return;
-
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    setActiveTab(newTab);
-  };
+export const StaffDashboardScreen = ({ onLogout, staffData }) => {
+  const [activeTab, setActiveTab] = useState('home');
 
   const renderActiveScreen = () => {
     switch (activeTab) {
       case 'home':
-        return (
-          <StaffHomeScreen
-            onNavigateTab={handleTabChange}
-          />
-        );
+        return <StaffHomeScreen onNavigateTab={setActiveTab} staffData={staffData} />;
+      case 'students':
+        return <StaffStudentsScreen staffData={staffData} />;
+      case 'monitor':
+        return <StaffMonitorScreen staffData={staffData} />;
       case 'notifications':
-        return <StaffNotificationsScreen />;
+        return <StaffNotificationsScreen staffData={staffData} />;
       case 'profile':
-        return (
-          <StaffProfileScreen
-            onLogout={onLogout}
-          />
-        );
+        return <StaffProfileScreen onLogout={onLogout} staffData={staffData} />;
       default:
-        return (
-          <StaffHomeScreen
-            onNavigateTab={handleTabChange}
-          />
-        );
+        return <StaffHomeScreen onNavigateTab={setActiveTab} staffData={staffData} />;
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      <View style={styles.container}>
-        <Animated.View style={[styles.screenContainer, { opacity: fadeAnim }]}>
-          {renderActiveScreen()}
-        </Animated.View>
-
-        <StaffBottomNavBar activeTab={activeTab} onSelectTab={handleTabChange} />
+      <View style={styles.screenContainer}>
+        {renderActiveScreen()}
       </View>
-    </SafeAreaView>
+      <StaffBottomNavBar activeTab={activeTab} onSelectTab={setActiveTab} />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
