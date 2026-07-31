@@ -7,14 +7,39 @@ import VectorIcon from './VectorIcon';
  * Individual Application Card Component
  * Uses app.blocked boolean to show status per-app.
  */
+const resolveAppIcon = (app) => {
+  if (app.icon) return app.icon;
+  const pkg = (app.packageName || '').toLowerCase();
+  const name = (app.name || app.appName || '').toLowerCase();
+  const category = (app.category || '').toLowerCase();
+
+  if (pkg.includes('camera') || name.includes('camera')) return 'camera';
+  if (pkg.includes('gallery') || name.includes('gallery') || name.includes('photos')) return 'image-multiple';
+  if (pkg.includes('calculator') || name.includes('calculator')) return 'calculator';
+  if (pkg.includes('chrome') || pkg.includes('browser')) return 'compass-outline';
+  if (pkg.includes('youtube') || name.includes('youtube')) return 'youtube';
+  if (pkg.includes('whatsapp') || name.includes('whatsapp')) return 'whatsapp';
+  if (pkg.includes('instagram') || name.includes('instagram')) return 'instagram';
+  if (pkg.includes('facebook') || name.includes('facebook')) return 'facebook';
+  if (pkg.includes('spotify') || name.includes('spotify')) return 'spotify';
+  if (pkg.includes('telegram') || name.includes('telegram')) return 'paper-plane';
+  if (pkg.includes('classroom') || name.includes('classroom')) return 'school';
+  if (pkg.includes('zoom') || name.includes('zoom') || name.includes('teams')) return 'video';
+  if (category === 'games' || pkg.includes('game')) return 'gamepad-variant';
+  if (category === 'social') return 'share-variant';
+  if (category === 'educational') return 'school';
+  return 'cellphone';
+};
+
 export const AppCard = ({ app }) => {
   // Use per-app blocked status; fallback to true if not defined
   const isBlocked = app.blocked !== undefined ? app.blocked : true;
+  const iconName = resolveAppIcon(app);
 
   return (
     <View style={styles.appCard}>
       <View style={[styles.iconContainer, isBlocked ? styles.iconContainerBlocked : styles.iconContainerUnblocked]}>
-        <VectorIcon name={app.icon || 'cellphone'} size={24} color={isBlocked ? colors.blocked : colors.active} />
+        <VectorIcon name={iconName} size={24} color={isBlocked ? colors.blocked : colors.active} />
       </View>
       <Text style={styles.appName} numberOfLines={1}>
         {app.name}

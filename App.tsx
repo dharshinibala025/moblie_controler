@@ -14,6 +14,7 @@ type Role = 'student' | 'staff' | 'admin';
 function App() {
   const [currentScreen, setCurrentScreen] = useState('welcome');
   const [userRole, setUserRole] = useState('student');
+  const [tempToken, setTempToken] = useState('');
 
   const handleLogout = () => {
     setUserRole('student');
@@ -21,6 +22,11 @@ function App() {
   };
 
   const handleLoginSuccess = (user: any) => {
+    if (user?.mustChangePassword) {
+      setTempToken(user?.accessToken || user?.tempToken || '');
+      setCurrentScreen('set_password');
+      return;
+    }
     const role = typeof user === 'string' ? user : (user?.role || 'student');
     setUserRole(role);
     setCurrentScreen('dashboard');
@@ -56,7 +62,8 @@ function App() {
         )}
         {currentScreen === 'set_password' && (
           <SetNewPasswordScreen
-            onPasswordUpdated={() => setCurrentScreen('dashboard')}
+            tempToken={tempToken}
+            onPasswordUpdated={() => setCurrentScreen('login')}
           />
         )}
         {currentScreen === 'dashboard' && renderDashboard()}

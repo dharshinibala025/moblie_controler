@@ -98,6 +98,52 @@ class ExportService {
 
     return xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
   }
+
+  async generateStudentTemplate() {
+    const sampleRows = [
+      {
+        StudentName: "Dharani V V",
+        Email: "vvdharani57cse24_27@ksrce.ac.in",
+        RegisterNumber: "221CS001",
+        Department: "CSE",
+        AcademicYear: "1st Year",
+        Section: "A",
+      },
+      {
+        StudentName: "Ashok Linga",
+        Email: "ashoklinga2006cse24_27@ksrce.ac.in",
+        RegisterNumber: "221CS003",
+        Department: "CSE",
+        AcademicYear: "1st Year",
+        Section: "A",
+      },
+    ];
+
+    const worksheet = xlsx.utils.json_to_sheet(sampleRows);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Student_Import_Template");
+
+    return xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+  }
+
+  async generateStaffTemplate() {
+    const sampleRows = [
+      {
+        StaffName: "Class Staff",
+        Email: "staff1@ksrce.ac.in",
+        EmployeeID: "STF001",
+        Department: "Computer Science",
+        AdvisorGroup: "CA1",
+        AssignedClassId: "CSE-1-A",
+      },
+    ];
+
+    const worksheet = xlsx.utils.json_to_sheet(sampleRows);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Staff_Import_Template");
+
+    return xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+  }
 }
 
 module.exports = new ExportService();

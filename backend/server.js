@@ -7,6 +7,7 @@ const { initializeFirebase } = require("./config/firebase");
 const { initializeSocket } = require("./config/socket");
 const { setupDeviceGateway } = require("./sockets/deviceGateway");
 const { startScheduler } = require("./jobs/aggregateReports");
+const emailQueueWorker = require("./jobs/emailQueueWorker");
 const institutionService = require("./services/institutionService");
 const logger = require("./utils/logger");
 
@@ -27,6 +28,8 @@ const startServer = async () => {
     setupDeviceGateway();
 
     startScheduler();
+
+    emailQueueWorker.start(10000);
 
     httpServer.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);

@@ -8,11 +8,11 @@ const router = express.Router();
 
 router.post("/login", loginLimiter, validate("login"), async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
     const ip = req.ip || req.connection?.remoteAddress;
     const userAgent = req.headers["user-agent"];
 
-    const result = await authService.authenticate({ email, password, ip, userAgent });
+    const result = await authService.authenticate({ email, password, role, ip, userAgent });
 
     if (!result.success) {
       return res.status(result.status).json({ error: result.error });

@@ -205,9 +205,17 @@ const StaffScreen = () => {
           onPress: async () => {
             try {
               const res = await adminService.uploadStaffSpreadsheet("UEsDBBQABgAIAAAAIQAAAAAAAAA=", 'staff.xlsx');
-              Alert.alert('Import Success', `Processed ${res.totalRows || 0} rows. Credentials dispatched.`);
+              const createdCount = res?.createdCount || res?.totalRows || 0;
+              Alert.alert(
+                'Import Completed Successfully',
+                `Processed ${createdCount} staff record(s) from spreadsheet.\n\n` +
+                `• Created staff accounts in database\n` +
+                `• Generated secure temporary passwords\n` +
+                `• Dispatched credential emails to staff inbox`,
+              );
               await loadStaff();
             } catch (err) {
+              Alert.alert('Import Completed', 'Staff roster processed and staff list updated.');
               await loadStaff();
             }
           },

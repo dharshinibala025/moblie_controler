@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  NativeModules,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -236,25 +237,49 @@ const StudentsScreen = () => {
   };
 
   const handleUploadExcelPress = async () => {
-    Alert.alert(
-      'Import Student Spreadsheet',
-      'Upload `.xlsx` spreadsheet to bulk add student records and send welcome credentials.',
-      [
-        {
-          text: 'Process Roster Spreadsheet',
-          onPress: async () => {
-            try {
-              const res = await adminService.uploadStudentSpreadsheet("UEsDBBQABgAIAAAAIQAAAAAAAAA=", 'students.xlsx');
-              Alert.alert('Import Success', `Processed ${res.totalRows || 0} rows. Credentials dispatched.`);
-              await loadStudents();
-            } catch (err) {
-              await loadStudents();
-            }
-          },
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-    );
+    try {
+      let pickResult = null;
+
+      // Safely check if native RNDocumentPicker module exists in compiled binary
+      if (NativeModules && NativeModules.RNDocumentPicker) {
+        try {
+          const DocumentPicker = require('react-native-document-picker');
+          pickResult = await DocumentPicker.pickSingle({
+            type: [DocumentPicker.types.allFiles],
+          });
+        } catch (pickerErr) {
+          if (
+            pickerErr?.message?.toLowerCase().includes('canceled') ||
+            pickerErr?.code === 'DOCUMENT_PICKER_CANCELED'
+          ) {
+            return; // Silent return on user cancellation
+          }
+        }
+      }
+
+      // Convert selected file or send payload to backend
+      const fileBase64 = pickResult?.content || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
+      const fileName = pickResult?.name || 'student_roster.xlsx';
+
+      const res = await adminService.uploadStudentSpreadsheet(fileBase64, fileName);
+
+      Alert.alert(
+        '📊 Import Summary Report',
+        `• Total Records: ${res?.totalRecords || 0}\n` +
+        `• Successfully Imported: ${res?.createdCount || 0}\n` +
+        `• Duplicate Records Ignored: ${res?.duplicateCount || 0}\n` +
+        `• Failed Records: ${res?.failedCount || 0}\n` +
+        `• Emails Sent Successfully: ${res?.emailSentCount || 0}\n` +
+        `• Email Failures: ${res?.emailFailedCount || 0}`,
+      );
+      await loadStudents();
+    } catch (err) {
+      Alert.alert(
+        'Upload Notice',
+        err.message || 'Please select a valid Excel file (.xlsx or .csv) from your mobile device storage.',
+      );
+      await loadStudents();
+    }
   };
 
   return (

@@ -1053,23 +1053,6 @@ router.get("/students", async (req, res, next) => {
   }
 });
 
-router.post("/students/upload", async (req, res, next) => {
-  try {
-    const { fileBase64, fileName = "students.xlsx" } = req.body;
-    if (!fileBase64) {
-      return res.status(400).json({ error: "Missing spreadsheet file data (fileBase64 required)" });
-    }
-
-    const spreadsheetService = require("../services/spreadsheetService");
-    const buffer = Buffer.from(fileBase64, "base64");
-    const result = await spreadsheetService.processStudentUpload(buffer, fileName, req.user.userId, req.user.role);
-
-    res.status(201).json(result);
-  } catch (err) {
-    next(err);
-  }
-});
-
 router.get("/staff", async (req, res, next) => {
   try {
     const staffMembers = await User.find({ role: "staff" })
@@ -1240,6 +1223,172 @@ router.get("/reports/attempts/export", async (req, res, next) => {
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", 'attachment; filename="Blocked_Attempts_Report.xlsx"');
     res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ========== TEMPLATE & EMERGENCY CONTROL ENDPOINTS ==========
+
+router.get("/students/template", async (req, res, next) => {
+  try {
+    const exportService = require("../services/exportService");
+    const buffer = await exportService.generateStudentTemplate();
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="Student_Import_Template.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/staff/template", async (req, res, next) => {
+  try {
+    const exportService = require("../services/exportService");
+    const buffer = await exportService.generateStaffTemplate();
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="Staff_Import_Template.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/apps/blockable", async (req, res, next) => {
+  try {
+    const AppsCatalog = require("../models/AppsCatalog");
+    const apps = await AppsCatalog.find({}).sort({ category: 1, appName: 1 });
+    res.json({ success: true, count: apps.length, apps });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/broadcast", async (req, res, next) => {
+  try {
+    const { title, message, target } = req.body;
+    const Notification = require("../models/Notification");
+    const User = require("../models/User");
+    const auditService = require("../services/auditService");
+
+    let query = { role: "student" };
+    if (target && target.type === "department" && target.targetId) {
+      query.department = target.targetId;
+    } else if (target && target.type === "section" && target.targetId) {
+      query.section = target.targetId;
+    }
+
+    const students = await User.find(query);
+    const notificationsToCreate = students.map((st) => ({
+      userId: st._id,
+      title: title || "Broadcast Announcement",
+      message: message || "System Notification",
+      type: "announcement",
+      read: false,
+    }));
+
+    await Notification.insertMany(notificationsToCreate);
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "admin_broadcast",
+      { target },
+      { title, message, count: students.length },
+      req.scopeInstitutionId
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `Broadcast delivered to ${students.length} recipient(s).`,
+      count: students.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/emergency-unblock-all", async (req, res, next) => {
+  try {
+    const Rule = require("../models/Rule");
+    const Device = require("../models/Device");
+    const auditService = require("../services/auditService");
+    const { emitToClass } = require("../config/socket");
+
+    await Rule.updateMany({}, { $set: { status: "paused" } });
+    await Device.updateMany({}, { $set: { status: "active" } });
+
+    emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "emergency_unblock_all",
+      { scope: "GLOBAL" },
+      { status: "ALL_DEVICES_UNBLOCKED" },
+      req.scopeInstitutionId
+    );
+
+    res.json({
+      success: true,
+      message: "EMERGENCY UNBLOCK EXECUTED: All mobile restrictions lifted immediately across all devices.",
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ========== SPREADSHEET BULK IMPORT UPLOAD ENDPOINTS ==========
+
+router.post("/students/upload", async (req, res, next) => {
+  try {
+    const spreadsheetService = require("../services/spreadsheetService");
+    const { fileBase64, fileName } = req.body;
+
+    if (!fileBase64 || typeof fileBase64 !== "string" || fileBase64.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No file uploaded. Please select an Excel file (.xlsx or .csv) from your mobile device storage.",
+      });
+    }
+
+    const fileBuffer = Buffer.from(fileBase64, "base64");
+    const result = await spreadsheetService.processStudentUpload(
+      fileBuffer,
+      fileName || "students.xlsx",
+      req.user?.userId || "admin",
+      req.user?.role || "admin"
+    );
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/staff/upload", async (req, res, next) => {
+  try {
+    const spreadsheetService = require("../services/spreadsheetService");
+    const { fileBase64, fileName } = req.body;
+
+    if (!fileBase64 || typeof fileBase64 !== "string" || fileBase64.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No file uploaded. Please select a staff Excel file (.xlsx or .csv) from your mobile device storage.",
+      });
+    }
+
+    const fileBuffer = Buffer.from(fileBase64, "base64");
+    const result = await spreadsheetService.processStaffUpload(
+      fileBuffer,
+      fileName || "staff.xlsx",
+      req.user?.userId || "admin",
+      req.user?.role || "admin"
+    );
+
+    res.json({ success: true, ...result });
   } catch (err) {
     next(err);
   }

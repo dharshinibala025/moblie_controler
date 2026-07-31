@@ -4,7 +4,7 @@ const targetSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["rule", "user", "device", "catalog", "auth", "student"],
+      enum: ["rule", "user", "device", "catalog", "auth", "student", "spreadsheet"],
     },
     id: { type: mongoose.Schema.Types.Mixed },
   },
@@ -45,6 +45,8 @@ const auditLogSchema = new mongoose.Schema(
         "student.update",
         "student.delete",
         "blocked_attempt",
+        "spreadsheet.upload.student",
+        "spreadsheet.upload.staff",
       ],
       required: true,
     },

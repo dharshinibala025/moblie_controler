@@ -220,7 +220,7 @@ router.get("/apps", async (req, res, next) => {
     const { isRuleActiveNow } = require("../utils/scheduleHelper");
 
     const student = await User.findById(req.user.userId);
-    const scannedApps = await ScannedApp.find({ studentId: req.user.userId }).sort({ appName: 1 });
+    const scannedApps = await ScannedApp.find({ studentId: req.user.userId, removedAt: null }).sort({ appName: 1 });
 
     const activeRules = await Rule.find({
       $or: [

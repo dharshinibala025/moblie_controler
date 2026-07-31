@@ -93,25 +93,28 @@ exports.processScan = async (studentId, deviceId, apps) => {
     socialAppCount,
   });
 
-  // 6. Update soft-delete status for removed social apps
+  // 6. Update soft-delete status for removed applications
   const currentlySavedApps = await ScannedApp.find({ studentId, deviceId, removedAt: null });
-  const incomingSocialPackageNames = new Set(socialApps.map((a) => a.packageName));
+  const incomingPackageNames = new Set(apps.map((a) => a.packageName));
 
-  const appsToRemove = currentlySavedApps.filter((app) => !incomingSocialPackageNames.has(app.packageName));
+  const appsToRemove = currentlySavedApps.filter((app) => !incomingPackageNames.has(app.packageName));
   if (appsToRemove.length > 0) {
     const removeIds = appsToRemove.map((app) => app._id);
     await ScannedApp.updateMany({ _id: { $in: removeIds } }, { $set: { removedAt: new Date() } });
   }
 
-  // 7. Upsert and restore scanned social applications
-  for (const app of socialApps) {
+  // 7. Upsert and restore all scanned applications
+  for (const app of apps) {
     const catalogMatch = catalogMap.get(app.packageName);
     await ScannedApp.findOneAndUpdate(
       { studentId, deviceId, packageName: app.packageName },
       {
         $set: {
           appName: app.appName,
-          category: catalogMatch ? catalogMatch.category : "social",
+          category: catalogMatch ? catalogMatch.category : "utilities",
+          versionName: app.versionName || "1.0.0",
+          isSystemApp: app.isSystemApp || false,
+          isUserFacing: true,
           removedAt: null,
         },
       },

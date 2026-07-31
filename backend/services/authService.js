@@ -19,7 +19,7 @@ const REFRESH_TOKEN_DAYS = {
 };
 
 class AuthService {
-  async authenticate({ email, password, ip, userAgent, deviceInfo }) {
+  async authenticate({ email, password, role, ip, userAgent, deviceInfo }) {
     const cleanInput = (email || "").trim();
     const lowerEmail = cleanInput.toLowerCase();
 
@@ -36,7 +36,17 @@ class AuthService {
 
     if (!user) {
       await this._logAuth({ email: cleanInput, action: "login.failed", ip, userAgent, details: { reason: "user_not_found" } });
-      return { success: false, error: "Invalid credentials", status: 401 };
+      return { success: false, error: "Invalid credentials. Account not found.", status: 401 };
+    }
+
+    // STRICT ROLE VALIDATION
+    if (role && user.role !== role.toLowerCase()) {
+      await this._logAuth({ userId: user._id, email: cleanInput, role: user.role, action: "login.failed", ip, userAgent, details: { reason: "role_mismatch", requestedRole: role, userRole: user.role } });
+      return {
+        success: false,
+        error: `Invalid ${role.toUpperCase()} credentials. This account is registered as ${user.role.toUpperCase()}. Please select the correct role tab to log in.`,
+        status: 403,
+      };
     }
 
     if (user.status === "disabled") {
@@ -81,6 +91,11 @@ class AuthService {
     await user.save();
 
     if (user.mustChangePassword) {
+      if (user.passwordExpiresAt && user.passwordExpiresAt < new Date()) {
+        await this._logAuth({ userId: user._id, email, role: user.role, action: "login.failed", ip, userAgent, institutionId: user.institutionId, details: { reason: "temp_password_expired" } });
+        return { success: false, error: "Temporary password has expired after 7 days. Please contact your administrator.", status: 403 };
+      }
+
       const tempToken = this._signTempToken(user, "must-change-password");
       await this._logAuth({ userId: user._id, email, role: user.role, action: "login.success", ip, userAgent, institutionId: user.institutionId, details: { reason: "must_change_password" } });
       return { success: true, mustChangePassword: true, tempToken, user: this._sanitizeUser(user) };

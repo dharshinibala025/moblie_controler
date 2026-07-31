@@ -6,8 +6,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Base URL for Android Emulator & Physical Device backend access:
-export const BASE_URL = 'http://10.0.2.2:5000';
+// Base URL for Physical Android Device & Backend access:
+export const BASE_URL = 'http://10.239.148.113:5000';
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 export const STORAGE_KEYS = {
@@ -68,10 +68,52 @@ export const apiFetch = async (path, options = {}) => {
     ...(options.headers || {}),
   };
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const candidateBases = [
+    BASE_URL,
+    'http://localhost:5000',
+    'http://10.0.2.2:5000',
+    'http://127.0.0.1:5000',
+  ];
+
+  const fetchWithTimeout = (url, opts, timeoutMs = 3000) => {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Network request timed out')), timeoutMs);
+      fetch(url, opts)
+        .then((res) => {
+          clearTimeout(timer);
+          resolve(res);
+        })
+        .catch((err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+    });
+  };
+
+  let response = null;
+  let lastError = null;
+
+  for (const candidateBase of candidateBases) {
+    try {
+      response = await fetchWithTimeout(`${candidateBase}${path}`, {
+        ...options,
+        headers,
+      }, 3500);
+      if (response && response.status !== 503) {
+        break;
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (!response) {
+    const err = new Error(
+      lastError?.message || 'Unable to connect to server. Please verify backend server is running.',
+    );
+    err.status = 503;
+    throw err;
+  }
 
   let data;
   try {

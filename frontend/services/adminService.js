@@ -10,6 +10,13 @@ class AdminService {
     }
   }
 
+  async broadcastAnnouncement({ title, message, target }) {
+    return await apiFetch('/admin/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({ title, message, target }),
+    });
+  }
+
   async getStudents() {
     try {
       return await apiFetch('/admin/students');
@@ -60,6 +67,37 @@ class AdminService {
   async unblockDevice(deviceId) {
     return await apiFetch(`/admin/devices/${deviceId}/unblock`, {
       method: 'POST',
+    });
+  }
+
+  async emergencyUnblockAll() {
+    return await apiFetch('/admin/emergency-unblock-all', {
+      method: 'POST',
+    });
+  }
+
+  async getBlockableApps() {
+    try {
+      return await apiFetch('/admin/apps/blockable');
+    } catch (error) {
+      console.warn('Blockable apps fetch fallback:', error.message);
+      return null;
+    }
+  }
+
+  async getAdminProfile() {
+    try {
+      return await apiFetch('/admin/profile');
+    } catch (error) {
+      console.warn('Admin profile fetch fallback:', error.message);
+      return null;
+    }
+  }
+
+  async changePassword(currentPassword, newPassword) {
+    return await apiFetch('/admin/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
     });
   }
 }

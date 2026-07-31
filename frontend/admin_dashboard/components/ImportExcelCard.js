@@ -16,7 +16,11 @@ const ImportExcelCard = ({
   onUploadExcel,
 }) => {
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={onUploadExcel}
+      activeOpacity={0.9}
+    >
       <View style={styles.iconWrapper}>
         <Icon name="upload-file" size={24} color={colors.primaryBlue} />
       </View>
@@ -44,7 +48,7 @@ const ImportExcelCard = ({
           <Text style={styles.uploadButtonText}>Upload Excel</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 

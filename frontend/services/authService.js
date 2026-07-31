@@ -70,20 +70,21 @@ class AuthService {
    *  - { screen: 'dashboard', user } on success
    *  - throws Error on failure
    */
-  async login(email, password) {
+  async login(email, password, role = 'student') {
     const data = await apiFetch('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email: email.trim(), password }),
+      body: JSON.stringify({ email: email.trim(), password, role }),
     });
 
     // First-time password change required
     if (data.mustChangePassword) {
+      const tokenToUse = data.tempToken || data.accessToken;
       return {
         screen: 'passwordReset',
         mustChangePassword: true,
-        accessToken: data.accessToken,
-        tempToken: data.accessToken,
-        preToken: data.accessToken,
+        accessToken: tokenToUse,
+        tempToken: tokenToUse,
+        preToken: tokenToUse,
         user: data.user,
       };
     }

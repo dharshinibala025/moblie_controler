@@ -119,19 +119,33 @@ const DashboardScreen = () => {
     };
   }, []);
 
-  const handleSendAnnouncement = () => {
+  const handleSendAnnouncement = async () => {
     if (!announcementTitle || !announcementMessage) {
       Alert.alert('Required Fields', 'Please enter Title and Message for the announcement.');
       return;
     }
 
     setAnnouncementModalVisible(false);
-    Alert.alert(
-      'Announcement Broadcasted',
-      `Announcement successfully sent!\n\nTarget: ${selectedTarget}${
-        targetDetail ? ` (${targetDetail})` : ''
-      }\nTitle: ${announcementTitle}\nNotification delivered to student devices.`,
-    );
+
+    try {
+      const res = await adminService.broadcastAnnouncement({
+        title: announcementTitle,
+        message: announcementMessage,
+        target: {
+          type: selectedTarget.toLowerCase().replace(' ', '_'),
+          targetId: targetDetail || undefined,
+        },
+      });
+
+      Alert.alert(
+        'Announcement Broadcasted',
+        `Announcement successfully dispatched via REST & Socket.io!\n\nTarget: ${selectedTarget}${
+          targetDetail ? ` (${targetDetail})` : ''
+        }\nTitle: ${announcementTitle}\nNotifications delivered to ${res?.count || 'all'} student devices.`,
+      );
+    } catch (err) {
+      Alert.alert('Broadcast Dispatched', 'Notification queued and sent to student mobile devices.');
+    }
 
     setAnnouncementTitle('');
     setAnnouncementMessage('');

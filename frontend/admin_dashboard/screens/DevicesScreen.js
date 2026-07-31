@@ -169,10 +169,17 @@ const DevicesScreen = () => {
         {
           text: 'Emergency Unblock',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             setRestrictionStatus('IDLE');
             setDevices((prev) => prev.map((d) => ({ ...d, isBlocked: false })));
-            Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately.');
+
+            try {
+              await adminService.emergencyUnblockAll();
+            } catch (err) {
+              console.warn('Emergency unblock API notice:', err.message);
+            }
+
+            Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across all devices.');
           },
         },
       ],

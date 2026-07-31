@@ -19,7 +19,7 @@ export const StudentDashboardScreen = ({ onLogout }) => {
 
     const loadData = async () => {
       try {
-        await syncService.sync('login');
+        syncService.sync('login').catch(() => null);
         const [dash, apps, notifs] = await Promise.all([
           fetchDashboard().catch(() => null),
           fetchApps().catch(() => null),

@@ -18,7 +18,7 @@ import PasswordStrengthMeter from './PasswordStrengthMeter';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 20;
 
-export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
+export const SetNewPasswordScreen = ({ onPasswordUpdated, tempToken }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -40,14 +40,23 @@ export const SetNewPasswordScreen = ({ onPasswordUpdated }) => {
 
   const canSubmit = allRulesSatisfied && passwordsMatch && !loading;
 
-  const handleUpdatePassword = () => {
+  const handleUpdatePassword = async () => {
     if (!canSubmit) return;
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const authService = require('../../services/authService').default;
+      await authService.changePasswordWithTempToken(tempToken, newPassword);
       setLoading(false);
       setIsSuccess(true);
-    }, 1200);
+    } catch (err) {
+      setLoading(false);
+      const { Alert } = require('react-native');
+      Alert.alert(
+        'Password Update Failed',
+        err?.message || 'Failed to set new password. Please try again.',
+      );
+    }
   };
 
   const handleContinue = () => {
