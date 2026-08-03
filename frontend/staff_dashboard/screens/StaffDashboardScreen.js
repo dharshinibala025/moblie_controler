@@ -1,35 +1,32 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
-import StaffHomeScreen from './StaffHomeScreen';
-import StaffStudentsScreen from './StaffStudentsScreen';
-import StaffMonitorScreen from './StaffMonitorScreen';
-import StaffNotificationsScreen from './StaffNotificationsScreen';
-import StaffProfileScreen from './StaffProfileScreen';
+import StaffDashboardTab from './StaffDashboardTab';
+import StaffDevicesTab from './StaffDevicesTab';
+import StaffStudentsTab from './StaffStudentsTab';
+import StaffSettingsTab from './StaffSettingsTab';
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
 
-export const StaffDashboardScreen = ({ onLogout, staffData }) => {
-  const [activeTab, setActiveTab] = useState('home');
+export const StaffDashboardScreen = ({ onLogout }) => {
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   const renderActiveScreen = () => {
     switch (activeTab) {
-      case 'home':
-        return <StaffHomeScreen onNavigateTab={setActiveTab} staffData={staffData} />;
+      case 'dashboard':
+        return <StaffDashboardTab />;
+      case 'devices':
+        return <StaffDevicesTab />;
       case 'students':
-        return <StaffStudentsScreen staffData={staffData} />;
-      case 'monitor':
-        return <StaffMonitorScreen staffData={staffData} />;
-      case 'notifications':
-        return <StaffNotificationsScreen staffData={staffData} />;
-      case 'profile':
-        return <StaffProfileScreen onLogout={onLogout} staffData={staffData} />;
+        return <StaffStudentsTab />;
+      case 'settings':
+        return <StaffSettingsTab onLogout={onLogout} />;
       default:
-        return <StaffHomeScreen onNavigateTab={setActiveTab} staffData={staffData} />;
+        return <StaffDashboardTab />;
     }
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
       <View style={styles.screenContainer}>
         {renderActiveScreen()}
       </View>
@@ -41,7 +38,7 @@ export const StaffDashboardScreen = ({ onLogout, staffData }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
   },
   screenContainer: {
     flex: 1,
