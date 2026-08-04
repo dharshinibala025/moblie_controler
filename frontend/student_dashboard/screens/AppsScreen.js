@@ -110,18 +110,16 @@ export const AppsScreen = ({ data }) => {
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
+      {/* Sleek Mobile Screen Header */}
       <View style={styles.screenHeader}>
-        <Text style={styles.screenTitle}>Applications</Text>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.screenTitle}>Applications</Text>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{allApps.length}</Text>
+          </View>
+        </View>
         <Text style={styles.screenSubtitle}>
-          View all applications and their restriction status during class hours
-        </Text>
-      </View>
-
-      {/* Info Banner */}
-      <View style={styles.infoBanner}>
-        <VectorIcon name="info" size={16} color={colors.primary} />
-        <Text style={styles.infoBannerText}>
-          Restrictions are automatically enforced from 09:00 AM to 04:00 PM. Students have view-only access.
+          App restriction status during class hours (09:00 AM – 04:00 PM)
         </Text>
       </View>
 
@@ -165,22 +163,22 @@ export const AppsScreen = ({ data }) => {
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
-        <VectorIcon name="search" size={18} color={colors.textMuted} />
+        <VectorIcon name="search" size={18} color="#94A3B8" />
         <TextInput
           style={styles.searchInput}
           placeholder="Search applications..."
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor="#94A3B8"
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 && (
-          <Text style={styles.clearText} onPress={() => setSearchQuery('')}>
-            Clear
-          </Text>
+          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.clearText}>Clear</Text>
+          </TouchableOpacity>
         )}
       </View>
 
-      {/* Apps Grid */}
+      {/* Modern App List Container */}
       <AppGridCard apps={filteredApps} />
     </ScrollView>
   );
@@ -189,7 +187,7 @@ export const AppsScreen = ({ data }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
     paddingTop: STATUSBAR_OFFSET,
@@ -197,39 +195,38 @@ const styles = StyleSheet.create({
   },
   screenHeader: {
     paddingHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   screenTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: '#0F172A',
+    letterSpacing: -0.4,
+  },
+  countBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#2563EB',
   },
   screenSubtitle: {
     fontSize: 13,
     fontWeight: '500',
-    color: colors.textSecondary,
+    color: '#64748B',
     marginTop: 4,
     lineHeight: 18,
-  },
-
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primaryLight,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    padding: 12,
-    borderRadius: borderRadius.card,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
-  },
-  infoBannerText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primaryDark,
-    lineHeight: 16,
   },
 
   // Filter Tabs
@@ -237,10 +234,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 20,
     marginBottom: 14,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#E2E8F0',
     borderRadius: 14,
-    padding: 4,
-    gap: 4,
+    padding: 3,
+    gap: 3,
   },
   filterTab: {
     flex: 1,
@@ -249,31 +246,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 6,
-    borderRadius: 10,
+    borderRadius: 11,
     gap: 5,
   },
   filterTabActive: {
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowRadius: 3,
     elevation: 2,
   },
   filterTabText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.textMuted,
+    color: '#64748B',
   },
   filterTabTextActive: {
-    color: colors.textPrimary,
+    color: '#0F172A',
     fontWeight: '700',
   },
   filterTabCount: {
     minWidth: 20,
     height: 18,
     borderRadius: 9,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#CBD5E1',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
@@ -290,7 +287,7 @@ const styles = StyleSheet.create({
   filterTabCountText: {
     fontSize: 10,
     fontWeight: '800',
-    color: colors.textMuted,
+    color: '#475569',
   },
   filterTabCountTextActive: {
     color: colors.primary,
@@ -303,17 +300,21 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 16,
     paddingHorizontal: 14,
-    height: 48,
+    height: 46,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textPrimary,
+    color: '#0F172A',
     marginLeft: 8,
   },
   clearText: {
@@ -324,3 +325,4 @@ const styles = StyleSheet.create({
 });
 
 export default AppsScreen;
+

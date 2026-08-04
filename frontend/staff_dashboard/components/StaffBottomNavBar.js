@@ -3,11 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-na
 import { colors, shadows } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 
-export const StaffBottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
+export const StaffBottomNavBar = ({ activeTab = 'dashboard', onSelectTab }) => {
   const tabs = [
-    { id: 'home', label: 'Home', icon: 'home' },
-    { id: 'notifications', label: 'Notifications', icon: 'bell', badge: 3 },
-    { id: 'profile', label: 'Profile', icon: 'account-circle' },
+    { id: 'dashboard', label: 'Dashboard', icon: 'view-dashboard' },
+    { id: 'devices', label: 'Devices', icon: 'cellphone-cog' },
+    { id: 'students', label: 'Students', icon: 'account-group' },
+    { id: 'settings', label: 'Settings', icon: 'cog' },
   ];
 
   return (
@@ -25,14 +26,9 @@ export const StaffBottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
               <View style={styles.iconWrapper}>
                 <VectorIcon
                   name={tab.icon}
-                  size={26}
+                  size={24}
                   color={isActive ? colors.primary : '#64748B'}
                 />
-                {tab.badge && tab.badge > 0 && (
-                  <View style={styles.redBadge}>
-                    <Text style={styles.redBadgeText}>{tab.badge}</Text>
-                  </View>
-                )}
               </View>
 
               <Text
@@ -63,7 +59,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     ...shadows.medium,
   },
   tabButton: {
@@ -78,32 +74,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  redBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    backgroundColor: '#DC2626',
-    borderRadius: 9,
-    width: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    shadowColor: '#DC2626',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  redBadgeText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: '#64748B',
   },
