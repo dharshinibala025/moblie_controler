@@ -13,29 +13,35 @@ type Screen = 'welcome' | 'login' | 'set_password' | 'dashboard';
 type Role = 'student' | 'staff' | 'admin';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
-  const [userRole, setUserRole] = useState<Role>('student');
-  const [staffData, setStaffData] = useState(null);
+  const [currentScreen, setCurrentScreen] = useState('welcome');
+  const [userRole, setUserRole] = useState('student');
+  const [tempToken, setTempToken] = useState('');
 
-  const handleLoginSuccess = (result: { role: Role; email?: string }) => {
-    setUserRole(result.role);
-    if (result.role === 'staff') {
-      setStaffData(getStaffProfile(result.email));
-    } else {
-      setStaffData(null);
+  const handleLogout = () => {
+    setUserRole('student');
+    setCurrentScreen('login');
+  };
+
+  const handleLoginSuccess = (user: any) => {
+    if (user?.mustChangePassword) {
+      setTempToken(user?.accessToken || user?.tempToken || '');
+      setCurrentScreen('set_password');
+      return;
     }
+    const role = typeof user === 'string' ? user : (user?.role || 'student');
+    setUserRole(role);
     setCurrentScreen('dashboard');
   };
 
   const renderDashboard = () => {
     switch (userRole) {
       case 'staff':
-        return <StaffDashboardScreen staffData={staffData} onLogout={() => setCurrentScreen('login')} />;
+        return <StaffDashboardScreen onLogout={handleLogout} />;
       case 'admin':
-        return <AdminPanel onLogout={() => setCurrentScreen('login')} />;
+        return <AdminPanel onLogout={handleLogout} />;
       case 'student':
       default:
-        return <StudentDashboardScreen onLogout={() => setCurrentScreen('login')} />;
+        return <StudentDashboardScreen onLogout={handleLogout} />;
     }
   };
 
@@ -57,7 +63,8 @@ function App() {
         )}
         {currentScreen === 'set_password' && (
           <SetNewPasswordScreen
-            onPasswordUpdated={() => setCurrentScreen('dashboard')}
+            tempToken={tempToken}
+            onPasswordUpdated={() => setCurrentScreen('login')}
           />
         )}
         {currentScreen === 'dashboard' && renderDashboard()}

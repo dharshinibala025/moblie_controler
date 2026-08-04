@@ -73,21 +73,30 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
     return valid;
   };
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     if (validate()) {
       setLoading(true);
-      setTimeout(() => {
+      try {
+        const authService = require('../../services/authService').default;
+        const result = await authService.login(email, password, role);
         setLoading(false);
+
         if (onLoginSuccess) {
-          onLoginSuccess({ role, email });
-        } else {
-          Alert.alert(
-            'Login Successful',
-            `Welcome to FocusSync!\nRole: ${role.toUpperCase()}\nEmail: ${email}`,
-            [{ text: 'OK' }]
-          );
+          onLoginSuccess({
+            role: result.user?.role || role,
+            email: result.user?.email || email,
+            mustChangePassword: result.mustChangePassword || false,
+            accessToken: result.accessToken || result.tempToken,
+            user: result.user,
+          });
         }
-      }, 1000);
+      } catch (err) {
+        setLoading(false);
+        Alert.alert(
+          'Authentication Error',
+          err.message || `Invalid ${role.toUpperCase()} credentials. Please check your email/password or select the correct role tab.`,
+        );
+      }
     }
   };
 

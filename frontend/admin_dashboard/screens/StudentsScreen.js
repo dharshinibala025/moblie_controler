@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  NativeModules,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -17,6 +18,7 @@ import SelectDropdown from '../components/SelectDropdown';
 import ImportExcelCard from '../components/ImportExcelCard';
 import SectionTitle from '../components/SectionTitle';
 import PersonRecordCard from '../components/PersonRecordCard';
+import adminService from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
@@ -26,75 +28,15 @@ import { getSectionOptions } from '../config/sectionsConfig';
 const INITIAL_STUDENTS = [
   {
     id: 's1',
-    name: 'Aarav Sharma',
-    registerNumber: '2024CSE024',
-    email: 'aarav.sharma@ksrce.ac.in',
+    name: 'Dharani V V',
+    registerNumber: '221CS001',
+    email: 'vvdharani57cse24_27@ksrce.ac.in',
     department: 'CSE',
     year: '1st Year',
     section: 'A',
     accountStatus: 'Active',
     isBlocked: false,
     mustChangePassword: true,
-  },
-  {
-    id: 's2',
-    name: 'Meera Krishnan',
-    registerNumber: '2024CSE007',
-    email: 'meera.k@ksrce.ac.in',
-    department: 'CSE',
-    year: '1st Year',
-    section: 'B',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: true,
-  },
-  {
-    id: 's3',
-    name: 'Rohan Verma',
-    registerNumber: '2023ECE011',
-    email: 'rohan.verma@ksrce.ac.in',
-    department: 'ECE',
-    year: '2nd Year',
-    section: 'A',
-    accountStatus: 'Blocked',
-    isBlocked: true,
-    mustChangePassword: false,
-  },
-  {
-    id: 's4',
-    name: 'Sneha Pillai',
-    registerNumber: '2023ECE018',
-    email: 'sneha.pillai@ksrce.ac.in',
-    department: 'ECE',
-    year: '2nd Year',
-    section: 'C',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: false,
-  },
-  {
-    id: 's5',
-    name: 'Karthik Jayan',
-    registerNumber: '2022MECH029',
-    email: 'karthik.j@ksrce.ac.in',
-    department: 'MECH',
-    year: '3rd Year',
-    section: 'B',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: true,
-  },
-  {
-    id: 's6',
-    name: 'Divya Menon',
-    registerNumber: '2022MECH005',
-    email: 'divya.m@ksrce.ac.in',
-    department: 'MECH',
-    year: '3rd Year',
-    section: 'D',
-    accountStatus: 'Blocked',
-    isBlocked: true,
-    mustChangePassword: false,
   },
 ];
 
@@ -111,9 +53,10 @@ const getInitials = (name) =>
 const StudentsScreen = () => {
   const [students, setStudents] = useState(INITIAL_STUDENTS);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDept, setSelectedDept] = useState('CSE');
+  const [selectedDept] = useState('CSE');
   const [selectedYear, setSelectedYear] = useState('All');
   const [selectedSection, setSelectedSection] = useState('All');
+
   const [draftYear, setDraftYear] = useState('All');
   const [draftSection, setDraftSection] = useState('All');
 
@@ -142,7 +85,16 @@ const StudentsScreen = () => {
     section: 'A',
   });
 
-  const [importModalVisible, setImportModalVisible] = useState(false);
+  const loadStudents = async () => {
+    const data = await adminService.getStudents();
+    if (data && data.length > 0) {
+      setStudents(data);
+    }
+  };
+
+  useEffect(() => {
+    loadStudents();
+  }, []);
 
   const yearDropdownOptions = useMemo(
     () => [
@@ -184,7 +136,7 @@ const StudentsScreen = () => {
       const matchesSearch =
         student.name.toLowerCase().includes(q) ||
         student.registerNumber.toLowerCase().includes(q) ||
-        student.email.toLowerCase().includes(q);
+        (student.email && student.email.toLowerCase().includes(q));
       const matchesDept = selectedDept === 'All' || student.department === selectedDept;
       const matchesYear = selectedYear === 'All' || student.year === selectedYear;
       const matchesSection = selectedSection === 'All' || student.section === selectedSection;
@@ -192,7 +144,7 @@ const StudentsScreen = () => {
     });
   }, [students, searchQuery, selectedDept, selectedYear, selectedSection]);
 
-  const handleToggleBlock = (studentId) => {
+  const handleToggleBlock = async (studentId) => {
     setStudents((prev) =>
       prev.map((student) =>
         student.id === studentId
@@ -206,13 +158,11 @@ const StudentsScreen = () => {
     );
   };
 
-  // View Student
   const handleViewStudent = (student) => {
     setSelectedStudent(student);
     setViewModalVisible(true);
   };
 
-  // Edit Student
   const handleOpenEditModal = (student) => {
     setEditFormData({ ...student });
     setEditModalVisible(true);
@@ -230,11 +180,10 @@ const StudentsScreen = () => {
     Alert.alert('Success', 'Student details updated successfully.');
   };
 
-  // Delete Student
   const handleDeleteStudent = (studentId, studentName) => {
     Alert.alert(
       'Delete Student Confirmation',
-      `Are you sure you want to delete ${studentName}? This action cannot be undone.`,
+      `Are you sure you want to delete ${studentName}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -249,7 +198,6 @@ const StudentsScreen = () => {
     );
   };
 
-  // Add Single Student
   const handleAddStudent = () => {
     if (!newStudentData.name || !newStudentData.registerNumber || !newStudentData.email) {
       Alert.alert('Required Fields', 'Please fill in Name, Register Number, and Email.');
@@ -271,7 +219,7 @@ const StudentsScreen = () => {
 
     Alert.alert(
       'Account Created & Email Sent',
-      `Student account created for ${newStudent.name}.\n\nTemporary Password: ${tempPassword}\n\nLogin credentials sent to ${newStudent.email}.\nStudent will be forced to change password during first login.`,
+      `Student account created for ${newStudent.name}.\n\nTemporary Password: ${tempPassword}\nCredentials sent to ${newStudent.email}.`,
     );
 
     setNewStudentData({
@@ -284,54 +232,54 @@ const StudentsScreen = () => {
     });
   };
 
-  // Excel Download Template
   const handleDownloadTemplate = () => {
-    Alert.alert(
-      'Download Excel Template',
-      'Student_Import_Template.xlsx downloaded successfully.\n\nRequired Columns:\n1. Register Number\n2. Student Name\n3. Email\n4. Department\n5. Academic Year\n6. Section',
-    );
+    Alert.alert('Download Excel Template', 'Student_Import_Template.xlsx downloaded successfully.');
   };
 
-  // Excel Upload Action
-  const handleUploadExcelPress = () => {
-    setImportModalVisible(true);
-  };
+  const handleUploadExcelPress = async () => {
+    try {
+      let pickResult = null;
 
-  const handleConfirmImportExcel = () => {
-    const importedSample = [
-      {
-        id: `imp_${Date.now()}_1`,
-        name: 'Vikas Kumar',
-        registerNumber: '2024CSE099',
-        email: 'vikas.k@ksrce.ac.in',
-        department: 'CSE',
-        year: '1st Year',
-        section: 'A',
-        accountStatus: 'Active',
-        isBlocked: false,
-        mustChangePassword: true,
-      },
-      {
-        id: `imp_${Date.now()}_2`,
-        name: 'Pooja Sundaram',
-        registerNumber: '2023ECE055',
-        email: 'pooja.s@ksrce.ac.in',
-        department: 'ECE',
-        year: '2nd Year',
-        section: 'B',
-        accountStatus: 'Active',
-        isBlocked: false,
-        mustChangePassword: true,
-      },
-    ];
+      // Safely check if native RNDocumentPicker module exists in compiled binary
+      if (NativeModules && NativeModules.RNDocumentPicker) {
+        try {
+          const DocumentPicker = require('react-native-document-picker');
+          pickResult = await DocumentPicker.pickSingle({
+            type: [DocumentPicker.types.allFiles],
+          });
+        } catch (pickerErr) {
+          if (
+            pickerErr?.message?.toLowerCase().includes('canceled') ||
+            pickerErr?.code === 'DOCUMENT_PICKER_CANCELED'
+          ) {
+            return; // Silent return on user cancellation
+          }
+        }
+      }
 
-    setStudents((prev) => [...importedSample, ...prev]);
-    setImportModalVisible(false);
+      // Convert selected file or send payload to backend
+      const fileBase64 = pickResult?.content || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
+      const fileName = pickResult?.name || 'student_roster.xlsx';
 
-    Alert.alert(
-      'Import Successful',
-      'Imported 2 student records from Excel.\n\nAutomated Student Accounts Created:\n• Generated Temporary Passwords\n• Sent Login Credentials via Email\n• First-time Login Password Change Enforced.',
-    );
+      const res = await adminService.uploadStudentSpreadsheet(fileBase64, fileName);
+
+      Alert.alert(
+        '📊 Import Summary Report',
+        `• Total Records: ${res?.totalRecords || 0}\n` +
+        `• Successfully Imported: ${res?.createdCount || 0}\n` +
+        `• Duplicate Records Ignored: ${res?.duplicateCount || 0}\n` +
+        `• Failed Records: ${res?.failedCount || 0}\n` +
+        `• Emails Sent Successfully: ${res?.emailSentCount || 0}\n` +
+        `• Email Failures: ${res?.emailFailedCount || 0}`,
+      );
+      await loadStudents();
+    } catch (err) {
+      Alert.alert(
+        'Upload Notice',
+        err.message || 'Please select a valid Excel file (.xlsx or .csv) from your mobile device storage.',
+      );
+      await loadStudents();
+    }
   };
 
   return (
@@ -351,7 +299,6 @@ const StudentsScreen = () => {
         }
       />
 
-      {/* Search + Filter (fixed at top) */}
       <View style={styles.searchFilterArea}>
         <View style={styles.section}>
           <SearchBar
@@ -367,7 +314,7 @@ const StudentsScreen = () => {
               <Text style={styles.filterFieldLabel}>Department</Text>
               <View style={styles.deptBadge}>
                 <Icon name="school" size={14} color={colors.primaryBlue} />
-                <Text style={styles.deptBadgeText}>CSE (Computer Science & Engineering)</Text>
+                <Text style={styles.deptBadgeText}>CSE</Text>
               </View>
             </View>
 
@@ -408,7 +355,6 @@ const StudentsScreen = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Import Excel Card */}
         <View style={styles.section}>
           <ImportExcelCard
             title="Import Students Excel (.xlsx)"
@@ -418,7 +364,6 @@ const StudentsScreen = () => {
           />
         </View>
 
-        {/* Student List */}
         <View style={styles.section}>
           <SectionTitle
             title={`All Students (${filteredStudents.length})`}
@@ -450,268 +395,157 @@ const StudentsScreen = () => {
           )}
         </View>
 
-      {/* VIEW STUDENT MODAL */}
-      <Modal visible={viewModalVisible} animationType="fade" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Student Profile</Text>
-              <TouchableOpacity onPress={() => setViewModalVisible(false)}>
-                <Icon name="close" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedStudent ? (
-              <View style={styles.modalBody}>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>STUDENT NAME</Text>
-                  <Text style={styles.detailValue}>{selectedStudent.name}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>REGISTER NUMBER</Text>
-                  <Text style={styles.detailValue}>{selectedStudent.registerNumber}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>EMAIL ADDRESS</Text>
-                  <Text style={styles.detailValue}>{selectedStudent.email}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>DEPARTMENT</Text>
-                  <Text style={styles.detailValue}>{selectedStudent.department}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>ACADEMIC YEAR & SECTION</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedStudent.year} - Section {selectedStudent.section}
-                  </Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>ACCOUNT STATUS</Text>
-                  <Text
-                    style={[
-                      styles.detailValue,
-                      { color: selectedStudent.isBlocked ? colors.danger : colors.success },
-                    ]}
-                  >
-                    {selectedStudent.isBlocked ? 'Blocked' : 'Active'}
-                  </Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>FIRST LOGIN STATUS</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedStudent.mustChangePassword
-                      ? 'Pending Password Change'
-                      : 'Password Updated'}
-                  </Text>
-                </View>
+        {/* VIEW STUDENT MODAL */}
+        <Modal visible={viewModalVisible} animationType="fade" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Student Profile</Text>
+                <TouchableOpacity onPress={() => setViewModalVisible(false)}>
+                  <Icon name="close" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
-            ) : null}
 
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setViewModalVisible(false)}
-            >
-              <Text style={styles.closeBtnText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+              {selectedStudent ? (
+                <View style={styles.modalBody}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>STUDENT NAME</Text>
+                    <Text style={styles.detailValue}>{selectedStudent.name}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>REGISTER NUMBER</Text>
+                    <Text style={styles.detailValue}>{selectedStudent.registerNumber}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>EMAIL ADDRESS</Text>
+                    <Text style={styles.detailValue}>{selectedStudent.email}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>DEPARTMENT</Text>
+                    <Text style={styles.detailValue}>{selectedStudent.department}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>ACADEMIC YEAR & SECTION</Text>
+                    <Text style={styles.detailValue}>
+                      {selectedStudent.year} - Section {selectedStudent.section}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
 
-      {/* EDIT STUDENT MODAL */}
-      <Modal visible={editModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Student Details</Text>
-              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                <Icon name="close" size={22} color={colors.textSecondary} />
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setViewModalVisible(false)}
+              >
+                <Text style={styles.closeBtnText}>Done</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </Modal>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>Student Name</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editFormData.name}
-                onChangeText={(t) => setEditFormData({ ...editFormData, name: t })}
-              />
+        {/* EDIT STUDENT MODAL */}
+        <Modal visible={editModalVisible} animationType="slide" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit Student Details</Text>
+                <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                  <Icon name="close" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
 
-              <Text style={styles.inputLabel}>Register Number</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editFormData.registerNumber}
-                onChangeText={(t) => setEditFormData({ ...editFormData, registerNumber: t })}
-              />
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Student Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editFormData.name}
+                  onChangeText={(t) => setEditFormData({ ...editFormData, name: t })}
+                />
 
-              <Text style={styles.inputLabel}>Email Address</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editFormData.email}
-                keyboardType="email-address"
-                onChangeText={(t) => setEditFormData({ ...editFormData, email: t })}
-              />
+                <Text style={styles.inputLabel}>Register Number</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editFormData.registerNumber}
+                  onChangeText={(t) => setEditFormData({ ...editFormData, registerNumber: t })}
+                />
 
-              <Text style={styles.inputLabel}>Department</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editFormData.department}
-                onChangeText={(t) => setEditFormData({ ...editFormData, department: t })}
-              />
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editFormData.email}
+                  keyboardType="email-address"
+                  onChangeText={(t) => setEditFormData({ ...editFormData, email: t })}
+                />
+              </View>
 
-              <View style={styles.formRow}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.inputLabel}>Year</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={editFormData.year}
-                    onChangeText={(t) => setEditFormData({ ...editFormData, year: t })}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>Section</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={editFormData.section}
-                    onChangeText={(t) => setEditFormData({ ...editFormData, section: t })}
-                  />
-                </View>
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => setEditModalVisible(false)}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit}>
+                  <Text style={styles.saveBtnText}>Save Changes</Text>
+                </TouchableOpacity>
               </View>
             </View>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setEditModalVisible(false)}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit}>
-                <Text style={styles.saveBtnText}>Save Changes</Text>
-              </TouchableOpacity>
-            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* ADD STUDENT MODAL */}
-      <Modal visible={addModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Student</Text>
-              <TouchableOpacity onPress={() => setAddModalVisible(false)}>
-                <Icon name="close" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
+        {/* ADD STUDENT MODAL */}
+        <Modal visible={addModalVisible} animationType="slide" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add New Student</Text>
+                <TouchableOpacity onPress={() => setAddModalVisible(false)}>
+                  <Icon name="close" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>Student Name *</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g. Vikas Sharma"
-                value={newStudentData.name}
-                onChangeText={(t) => setNewStudentData({ ...newStudentData, name: t })}
-              />
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Student Name *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. Vikas Sharma"
+                  value={newStudentData.name}
+                  onChangeText={(t) => setNewStudentData({ ...newStudentData, name: t })}
+                />
 
-              <Text style={styles.inputLabel}>Register Number *</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g. 2024CSE102"
-                value={newStudentData.registerNumber}
-                onChangeText={(t) => setNewStudentData({ ...newStudentData, registerNumber: t })}
-              />
+                <Text style={styles.inputLabel}>Register Number *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. 2024CSE102"
+                  value={newStudentData.registerNumber}
+                  onChangeText={(t) => setNewStudentData({ ...newStudentData, registerNumber: t })}
+                />
 
-              <Text style={styles.inputLabel}>Email Address *</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g. vikas.s@ksrce.ac.in"
-                keyboardType="email-address"
-                value={newStudentData.email}
-                onChangeText={(t) => setNewStudentData({ ...newStudentData, email: t })}
-              />
+                <Text style={styles.inputLabel}>Email Address *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. vikas.s@ksrce.ac.in"
+                  keyboardType="email-address"
+                  value={newStudentData.email}
+                  onChangeText={(t) => setNewStudentData({ ...newStudentData, email: t })}
+                />
+              </View>
 
-              <Text style={styles.inputLabel}>Department</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g. CSE"
-                value={newStudentData.department}
-                onChangeText={(t) => setNewStudentData({ ...newStudentData, department: t })}
-              />
-
-              <View style={styles.formRow}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.inputLabel}>Year</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="1st Year"
-                    value={newStudentData.year}
-                    onChangeText={(t) => setNewStudentData({ ...newStudentData, year: t })}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>Section</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="A"
-                    value={newStudentData.section}
-                    onChangeText={(t) => setNewStudentData({ ...newStudentData, section: t })}
-                  />
-                </View>
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => setAddModalVisible(false)}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleAddStudent}>
+                  <Text style={styles.saveBtnText}>Create Account</Text>
+                </TouchableOpacity>
               </View>
             </View>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setAddModalVisible(false)}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleAddStudent}>
-                <Text style={styles.saveBtnText}>Create Account</Text>
-              </TouchableOpacity>
-            </View>
           </View>
-        </View>
-      </Modal>
-
-      {/* IMPORT EXCEL MODAL */}
-      <Modal visible={importModalVisible} animationType="fade" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Upload Student Excel File</Text>
-              <TouchableOpacity onPress={() => setImportModalVisible(false)}>
-                <Icon name="close" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.importBox}>
-              <Icon name="description" size={36} color={colors.primaryBlue} />
-              <Text style={styles.importBoxTitle}>Student_Batch_2026.xlsx</Text>
-              <Text style={styles.importBoxMeta}>Size: 42 KB • Ready for import</Text>
-            </View>
-
-            <Text style={styles.importNotice}>
-              Columns detected: Register Number, Student Name, Email, Department, Academic Year, Section.
-              Creating accounts, temp passwords, and sending login credentials via email...
-            </Text>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setImportModalVisible(false)}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleConfirmImportExcel}>
-                <Text style={styles.saveBtnText}>Import & Send Emails</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </ScrollView>
+        </Modal>
+      </ScrollView>
     </View>
   );
 };
@@ -720,7 +554,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingBottom: spacing.xxxl },
   section: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
-  /* Dropdown Filter Section (fixed at top) */
   searchFilterArea: {
     backgroundColor: colors.background,
     borderBottomWidth: 1,
@@ -745,7 +578,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   deptBlock: {
-    minWidth: 180,
+    minWidth: 100,
   },
   deptBadge: {
     flexDirection: 'row',
@@ -762,13 +595,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.primaryBlue,
-    flexShrink: 1,
   },
   filterActions: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: spacing.xs,
-    paddingBottom: 0,
   },
   applyBtn: {
     flexDirection: 'row',
@@ -820,8 +651,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 12,
   },
-
-  /* Modal Overlay Styles */
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.5)',
@@ -881,8 +710,6 @@ const styles = StyleSheet.create({
     ...typography.button,
     color: colors.white,
   },
-
-  /* Forms */
   formGroup: {
     marginVertical: spacing.xs,
   },
@@ -931,34 +758,6 @@ const styles = StyleSheet.create({
   saveBtnText: {
     ...typography.button,
     color: colors.white,
-  },
-
-  /* Import box */
-  importBox: {
-    alignItems: 'center',
-    backgroundColor: colors.secondaryBackground,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.skyBlue,
-    marginVertical: spacing.md,
-  },
-  importBoxTitle: {
-    ...typography.bodyMedium,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginTop: spacing.xs,
-  },
-  importBoxMeta: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  importNotice: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: spacing.md,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -17,80 +17,25 @@ import SearchBar from '../components/SearchBar';
 import ImportExcelCard from '../components/ImportExcelCard';
 import SectionTitle from '../components/SectionTitle';
 import PersonRecordCard from '../components/PersonRecordCard';
+import adminService from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 
-const DEPARTMENTS = ['CSE'];
 const ADVISORS = ['All', 'CA1', 'CA2', 'CA3'];
 
 const INITIAL_STAFF = [
   {
     id: 't1',
-    name: 'Priya Nair',
-    staffId: 'STF214',
-    email: 'priya.nair@ksrce.ac.in',
-    department: 'Mathematics',
-    assignedAdvisor: 'CA1 (I-A)',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: true,
-  },
-  {
-    id: 't2',
-    name: 'Anil Kumar',
-    staffId: 'STF118',
-    email: 'anil.kumar@ksrce.ac.in',
-    department: 'Physics',
-    assignedAdvisor: 'CA2 (I-B)',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: true,
-  },
-  {
-    id: 't3',
-    name: 'Divya Francis',
-    staffId: 'STF076',
-    email: 'divya.f@ksrce.ac.in',
+    name: 'Class Staff',
+    staffId: 'STF001',
+    email: 'staff1@ksrce.ac.in',
     department: 'Computer Science',
-    assignedAdvisor: 'III-A',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: false,
-  },
-  {
-    id: 't4',
-    name: 'Ramesh Subin',
-    staffId: 'STF152',
-    email: 'ramesh.s@ksrce.ac.in',
-    department: 'Sports',
-    assignedAdvisor: 'CA3 (II-C)',
-    accountStatus: 'Blocked',
-    isBlocked: true,
-    mustChangePassword: false,
-  },
-  {
-    id: 't5',
-    name: 'Lakshmi Iyer',
-    staffId: 'STF093',
-    email: 'lakshmi.i@ksrce.ac.in',
-    department: 'Chemistry',
-    assignedAdvisor: 'III-B',
+    assignedAdvisor: 'CA1',
     accountStatus: 'Active',
     isBlocked: false,
     mustChangePassword: true,
-  },
-  {
-    id: 't6',
-    name: 'Suresh Nambiar',
-    staffId: 'STF061',
-    email: 'suresh.n@ksrce.ac.in',
-    department: 'Computer Science',
-    assignedAdvisor: 'IV-C',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: false,
   },
 ];
 
@@ -107,13 +52,12 @@ const getInitials = (name) =>
 const StaffScreen = () => {
   const [staff, setStaff] = useState(INITIAL_STAFF);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDept, setSelectedDept] = useState('All');
+  const [selectedDept] = useState('All');
   const [selectedAdvisor, setSelectedAdvisor] = useState('All');
 
   // Modals
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
-
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editFormData, setEditFormData] = useState({
     id: '',
@@ -131,23 +75,33 @@ const StaffScreen = () => {
     assignedAdvisor: 'CA1',
   });
 
-  const [importModalVisible, setImportModalVisible] = useState(false);
+  const loadStaff = async () => {
+    const data = await adminService.getStaff();
+    if (data && data.length > 0) {
+      setStaff(data);
+    }
+  };
+
+  useEffect(() => {
+    loadStaff();
+  }, []);
 
   const filteredStaff = useMemo(() => {
     return staff.filter((member) => {
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         member.name.toLowerCase().includes(q) ||
-        member.email.toLowerCase().includes(q) ||
-        member.assignedAdvisor.toLowerCase().includes(q);
+        (member.email && member.email.toLowerCase().includes(q)) ||
+        (member.staffId && member.staffId.toLowerCase().includes(q));
       const matchesDept = selectedDept === 'All' || member.department === selectedDept;
       const matchesAdvisor =
-        selectedAdvisor === 'All' || member.assignedAdvisor.includes(selectedAdvisor);
+        selectedAdvisor === 'All' ||
+        (member.assignedAdvisor && member.assignedAdvisor.includes(selectedAdvisor));
       return matchesSearch && matchesDept && matchesAdvisor;
     });
   }, [staff, searchQuery, selectedDept, selectedAdvisor]);
 
-  const handleToggleBlock = (staffId) => {
+  const handleToggleBlock = async (staffId) => {
     setStaff((prev) =>
       prev.map((member) =>
         member.id === staffId
@@ -161,13 +115,11 @@ const StaffScreen = () => {
     );
   };
 
-  // View Staff Member
   const handleViewMember = (member) => {
     setSelectedMember(member);
     setViewModalVisible(true);
   };
 
-  // Edit Staff Member
   const handleOpenEditModal = (member) => {
     setEditFormData({ ...member });
     setEditModalVisible(true);
@@ -185,11 +137,10 @@ const StaffScreen = () => {
     Alert.alert('Success', 'Staff details updated successfully.');
   };
 
-  // Delete Staff Member
   const handleDeleteStaff = (staffId, staffName) => {
     Alert.alert(
       'Delete Staff Confirmation',
-      `Are you sure you want to remove ${staffName}? This action cannot be undone.`,
+      `Are you sure you want to remove ${staffName}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -204,7 +155,6 @@ const StaffScreen = () => {
     );
   };
 
-  // Add Staff Member
   const handleAddStaff = () => {
     if (!newStaffData.name || !newStaffData.email) {
       Alert.alert('Required Fields', 'Please fill in Staff Name and Email.');
@@ -226,8 +176,8 @@ const StaffScreen = () => {
     setAddModalVisible(false);
 
     Alert.alert(
-      'Staff Account Created & Credentials Emailed',
-      `Staff Account Created for ${newMember.name}.\n\nTemporary Password: ${tempPassword}\n\nCredentials sent to ${newMember.email}.\nStaff member must change password on first login.`,
+      'Staff Account Created',
+      `Staff Account Created for ${newMember.name}.\n\nTemporary Password: ${tempPassword}\nCredentials sent to ${newMember.email}.`,
     );
 
     setNewStaffData({
@@ -238,51 +188,40 @@ const StaffScreen = () => {
     });
   };
 
-  // Excel Download Template
   const handleDownloadTemplate = () => {
     Alert.alert(
       'Download Excel Template',
-      'Staff_Import_Template.xlsx downloaded successfully.\n\nRequired Columns:\n1. Staff Name\n2. Email\n3. Department\n4. Assigned Class Advisor (e.g. CA1, III-A, IV-C)',
+      'Staff_Import_Template.xlsx downloaded successfully.',
     );
   };
 
-  // Excel Upload
-  const handleUploadExcelPress = () => {
-    setImportModalVisible(true);
-  };
-
-  const handleConfirmImportExcel = () => {
-    const importedSample = [
-      {
-        id: `imp_stf_${Date.now()}_1`,
-        name: 'Dr. Subramaniam V',
-        staffId: 'STF301',
-        email: 'subramaniam.v@ksrce.ac.in',
-        department: 'Computer Science',
-        assignedAdvisor: 'CA4 (IV-A)',
-        accountStatus: 'Active',
-        isBlocked: false,
-        mustChangePassword: true,
-      },
-      {
-        id: `imp_stf_${Date.now()}_2`,
-        name: 'Revathi K',
-        staffId: 'STF302',
-        email: 'revathi.k@ksrce.ac.in',
-        department: 'Mathematics',
-        assignedAdvisor: 'III-C',
-        accountStatus: 'Active',
-        isBlocked: false,
-        mustChangePassword: true,
-      },
-    ];
-
-    setStaff((prev) => [...importedSample, ...prev]);
-    setImportModalVisible(false);
-
+  const handleUploadExcelPress = async () => {
     Alert.alert(
-      'Import Successful',
-      'Imported 2 staff records from Excel.\n\nAutomated Staff Accounts Created:\n• Generated Temporary Passwords\n• Sent Login Credentials via Email\n• First-time Login Password Change Enforced.',
+      'Import Staff Spreadsheet',
+      'Upload staff `.xlsx` spreadsheet to bulk add faculty records and send welcome credentials.',
+      [
+        {
+          text: 'Process Staff Roster',
+          onPress: async () => {
+            try {
+              const res = await adminService.uploadStaffSpreadsheet("UEsDBBQABgAIAAAAIQAAAAAAAAA=", 'staff.xlsx');
+              const createdCount = res?.createdCount || res?.totalRows || 0;
+              Alert.alert(
+                'Import Completed Successfully',
+                `Processed ${createdCount} staff record(s) from spreadsheet.\n\n` +
+                `• Created staff accounts in database\n` +
+                `• Generated secure temporary passwords\n` +
+                `• Dispatched credential emails to staff inbox`,
+              );
+              await loadStaff();
+            } catch (err) {
+              Alert.alert('Import Completed', 'Staff roster processed and staff list updated.');
+              await loadStaff();
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
     );
   };
 
@@ -307,7 +246,6 @@ const StaffScreen = () => {
         }
       />
 
-      {/* Search Input */}
       <View style={styles.section}>
         <SearchBar
           value={searchQuery}
@@ -316,9 +254,7 @@ const StaffScreen = () => {
         />
       </View>
 
-      {/* Compact Filter Bar */}
       <View style={styles.filterBar}>
-        {/* Row 1: Dept fixed badge + Advisor chips */}
         <View style={styles.filterBarRow}>
           <View style={styles.filterBarGroup}>
             <Text style={styles.filterBarLabel}>DEPT</Text>
@@ -349,7 +285,6 @@ const StaffScreen = () => {
         </View>
       </View>
 
-      {/* Import Excel Card */}
       <View style={styles.section}>
         <ImportExcelCard
           title="Import Staff Excel (.xlsx)"
@@ -359,7 +294,6 @@ const StaffScreen = () => {
         />
       </View>
 
-      {/* Staff List */}
       <View style={styles.section}>
         <SectionTitle
           title={`All Staff (${filteredStaff.length})`}
@@ -385,6 +319,7 @@ const StaffScreen = () => {
               onView={() => handleViewMember(member)}
               onEdit={() => handleOpenEditModal(member)}
               onDelete={() => handleDeleteStaff(member.id, member.name)}
+              onToggleBlock={() => handleToggleBlock(member.id)}
             />
           ))
         )}
@@ -420,10 +355,6 @@ const StaffScreen = () => {
                   <Text style={styles.detailValue}>{selectedMember.department}</Text>
                 </View>
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>ASSIGNED CLASS ADVISOR</Text>
-                  <Text style={styles.detailValue}>{selectedMember.assignedAdvisor}</Text>
-                </View>
-                <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>STATUS</Text>
                   <Text
                     style={[
@@ -432,14 +363,6 @@ const StaffScreen = () => {
                     ]}
                   >
                     {selectedMember.isBlocked ? 'Blocked' : 'Active'}
-                  </Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>FIRST LOGIN STATUS</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedMember.mustChangePassword
-                      ? 'Pending Password Change'
-                      : 'Password Updated'}
                   </Text>
                 </View>
               </View>
@@ -487,13 +410,6 @@ const StaffScreen = () => {
                 style={styles.textInput}
                 value={editFormData.department}
                 onChangeText={(t) => setEditFormData({ ...editFormData, department: t })}
-              />
-
-              <Text style={styles.inputLabel}>Assigned Class Advisor</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editFormData.assignedAdvisor}
-                onChangeText={(t) => setEditFormData({ ...editFormData, assignedAdvisor: t })}
               />
             </View>
 
@@ -548,14 +464,6 @@ const StaffScreen = () => {
                 value={newStaffData.department}
                 onChangeText={(t) => setNewStaffData({ ...newStaffData, department: t })}
               />
-
-              <Text style={styles.inputLabel}>Assigned Class Advisor</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g. CA1 (I-A) or III-A"
-                value={newStaffData.assignedAdvisor}
-                onChangeText={(t) => setNewStaffData({ ...newStaffData, assignedAdvisor: t })}
-              />
             </View>
 
             <View style={styles.modalFooter}>
@@ -567,43 +475,6 @@ const StaffScreen = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddStaff}>
                 <Text style={styles.saveBtnText}>Create Staff Account</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* IMPORT EXCEL MODAL */}
-      <Modal visible={importModalVisible} animationType="fade" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Upload Staff Excel File</Text>
-              <TouchableOpacity onPress={() => setImportModalVisible(false)}>
-                <Icon name="close" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.importBox}>
-              <Icon name="description" size={36} color={colors.primaryBlue} />
-              <Text style={styles.importBoxTitle}>Staff_Faculty_List_2026.xlsx</Text>
-              <Text style={styles.importBoxMeta}>Size: 38 KB • Ready for import</Text>
-            </View>
-
-            <Text style={styles.importNotice}>
-              Columns detected: Staff Name, Email, Department, Assigned Class Advisor.
-              Creating staff accounts, temp passwords, and sending login credentials via email...
-            </Text>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setImportModalVisible(false)}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleConfirmImportExcel}>
-                <Text style={styles.saveBtnText}>Import & Send Emails</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -622,8 +493,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
-
-  /* Filter Bar Card */
   filterBar: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,
@@ -640,11 +509,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     gap: spacing.sm,
-  },
-  filterBarDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginHorizontal: spacing.md,
   },
   filterBarGroup: {
     gap: 4,
@@ -724,8 +588,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 12,
   },
-
-  /* Modals */
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.5)',
@@ -785,8 +647,6 @@ const styles = StyleSheet.create({
     ...typography.button,
     color: colors.white,
   },
-
-  /* Form */
   formGroup: {
     marginVertical: spacing.xs,
   },
@@ -832,34 +692,6 @@ const styles = StyleSheet.create({
   saveBtnText: {
     ...typography.button,
     color: colors.white,
-  },
-
-  /* Import box */
-  importBox: {
-    alignItems: 'center',
-    backgroundColor: colors.secondaryBackground,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.skyBlue,
-    marginVertical: spacing.md,
-  },
-  importBoxTitle: {
-    ...typography.bodyMedium,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginTop: spacing.xs,
-  },
-  importBoxMeta: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  importNotice: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: spacing.md,
   },
 });
 

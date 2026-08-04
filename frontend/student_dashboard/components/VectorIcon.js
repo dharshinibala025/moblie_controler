@@ -112,7 +112,6 @@ const MCI_NAME_MAP = {
   'school-outline': 'school-outline',
   'account-group-outline': 'account-group-outline',
   'check-decagram': 'check-decagram',
-  'shield-check': 'shield-check',
 };
 
 /**

@@ -36,16 +36,25 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     val packageName = appInfo.packageName
 
                     var versionName = "1.0.0"
+                    var firstInstallTime = System.currentTimeMillis()
+                    var lastUpdateTime = System.currentTimeMillis()
                     try {
                         val pInfo = pm.getPackageInfo(packageName, 0)
                         versionName = pInfo.versionName ?: "1.0.0"
+                        firstInstallTime = pInfo.firstInstallTime
+                        lastUpdateTime = pInfo.lastUpdateTime
                     } catch (e: Exception) {
                         // fallback
                     }
 
+                    val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+
                     appMap.putString("appName", appName)
                     appMap.putString("packageName", packageName)
                     appMap.putString("versionName", versionName)
+                    appMap.putDouble("firstInstallTime", firstInstallTime.toDouble())
+                    appMap.putDouble("lastUpdateTime", lastUpdateTime.toDouble())
+                    appMap.putBoolean("isSystemApp", isSystemApp)
                     appMap.putBoolean("isUserFacing", true)
 
                     resultArray.pushMap(appMap)

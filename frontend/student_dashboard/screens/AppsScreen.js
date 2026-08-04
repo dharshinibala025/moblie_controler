@@ -26,22 +26,50 @@ const FILTER_TABS = [
 export const AppsScreen = ({ data }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [liveApps, setLiveApps] = useState([]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchApps = async () => {
+      try {
+        // Trigger background sync with native scanner
+        const syncService = require('../../services/syncService').default;
+        await syncService.sync('apps_screen');
+
+        // Fetch live scanned apps from server
+        const { apiFetch } = require('../../services/apiConfig');
+        const res = await apiFetch('/student/apps');
+        if (isMounted && res && res.apps) {
+          setLiveApps(res.apps);
+        }
+      } catch (e) {
+        // Fallback to parent prop data if network error
+      }
+    };
+    fetchApps();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Build unified apps list with per-app blocked property
   const allApps = useMemo(() => {
     const source =
-      data?.apps && data.apps.length > 0
+      liveApps && liveApps.length > 0
+        ? liveApps
+        : data?.apps && data.apps.length > 0
         ? data.apps
         : data?.blockedApps && data.blockedApps.length > 0
         ? data.blockedApps
-        : mockData.blockedApps;
+        : [];
 
     // Ensure every app has a "blocked" boolean field
     return source.map((app) => ({
       ...app,
+      name: app.name || app.appName || 'Application',
       blocked: app.blocked !== undefined ? app.blocked : true,
     }));
-  }, [data]);
+  }, [liveApps, data]);
 
   const filteredApps = useMemo(() => {
     let list = allApps;
@@ -53,10 +81,14 @@ export const AppsScreen = ({ data }) => {
       list = list.filter((a) => a.blocked === false);
     }
 
-    // Filter by search
+    // Filter by search (App Name, Package Name, or Category)
     if (searchQuery.trim()) {
-      list = list.filter((a) =>
-        a.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      const query = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (a) =>
+          (a.name && a.name.toLowerCase().includes(query)) ||
+          (a.packageName && a.packageName.toLowerCase().includes(query)) ||
+          (a.category && a.category.toLowerCase().includes(query)),
       );
     }
 

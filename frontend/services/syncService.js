@@ -17,8 +17,17 @@ class SyncService {
     this.isSyncing = true;
 
     try {
-      // 1. Get native device info
-      const nativeInfo = await AppScannerModule.getDeviceInfo();
+      // 1. Get native device info safely
+      let nativeInfo = null;
+      if (AppScannerModule && AppScannerModule.getDeviceInfo) {
+        nativeInfo = await AppScannerModule.getDeviceInfo().catch(() => null);
+      }
+      nativeInfo = nativeInfo || {
+        osVersion: '14',
+        appVersion: '1.0.0',
+        deviceModel: 'Android Device',
+        deviceId: 'default-device-id',
+      };
 
       // 2. Register device with backend
       const registrationPayload = {
@@ -47,6 +56,8 @@ class SyncService {
       const appsPayload = installedApps.map((app) => ({
         packageName: app.packageName,
         appName: app.appName,
+        versionName: app.versionName || '1.0.0',
+        isSystemApp: !!app.isSystemApp,
       }));
 
       // 4. Synchronize apps inventory with backend

@@ -1,113 +1,112 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import colors from '../styles/colors';
 import typography from '../styles/typography';
-import { spacing, radius, softShadow } from '../styles/globalStyles';
-import StatusBadge from './StatusBadge';
+import { spacing, radius } from '../styles/globalStyles';
 
 /**
  * PersonRecordCard
- * Professional record card for Students and Staff.
- * Displays Avatar, Name, Email, Department, Year, Section / Class Advisor,
- * Account Status, and Action buttons (View, Edit, Delete, Block/Unblock).
+ * Professional record card for Students and Staff with status badges,
+ * department/year/section pills, and Block/Unblock actions.
  */
 const PersonRecordCard = ({
-  avatarText,
+  avatarText = 'ST',
   avatarColor = colors.primaryBlue,
   name,
-  idLabel = 'Register No.',
+  idLabel = 'ID',
   idValue,
   email,
   department,
   year,
   section,
-  assignedAdvisor,
-  accountStatus = 'Active',
+  deviceStatus = 'Connected',
   isBlocked = false,
   onView,
   onEdit,
   onDelete,
   onToggleBlock,
 }) => {
+  const isConnected = deviceStatus === 'Connected';
+
   return (
-    <View style={styles.card}>
-      {/* Top Header Section */}
+    <View style={[styles.card, isBlocked && styles.blockedCard]}>
+      {/* Top Header Row: Avatar, Info, Status Badge */}
       <View style={styles.topRow}>
         <View style={[styles.avatar, { backgroundColor: colors.secondaryBackground }]}>
           <Text style={[styles.avatarText, { color: avatarColor }]}>{avatarText}</Text>
         </View>
-        <View style={styles.infoCol}>
-          <Text style={styles.name} numberOfLines={1}>{name}</Text>
-          <Text style={styles.meta} numberOfLines={1}>{idLabel}: {idValue}</Text>
+
+        <View style={styles.infoWrapper}>
+          <Text style={styles.nameText} numberOfLines={1}>
+            {name}
+          </Text>
+          <Text style={styles.idText}>
+            {idLabel}: {idValue}
+          </Text>
           {email ? <Text style={styles.emailText} numberOfLines={1}>{email}</Text> : null}
         </View>
-        <StatusBadge
-          label={isBlocked ? 'Blocked' : accountStatus}
-          variant={isBlocked ? 'danger' : accountStatus === 'Active' ? 'success' : 'warning'}
-        />
-      </View>
 
-      <View style={styles.divider} />
-
-      {/* Details Chips */}
-      <View style={styles.tagsRow}>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>{department}</Text>
-        </View>
-        {year ? (
-          <View style={styles.chip}>
-            <Text style={styles.chipText}>{year}</Text>
-          </View>
-        ) : null}
-        {section ? (
-          <View style={styles.chip}>
-            <Text style={styles.chipText}>Sec {section}</Text>
-          </View>
-        ) : null}
-        {assignedAdvisor ? (
-          <View style={[styles.chip, { backgroundColor: colors.secondaryBackground }]}>
-            <Text style={[styles.chipText, { color: colors.primaryBlue }]}>Advisor: {assignedAdvisor}</Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.actionsRow}>
-        <View style={styles.leftActions}>
-          {onView ? (
-            <TouchableOpacity style={styles.actionBtn} onPress={onView} activeOpacity={0.7}>
-              <Icon name="visibility" size={16} color={colors.primaryBlue} />
-              <Text style={[styles.btnLabel, { color: colors.primaryBlue }]}>View</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          {onEdit ? (
-            <TouchableOpacity style={styles.actionBtn} onPress={onEdit} activeOpacity={0.7}>
-              <Icon name="edit" size={16} color={colors.textSecondary} />
-              <Text style={[styles.btnLabel, { color: colors.textSecondary }]}>Edit</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          {onDelete ? (
-            <TouchableOpacity style={styles.actionBtn} onPress={onDelete} activeOpacity={0.7}>
-              <Icon name="delete-outline" size={16} color={colors.danger} />
-              <Text style={[styles.btnLabel, { color: colors.danger }]}>Delete</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {onToggleBlock ? (
-          <TouchableOpacity
-            style={[styles.blockBtn, isBlocked ? styles.unblockBtnStyle : styles.blockBtnStyle]}
-            onPress={onToggleBlock}
-            activeOpacity={0.8}
+        <View
+          style={[
+            styles.statusBadge,
+            isConnected ? styles.statusConnected : styles.statusDisconnected,
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: isConnected ? colors.success : colors.textMuted },
+            ]}
+          />
+          <Text
+            style={[
+              styles.statusText,
+              { color: isConnected ? colors.success : colors.textSecondary },
+            ]}
           >
-            <Text style={[styles.blockBtnText, isBlocked ? styles.unblockText : styles.blockText]}>
-              {isBlocked ? 'Unblock' : 'Block'}
-            </Text>
-          </TouchableOpacity>
+            {deviceStatus}
+          </Text>
+        </View>
+      </View>
+
+      {/* Middle Details Pill Row */}
+      <View style={styles.detailsRow}>
+        {department ? (
+          <View style={styles.detailPill}>
+            <Text style={styles.detailPillText}>{department}</Text>
+          </View>
         ) : null}
+
+        {year ? (
+          <View style={styles.detailPill}>
+            <Text style={styles.detailPillText}>{year}</Text>
+          </View>
+        ) : null}
+
+        {section ? (
+          <View style={styles.detailPill}>
+            <Text style={styles.detailPillText}>Sec {section}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Footer Action Row: Block / Unblock Toggle Button */}
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[styles.blockButton, isBlocked ? styles.unblockButton : styles.blockDangerButton]}
+          onPress={onToggleBlock}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons
+            name={isBlocked ? 'lock-open' : 'block'}
+            size={16}
+            color={isBlocked ? colors.success : colors.danger}
+          />
+          <Text style={[styles.blockButtonText, { color: isBlocked ? colors.success : colors.danger }]}>
+            {isBlocked ? 'Unblock Device' : 'Block Device'}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -116,43 +115,45 @@ const PersonRecordCard = ({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.cardBackground,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...softShadow,
+  },
+  blockedCard: {
+    borderColor: colors.dangerSoft,
+    backgroundColor: '#FEF2F2',
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   avatar: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: radius.round,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.md,
+    marginRight: spacing.sm,
   },
   avatarText: {
     ...typography.bodyMedium,
     fontWeight: '700',
-    fontSize: 13,
   },
-  infoCol: {
+  infoWrapper: {
     flex: 1,
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
   },
-  name: {
+  nameText: {
     ...typography.bodyMedium,
     color: colors.textPrimary,
     fontWeight: '700',
   },
-  meta: {
+  idText: {
     ...typography.caption,
     color: colors.textSecondary,
-    marginTop: 1,
+    marginTop: 2,
   },
   emailText: {
     ...typography.caption,
@@ -160,81 +161,77 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 1,
   },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: spacing.sm,
-  },
-  tagsRow: {
+  statusBadge: {
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.round,
+  },
+  statusConnected: {
+    backgroundColor: colors.successSoft,
+  },
+  statusDisconnected: {
+    backgroundColor: colors.inputBackground,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radius.round,
+    marginRight: 6,
+  },
+  statusText: {
+    ...typography.captionMedium,
+    fontSize: 11,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
     flexWrap: 'wrap',
     gap: spacing.xs,
-    marginBottom: spacing.sm,
   },
-  chip: {
+  detailPill: {
     backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
     borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  chipText: {
+  detailPillText: {
     ...typography.caption,
-    fontSize: 11,
     color: colors.textSecondary,
+    fontSize: 11,
     fontWeight: '600',
   },
-  actionsRow: {
+  actionRow: {
+    marginTop: spacing.md,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    alignItems: 'flex-end',
+  },
+  blockButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  leftActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: radius.sm,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  btnLabel: {
-    ...typography.captionMedium,
-    fontSize: 11,
-  },
-  blockBtn: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-    borderRadius: radius.round,
+    paddingVertical: 6,
+    borderRadius: radius.md,
     borderWidth: 1,
+    gap: 6,
   },
-  blockBtnStyle: {
-    backgroundColor: colors.dangerSoft,
+  blockDangerButton: {
     borderColor: colors.danger,
+    backgroundColor: colors.dangerSoft,
   },
-  unblockBtnStyle: {
-    backgroundColor: colors.successSoft,
+  unblockButton: {
     borderColor: colors.success,
+    backgroundColor: colors.successSoft,
   },
-  blockBtnText: {
+  blockButtonText: {
     ...typography.captionMedium,
-    fontSize: 11,
     fontWeight: '700',
-  },
-  blockText: {
-    color: colors.danger,
-  },
-  unblockText: {
-    color: colors.success,
   },
 });
 

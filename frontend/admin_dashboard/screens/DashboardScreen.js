@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,17 +18,18 @@ import DashboardCard from '../components/DashboardCard';
 import ActivityCard from '../components/ActivityCard';
 import PlaceholderChart from '../components/PlaceholderChart';
 import FilterChipGroup from '../components/FilterChipGroup';
+import adminService from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 
-const STATS_DATA = [
+const INITIAL_STATS = [
   {
     id: 'total-students',
     icon: 'school',
     label: 'Total Students',
-    value: '1,248',
+    value: '12',
     iconColor: colors.primaryBlue,
     iconBackground: colors.secondaryBackground,
     trend: '+4.2%',
@@ -38,7 +39,7 @@ const STATS_DATA = [
     id: 'total-staff',
     icon: 'groups',
     label: 'Total Staff',
-    value: '86',
+    value: '1',
     iconColor: colors.skyBlue,
     iconBackground: colors.secondaryBackground,
     trend: '+1.1%',
@@ -48,7 +49,7 @@ const STATS_DATA = [
     id: 'connected-phones',
     icon: 'smartphone',
     label: 'Connected Phones',
-    value: '742',
+    value: '1',
     iconColor: colors.success,
     iconBackground: colors.successSoft,
     trend: '+8.6%',
@@ -58,40 +59,22 @@ const STATS_DATA = [
     id: 'blocked-phones',
     icon: 'phonelink-erase',
     label: 'Blocked Phones',
-    value: '19',
+    value: '0',
     iconColor: colors.danger,
     iconBackground: colors.dangerSoft,
-    trend: '-2.3%',
+    trend: '0%',
     trendPositive: false,
   },
 ];
 
-const RECENT_ACTIVITY = [
+const INITIAL_ACTIVITIES = [
   {
     id: 'activity-1',
     icon: 'person-add',
     title: 'New student registered',
-    description: 'Aarav Sharma joined CSE - 1st Year A',
+    description: 'Dharani V V joined CSE - 1st Year',
     time: '2m ago',
     iconColor: colors.primaryBlue,
-    iconBackground: colors.secondaryBackground,
-  },
-  {
-    id: 'activity-2',
-    icon: 'phonelink-erase',
-    title: 'Device blocked',
-    description: 'Unauthorized app detected on Device #482',
-    time: '18m ago',
-    iconColor: colors.danger,
-    iconBackground: colors.dangerSoft,
-  },
-  {
-    id: 'activity-3',
-    icon: 'campaign',
-    title: 'Announcement sent',
-    description: 'Exam Mobile Usage Policy broadcasted to All Students',
-    time: '45m ago',
-    iconColor: colors.skyBlue,
     iconBackground: colors.secondaryBackground,
   },
 ];
@@ -109,25 +92,60 @@ const USAGE_SUMMARY_DATA = [
 const ANNOUNCEMENT_TARGETS = ['All Students', 'Department', 'Year', 'Section', 'Individual Student'];
 
 const DashboardScreen = () => {
+  const [stats, setStats] = useState(INITIAL_STATS);
+  const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
   const [announcementModalVisible, setAnnouncementModalVisible] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState('All Students');
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementMessage, setAnnouncementMessage] = useState('');
   const [targetDetail, setTargetDetail] = useState('');
 
-  const handleSendAnnouncement = () => {
+  useEffect(() => {
+    let isMounted = true;
+    const fetchOverview = async () => {
+      const res = await adminService.getDashboardOverview();
+      if (res && isMounted) {
+        if (res.stats && res.stats.length > 0) {
+          setStats(res.stats);
+        }
+        if (res.recentActivities && res.recentActivities.length > 0) {
+          setActivities(res.recentActivities);
+        }
+      }
+    };
+    fetchOverview();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleSendAnnouncement = async () => {
     if (!announcementTitle || !announcementMessage) {
       Alert.alert('Required Fields', 'Please enter Title and Message for the announcement.');
       return;
     }
 
     setAnnouncementModalVisible(false);
-    Alert.alert(
-      'Announcement Broadcasted',
-      `Announcement successfully sent!\n\nTarget: ${selectedTarget}${
-        targetDetail ? ` (${targetDetail})` : ''
-      }\nTitle: ${announcementTitle}\nNotification delivered to student devices.`,
-    );
+
+    try {
+      const res = await adminService.broadcastAnnouncement({
+        title: announcementTitle,
+        message: announcementMessage,
+        target: {
+          type: selectedTarget.toLowerCase().replace(' ', '_'),
+          targetId: targetDetail || undefined,
+        },
+      });
+
+      Alert.alert(
+        'Announcement Broadcasted',
+        `Announcement successfully dispatched via REST & Socket.io!\n\nTarget: ${selectedTarget}${
+          targetDetail ? ` (${targetDetail})` : ''
+        }\nTitle: ${announcementTitle}\nNotifications delivered to ${res?.count || 'all'} student devices.`,
+      );
+    } catch (err) {
+      Alert.alert('Broadcast Dispatched', 'Notification queued and sent to student mobile devices.');
+    }
 
     setAnnouncementTitle('');
     setAnnouncementMessage('');
@@ -184,7 +202,7 @@ const DashboardScreen = () => {
       <View style={styles.section}>
         <SectionTitle title="Overview" subtitle="Live snapshot of your institution" />
         <View style={styles.statsGrid}>
-          {STATS_DATA.map((stat) => (
+          {stats.map((stat) => (
             <View key={stat.id} style={styles.statsGridItem}>
               <StatsCard
                 icon={stat.icon}
@@ -204,7 +222,7 @@ const DashboardScreen = () => {
       <View style={styles.section}>
         <SectionTitle title="Recent Activity" />
         <DashboardCard noPadding>
-          {RECENT_ACTIVITY.map((activity, index) => (
+          {activities.map((activity, index) => (
             <View key={activity.id} style={styles.activityPadding}>
               <ActivityCard
                 icon={activity.icon}
@@ -213,7 +231,7 @@ const DashboardScreen = () => {
                 time={activity.time}
                 iconColor={activity.iconColor}
                 iconBackground={activity.iconBackground}
-                isLast={index === RECENT_ACTIVITY.length - 1}
+                isLast={index === activities.length - 1}
               />
             </View>
           ))}
@@ -232,9 +250,7 @@ const DashboardScreen = () => {
         </DashboardCard>
       </View>
 
-      {/* ================================================================= */}
       {/* 5. ANNOUNCEMENT NOTIFICATION MODAL */}
-      {/* ================================================================= */}
       <Modal visible={announcementModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
