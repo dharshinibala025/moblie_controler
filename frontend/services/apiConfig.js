@@ -91,10 +91,10 @@ export const apiFetch = async (path, options = {}) => {
   const candidateBases = Array.from(
     new Set([
       ...(cachedWorkingBaseUrl ? [cachedWorkingBaseUrl] : []),
+      'http://127.0.0.1:5000',
+      'http://localhost:5000',
       BASE_URL,
       'http://10.0.2.2:5000',
-      'http://localhost:5000',
-      'http://127.0.0.1:5000',
     ]),
   );
 
@@ -103,8 +103,8 @@ export const apiFetch = async (path, options = {}) => {
 
   for (let i = 0; i < candidateBases.length; i++) {
     const candidateBase = candidateBases[i];
-    // Use short 3000ms timeout during host discovery, or full timeoutMs for cached/primary host
-    const perAttemptTimeout = candidateBase === cachedWorkingBaseUrl ? timeoutMs : Math.min(timeoutMs, 4000);
+    // Use fast 2500ms timeout during host discovery
+    const perAttemptTimeout = candidateBase === cachedWorkingBaseUrl ? timeoutMs : Math.min(timeoutMs, 2500);
 
     try {
       response = await fetchWithTimeout(
