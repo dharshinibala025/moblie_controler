@@ -30,6 +30,7 @@ class AdminService {
     return await apiFetch('/admin/students/upload', {
       method: 'POST',
       body: JSON.stringify({ fileBase64, fileName }),
+      timeout: 60000,
     });
   }
 
@@ -46,6 +47,7 @@ class AdminService {
     return await apiFetch('/admin/staff/upload', {
       method: 'POST',
       body: JSON.stringify({ fileBase64, fileName }),
+      timeout: 60000,
     });
   }
 

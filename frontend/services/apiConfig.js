@@ -76,9 +76,11 @@ export const apiFetch = async (path, options = {}) => {
     'http://127.0.0.1:5000',
   ];
 
-  const fetchWithTimeout = (url, opts, timeoutMs = 3000) => {
+  const timeoutMs = options.timeout || 30000;
+
+  const fetchWithTimeout = (url, opts, limitMs) => {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Network request timed out')), timeoutMs);
+      const timer = setTimeout(() => reject(new Error('Network request timed out')), limitMs);
       fetch(url, opts)
         .then((res) => {
           clearTimeout(timer);
@@ -99,7 +101,7 @@ export const apiFetch = async (path, options = {}) => {
       response = await fetchWithTimeout(`${candidateBase}${path}`, {
         ...options,
         headers,
-      }, 3500);
+      }, timeoutMs);
       if (response && response.status !== 503) {
         break;
       }
