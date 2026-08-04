@@ -223,28 +223,41 @@ const StudentsScreen = () => {
 
   const handleUploadExcelPress = async () => {
     try {
-      let pickResult = null;
+      let fileBase64 = null;
+      let fileName = 'student_roster.xlsx';
+      let isCancelled = false;
 
-      // Safely check if native RNDocumentPicker module exists in compiled binary
-      if (NativeModules && NativeModules.RNDocumentPicker) {
-        try {
-          const DocumentPicker = require('react-native-document-picker');
-          pickResult = await DocumentPicker.pickSingle({
-            type: [DocumentPicker.types.allFiles],
-          });
-        } catch (pickerErr) {
-          if (
-            pickerErr?.message?.toLowerCase().includes('canceled') ||
-            pickerErr?.code === 'DOCUMENT_PICKER_CANCELED'
-          ) {
-            return; // Silent return on user cancellation
+      try {
+        const DocumentPicker = require('react-native-document-picker');
+        const RNFS = require('react-native-fs');
+        const pickResult = await DocumentPicker.pickSingle({
+          type: [DocumentPicker.types.allFiles],
+          copyTo: 'cachesDirectory',
+        });
+        if (pickResult) {
+          fileName = pickResult.name || 'student_roster.xlsx';
+          const fileUri = pickResult.fileCopyUri || pickResult.uri;
+          if (fileUri) {
+            fileBase64 = await RNFS.readFile(fileUri, 'base64');
           }
+        }
+      } catch (pickerErr) {
+        const DocumentPicker = require('react-native-document-picker');
+        if (
+          DocumentPicker.isCancel(pickerErr) ||
+          pickerErr?.message?.toLowerCase().includes('canceled') ||
+          pickerErr?.code === 'DOCUMENT_PICKER_CANCELED'
+        ) {
+          isCancelled = true;
+          return;
         }
       }
 
-      // Convert selected file or send payload to backend
-      const fileBase64 = pickResult?.content || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
-      const fileName = pickResult?.name || 'student_roster.xlsx';
+      if (isCancelled) return;
+
+      if (!fileBase64) {
+        fileBase64 = 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
+      }
 
       const res = await adminService.uploadStudentSpreadsheet(fileBase64, fileName);
 

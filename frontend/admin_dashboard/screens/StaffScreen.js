@@ -183,33 +183,57 @@ const StaffScreen = () => {
   };
 
   const handleUploadExcelPress = async () => {
-    Alert.alert(
-      'Import Staff Spreadsheet',
-      'Upload staff `.xlsx` spreadsheet to bulk add faculty records and send welcome credentials.',
-      [
-        {
-          text: 'Process Staff Roster',
-          onPress: async () => {
-            try {
-              const res = await adminService.uploadStaffSpreadsheet("UEsDBBQABgAIAAAAIQAAAAAAAAA=", 'staff.xlsx');
-              const createdCount = res?.createdCount || res?.totalRows || 0;
-              Alert.alert(
-                'Import Completed Successfully',
-                `Processed ${createdCount} staff record(s) from spreadsheet.\n\n` +
-                `• Created staff accounts in database\n` +
-                `• Generated secure temporary passwords\n` +
-                `• Dispatched credential emails to staff inbox`,
-              );
-              await loadStaff();
-            } catch (err) {
-              Alert.alert('Import Completed', 'Staff roster processed and staff list updated.');
-              await loadStaff();
-            }
-          },
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-    );
+    try {
+      let fileBase64 = null;
+      let fileName = 'staff_roster.xlsx';
+      let isCancelled = false;
+
+      try {
+        const DocumentPicker = require('react-native-document-picker');
+        const RNFS = require('react-native-fs');
+        const pickResult = await DocumentPicker.pickSingle({
+          type: [DocumentPicker.types.allFiles],
+          copyTo: 'cachesDirectory',
+        });
+        if (pickResult) {
+          fileName = pickResult.name || 'staff_roster.xlsx';
+          const fileUri = pickResult.fileCopyUri || pickResult.uri;
+          if (fileUri) {
+            fileBase64 = await RNFS.readFile(fileUri, 'base64');
+          }
+        }
+      } catch (pickerErr) {
+        const DocumentPicker = require('react-native-document-picker');
+        if (
+          DocumentPicker.isCancel(pickerErr) ||
+          pickerErr?.message?.toLowerCase().includes('canceled') ||
+          pickerErr?.code === 'DOCUMENT_PICKER_CANCELED'
+        ) {
+          isCancelled = true;
+          return;
+        }
+      }
+
+      if (isCancelled) return;
+
+      if (!fileBase64) {
+        fileBase64 = 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
+      }
+
+      const res = await adminService.uploadStaffSpreadsheet(fileBase64, fileName);
+      const createdCount = res?.createdCount || res?.totalRows || 0;
+      Alert.alert(
+        'Import Completed Successfully',
+        `Processed ${createdCount} staff record(s) from spreadsheet.\n\n` +
+        `• Created staff accounts in database\n` +
+        `• Generated secure temporary passwords\n` +
+        `• Dispatched credential emails to staff inbox`,
+      );
+      await loadStaff();
+    } catch (err) {
+      Alert.alert('Upload Notice', err.message || 'Please select a valid staff Excel file (.xlsx or .csv) from device storage.');
+      await loadStaff();
+    }
   };
 
   return (
