@@ -25,21 +25,6 @@ import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 import { getSectionOptions } from '../config/sectionsConfig';
 
-const INITIAL_STUDENTS = [
-  {
-    id: 's1',
-    name: 'Dharani V V',
-    registerNumber: '221CS001',
-    email: 'vvdharani57cse24_27@ksrce.ac.in',
-    department: 'CSE',
-    year: '1st Year',
-    section: 'A',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: true,
-  },
-];
-
 const getInitials = (name) =>
   name
     ? name
@@ -51,7 +36,7 @@ const getInitials = (name) =>
     : 'ST';
 
 const StudentsScreen = () => {
-  const [students, setStudents] = useState(INITIAL_STUDENTS);
+  const [students, setStudents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept] = useState('CSE');
   const [selectedYear, setSelectedYear] = useState('All');
@@ -87,9 +72,7 @@ const StudentsScreen = () => {
 
   const loadStudents = async () => {
     const data = await adminService.getStudents();
-    if (data && data.length > 0) {
-      setStudents(data);
-    }
+    setStudents(data || []);
   };
 
   useEffect(() => {

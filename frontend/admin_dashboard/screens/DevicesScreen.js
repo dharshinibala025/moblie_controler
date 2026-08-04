@@ -40,27 +40,8 @@ const SUPPORTED_APPS = [
   'PUBG',
 ];
 
-const INITIAL_DEVICES = [
-  {
-    id: 'd1',
-    name: "Dharani's Phone",
-    deviceType: 'Android phone',
-    ipAddress: '192.168.1.42',
-    lastActive: '2m ago',
-    isBlocked: false,
-  },
-  {
-    id: 'd2',
-    name: 'Staff Room Tablet',
-    deviceType: 'Android tablet',
-    ipAddress: '192.168.1.58',
-    lastActive: '10m ago',
-    isBlocked: false,
-  },
-];
-
 const DevicesScreen = () => {
-  const [devices, setDevices] = useState(INITIAL_DEVICES);
+  const [devices, setDevices] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('All');
 
@@ -94,9 +75,7 @@ const DevicesScreen = () => {
 
   const loadDevices = async () => {
     const list = await adminService.getDevices();
-    if (list && list.length > 0) {
-      setDevices(list);
-    }
+    setDevices(list || []);
   };
 
   useEffect(() => {

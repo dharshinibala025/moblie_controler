@@ -25,20 +25,6 @@ import { spacing, radius, softShadow } from '../styles/globalStyles';
 
 const ADVISORS = ['All', 'CA1', 'CA2', 'CA3'];
 
-const INITIAL_STAFF = [
-  {
-    id: 't1',
-    name: 'Class Staff',
-    staffId: 'STF001',
-    email: 'staff1@ksrce.ac.in',
-    department: 'Computer Science',
-    assignedAdvisor: 'CA1',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: true,
-  },
-];
-
 const getInitials = (name) =>
   name
     ? name
@@ -50,7 +36,7 @@ const getInitials = (name) =>
     : 'ST';
 
 const StaffScreen = () => {
-  const [staff, setStaff] = useState(INITIAL_STAFF);
+  const [staff, setStaff] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept] = useState('All');
   const [selectedAdvisor, setSelectedAdvisor] = useState('All');
@@ -71,15 +57,14 @@ const StaffScreen = () => {
   const [newStaffData, setNewStaffData] = useState({
     name: '',
     email: '',
+    staffId: '',
     department: 'Computer Science',
     assignedAdvisor: 'CA1',
   });
 
   const loadStaff = async () => {
     const data = await adminService.getStaff();
-    if (data && data.length > 0) {
-      setStaff(data);
-    }
+    setStaff(data || []);
   };
 
   useEffect(() => {
