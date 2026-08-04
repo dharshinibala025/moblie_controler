@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-na
 import { colors, shadows } from '../styles/theme';
 import VectorIcon from './VectorIcon';
 
-export const BottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
+export const BottomNavBar = ({ activeTab = 'home', onSelectTab, unreadNotificationsCount = 0 }) => {
   const tabs = [
     { id: 'home', label: 'Home', icon: 'home' },
     { id: 'apps', label: 'Apps', icon: 'cellphone' },
-    { id: 'notifications', label: 'Notifications', icon: 'bell', badge: 6 },
+    { id: 'notifications', label: 'Notifications', icon: 'bell', badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : null },
     { id: 'profile', label: 'Profile', icon: 'account-circle' },
   ];
 
