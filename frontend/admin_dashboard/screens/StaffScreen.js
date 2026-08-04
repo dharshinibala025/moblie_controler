@@ -219,6 +219,39 @@ const StaffScreen = () => {
         fileBase64 = await fileSelectedPromise;
       }
 
+      // Native Mobile File Picker via @react-native-documents/picker
+      if (!fileBase64) {
+        try {
+          const { pick, types } = require('@react-native-documents/picker');
+          const [pickResult] = await pick({
+            type: [types.allFiles],
+          });
+
+          if (pickResult && pickResult.uri) {
+            fileName = pickResult.name || 'staff_roster.xlsx';
+            const blobRes = await fetch(pickResult.uri);
+            const blob = await blobRes.blob();
+
+            fileBase64 = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64 = reader.result ? reader.result.split(',')[1] : null;
+                resolve(base64);
+              };
+              reader.onerror = () => resolve(null);
+              reader.readAsDataURL(blob);
+            });
+          }
+        } catch (pickerErr) {
+          if (
+            pickerErr?.message?.toLowerCase().includes('cancel') ||
+            pickerErr?.code === 'DOCUMENT_PICKER_CANCELED'
+          ) {
+            return; // Silent return on user cancellation
+          }
+        }
+      }
+
       const payload = fileBase64 || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
       const res = await adminService.uploadStaffSpreadsheet(payload, fileName);
       const createdCount = res?.createdCount || res?.totalRows || 0;
