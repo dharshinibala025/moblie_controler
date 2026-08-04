@@ -39,8 +39,8 @@ const startServer = async () => {
       }
     });
 
-    httpServer.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`);
+    httpServer.listen(PORT, "0.0.0.0", () => {
+      logger.info(`Server running on http://0.0.0.0:${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
     });
   } catch (err) {
