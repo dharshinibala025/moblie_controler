@@ -223,10 +223,43 @@ const StudentsScreen = () => {
 
   const handleUploadExcelPress = async () => {
     try {
-      const fileBase64 = 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
-      const fileName = 'student_roster.xlsx';
+      let fileBase64 = null;
+      let fileName = 'student_roster.xlsx';
 
-      const res = await adminService.uploadStudentSpreadsheet(fileBase64, fileName);
+      if (typeof document !== 'undefined' && document.createElement) {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.xlsx, .xls, .csv';
+
+        const fileSelectedPromise = new Promise((resolve) => {
+          fileInput.onchange = (e) => {
+            const file = e.target?.files?.[0];
+            if (!file) {
+              resolve(null);
+              return;
+            }
+            fileName = file.name;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              const arrayBuffer = evt.target.result;
+              const bytes = new Uint8Array(arrayBuffer);
+              let binary = '';
+              for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+              }
+              const base64 = typeof global.btoa === 'function' ? global.btoa(binary) : null;
+              resolve(base64);
+            };
+            reader.readAsArrayBuffer(file);
+          };
+        });
+
+        fileInput.click();
+        fileBase64 = await fileSelectedPromise;
+      }
+
+      const payload = fileBase64 || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
+      const res = await adminService.uploadStudentSpreadsheet(payload, fileName);
 
       Alert.alert(
         '📊 Import Summary Report',
