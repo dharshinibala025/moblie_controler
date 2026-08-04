@@ -102,8 +102,10 @@ const DashboardScreen = () => {
       }
     };
     fetchOverview();
+    const interval = setInterval(fetchOverview, 5000);
     return () => {
       isMounted = false;
+      clearInterval(interval);
     };
   }, []);
 

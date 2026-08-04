@@ -69,6 +69,8 @@ const StaffScreen = () => {
 
   useEffect(() => {
     loadStaff();
+    const interval = setInterval(loadStaff, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const filteredStaff = useMemo(() => {

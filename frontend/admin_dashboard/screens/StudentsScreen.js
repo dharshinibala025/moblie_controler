@@ -77,6 +77,8 @@ const StudentsScreen = () => {
 
   useEffect(() => {
     loadStudents();
+    const interval = setInterval(loadStudents, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const yearDropdownOptions = useMemo(
