@@ -161,27 +161,13 @@ class AuthService {
    * On success, saves the real session and returns the user.
    */
   async changePasswordWithTempToken(tempToken, newPassword) {
-    const response = await fetch(`${BASE_URL}/auth/change-password`, {
+    const data = await apiFetch('/auth/change-password', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tempToken, newPassword }),
     });
 
-    let data;
-    try {
-      data = await response.json();
-    } catch {
-      data = {};
-    }
-
-    if (!response.ok) {
-      const err = new Error(data?.error || 'Password change failed');
-      err.status = response.status;
-      throw err;
-    }
-
     // Persist the real session after password change
-    if (data.accessToken) {
+    if (data && data.accessToken) {
       await Promise.all([
         saveTokens(data.accessToken, data.refreshToken),
         saveUser(data.user),
