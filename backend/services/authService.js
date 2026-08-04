@@ -36,7 +36,7 @@ class AuthService {
 
     if (!user) {
       await this._logAuth({ email: cleanInput, action: "login.failed", ip, userAgent, details: { reason: "user_not_found" } });
-      return { success: false, error: "Invalid credentials. Account not found.", status: 401 };
+      return { success: false, error: "Invalid credentials", status: 401 };
     }
 
     // STRICT ROLE VALIDATION

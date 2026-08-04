@@ -128,11 +128,11 @@ describe("AUTH - Login", () => {
     expect(res.status).toBe(400);
   });
 
-  test("POST /auth/login with invalid email format returns 400", async () => {
+  test("POST /auth/login with invalid email format returns 401", async () => {
     const res = await request(app)
       .post("/auth/login")
       .send({ email: "notanemail", password: "123456" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
   });
 });
 

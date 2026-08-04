@@ -1,3 +1,4 @@
+/* global Buffer */
 const UsageLog = require("../models/UsageLog");
 const User = require("../models/User");
 const PDFDocument = require("pdfkit");
