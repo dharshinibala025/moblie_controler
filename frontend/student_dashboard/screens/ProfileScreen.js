@@ -8,12 +8,13 @@ import {
   StatusBar,
   TouchableOpacity,
   Alert,
+  Image,
 } from 'react-native';
-import { colors, shadows, borderRadius } from '../styles/theme';
+import { colors, borderRadius } from '../styles/theme';
 import VectorIcon from '../components/VectorIcon';
 import authService from '../../services/authService';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 16;
 
 export const ProfileScreen = ({ student, onLogout }) => {
   const studentName = student?.name || 'Dharani V V';
@@ -22,6 +23,7 @@ export const ProfileScreen = ({ student, onLogout }) => {
   const email = student?.email || 'vvdharani57cse24_27@ksrce.ac.in';
   const section = student?.section || 'A';
   const initials = student?.initials || 'DV';
+  const avatarUrl = student?.avatar;
 
   const handleLogoutPress = () => {
     Alert.alert(
@@ -53,104 +55,109 @@ export const ProfileScreen = ({ student, onLogout }) => {
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      {/* 1. Student Profile Hero Card */}
-      <View style={styles.heroCard}>
+      {/* Integrated Profile Header */}
+      <View style={styles.headerSection}>
         <View style={styles.avatarCircle}>
-          <Text style={styles.avatarInitials}>{initials}</Text>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} resizeMode="cover" />
+          ) : (
+            <Text style={styles.avatarInitials}>{initials}</Text>
+          )}
         </View>
 
         <Text style={styles.studentName}>{studentName}</Text>
         <Text style={styles.regNumber}>Reg. No: {registerNo}</Text>
 
-        <View style={styles.deptPill}>
-          <Text style={styles.deptPillText}>{deptName}</Text>
+        <View style={styles.deptBadge}>
+          <VectorIcon name="school" size={14} color="#2563EB" />
+          <Text style={styles.deptBadgeText}>{deptName}</Text>
         </View>
       </View>
 
-      {/* 2. Student Information Card */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <VectorIcon name="account-outline" size={22} color={colors.primary} />
-          <Text style={styles.cardTitle}>Student Information</Text>
-        </View>
-
-        <View style={styles.infoList}>
+      {/* Grouped Information List Section */}
+      <View style={styles.sectionWrapper}>
+        <Text style={styles.sectionHeaderTitle}>STUDENT INFORMATION</Text>
+        <View style={styles.groupedContainer}>
           {/* EMAIL */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <VectorIcon name="email-outline" size={20} color="#94A3B8" />
+            <View style={[styles.iconBox, { backgroundColor: '#EFF6FF' }]}>
+              <VectorIcon name="email-outline" size={18} color="#2563EB" />
             </View>
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>EMAIL</Text>
-              <Text style={styles.infoValue}>{email}</Text>
+              <Text style={styles.infoLabel}>Email Address</Text>
+              <Text style={styles.infoValue} numberOfLines={1}>{email}</Text>
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={styles.rowDivider} />
 
-          {/* REGISTER NO. */}
+          {/* REGISTER NO */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <VectorIcon name="card-account-details-outline" size={20} color="#94A3B8" />
+            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
+              <VectorIcon name="card-account-details-outline" size={18} color="#16A34A" />
             </View>
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>REGISTER NO.</Text>
+              <Text style={styles.infoLabel}>Register Number</Text>
               <Text style={styles.infoValue}>{registerNo}</Text>
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={styles.rowDivider} />
 
           {/* DEPARTMENT */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <VectorIcon name="school-outline" size={20} color="#94A3B8" />
+            <View style={[styles.iconBox, { backgroundColor: '#FEF3C7' }]}>
+              <VectorIcon name="domain" size={18} color="#D97706" />
             </View>
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>DEPARTMENT</Text>
+              <Text style={styles.infoLabel}>Department</Text>
               <Text style={styles.infoValue}>{deptName}</Text>
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={styles.rowDivider} />
 
           {/* SECTION */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <VectorIcon name="account-group-outline" size={20} color="#94A3B8" />
+            <View style={[styles.iconBox, { backgroundColor: '#F3E8FF' }]}>
+              <VectorIcon name="account-group-outline" size={18} color="#9333EA" />
             </View>
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>SECTION</Text>
-              <Text style={styles.infoValue}>{section}</Text>
+              <Text style={styles.infoLabel}>Section</Text>
+              <Text style={styles.infoValue}>
+                {section.startsWith('Section') ? section : `Section ${section}`}
+              </Text>
             </View>
           </View>
         </View>
       </View>
 
-      {/* 3. Department Mobile Controller Note */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <VectorIcon name="check-decagram" size={22} color={colors.primary} />
-          <Text style={styles.cardTitle}>Department Mobile Controller</Text>
+      {/* System Policy Information */}
+      <View style={styles.sectionWrapper}>
+        <Text style={styles.sectionHeaderTitle}>SYSTEM & ACCESS STATUS</Text>
+        <View style={styles.policyContainer}>
+          <View style={styles.policyHeader}>
+            <VectorIcon name="shield-check" size={18} color="#2563EB" />
+            <Text style={styles.policyTitle}>Department Mobile Controller</Text>
+          </View>
+          <Text style={styles.policyText}>
+            Student access is set to View-Only. Mobile application restrictions during class hours (09:00 AM – 04:00 PM) are enforced centrally by the HOD and Department Admin.
+          </Text>
         </View>
-
-        <Text style={styles.policyText}>
-          This application operates under view-only mode for students. Mobile application restrictions during class hours are enforced centrally by the Head of Department (HOD) and Department Admin.
-        </Text>
       </View>
 
-      {/* 4. Log Out Button */}
+      {/* Logout Action */}
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={handleLogoutPress}
         style={styles.logoutButton}
       >
-        <VectorIcon name="logout" size={18} color={colors.danger} />
+        <VectorIcon name="logout" size={18} color="#DC2626" />
         <Text style={styles.logoutText}>Log Out of Portal</Text>
       </TouchableOpacity>
 
-      <Text style={styles.copyrightText}>
-        Department Controller Student Portal • View Only
+      <Text style={styles.footerNote}>
+        Department Controller Student Portal • v1.0
       </Text>
     </ScrollView>
   );
@@ -162,162 +169,192 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: STATUSBAR_OFFSET,
     paddingBottom: 100,
   },
 
-  /* Hero Card */
-  heroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: borderRadius.card || 20,
-    paddingVertical: 24,
-    paddingHorizontal: 20,
+  /* Header Section */
+  headerSection: {
     alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    ...shadows.card,
+    marginBottom: 24,
+    paddingTop: 8,
   },
   avatarCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primary || '#2563EB',
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#2563EB',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
-    elevation: 3,
-    shadowColor: colors.primary || '#2563EB',
+    marginBottom: 12,
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 38,
   },
   avatarInitials: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   studentName: {
-    fontSize: 21,
+    fontSize: 22,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 4,
+    letterSpacing: -0.3,
+    marginBottom: 3,
   },
   regNumber: {
     fontSize: 13,
     fontWeight: '600',
     color: '#64748B',
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  deptPill: {
-    backgroundColor: colors.primaryLight || '#EFF6FF',
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-  },
-  deptPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primaryDark || '#1D4ED8',
-  },
-
-  /* Cards */
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: borderRadius.card || 20,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    ...shadows.card,
-  },
-  cardHeader: {
+  deptBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
   },
-  cardTitle: {
-    fontSize: 16,
+  deptBadgeText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1D4ED8',
   },
 
-  /* Info List inside Card */
-  infoList: {
-    marginTop: 4,
+  /* Section Wrapper & Grouped Container */
+  sectionWrapper: {
+    marginBottom: 20,
   },
+  sectionHeaderTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  groupedContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+    overflow: 'hidden',
+  },
+
+  /* Info Row inside Grouped Container */
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  iconContainer: {
-    width: 32,
-    alignItems: 'flex-start',
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
   infoContent: {
     flex: 1,
   },
   infoLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#94A3B8',
-    letterSpacing: 0.8,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
     marginBottom: 2,
-    textTransform: 'uppercase',
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
   },
-  divider: {
+  rowDivider: {
     height: 1,
     backgroundColor: '#F1F5F9',
-    marginVertical: 2,
+    marginLeft: 64,
   },
 
-  /* Policy text */
+  /* System Policy Section */
+  policyContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  policyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  policyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
   policyText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
     color: '#64748B',
-    lineHeight: 20,
+    lineHeight: 18,
   },
 
-  /* Log Out Button */
+  /* Logout Button */
   logoutButton: {
-    backgroundColor: colors.blockedLight || '#FEE2E2',
+    backgroundColor: '#FEF2F2',
     height: 48,
-    borderRadius: borderRadius.button || 12,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
     marginTop: 4,
     marginBottom: 16,
-    ...shadows.soft,
   },
   logoutText: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.danger || '#EF4444',
+    color: '#DC2626',
   },
 
-  copyrightText: {
+  footerNote: {
     fontSize: 11,
     fontWeight: '500',
     color: '#94A3B8',
     textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 20,
+    marginBottom: 10,
   },
 });
 
 export default ProfileScreen;
+

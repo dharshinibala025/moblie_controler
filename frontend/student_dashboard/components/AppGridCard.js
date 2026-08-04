@@ -1,43 +1,67 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors, shadows, borderRadius } from '../styles/theme';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { colors, borderRadius } from '../styles/theme';
 import VectorIcon from './VectorIcon';
 
 /**
- * Individual Application Card Component
- * Uses app.blocked boolean to show status per-app.
+ * Individual Application List Row Component
+ * Sleek, high-density row layout designed specifically for mobile screens.
  */
-export const AppCard = ({ app }) => {
-  // Use per-app blocked status; fallback to true if not defined
+export const AppCard = ({ app, isLast }) => {
   const isBlocked = app.blocked !== undefined ? app.blocked : true;
 
   return (
-    <View style={styles.appCard}>
-      <View style={[styles.iconContainer, isBlocked ? styles.iconContainerBlocked : styles.iconContainerUnblocked]}>
-        <VectorIcon name={app.icon || 'cellphone'} size={24} color={isBlocked ? colors.blocked : colors.active} />
-      </View>
-      <Text style={styles.appName} numberOfLines={1}>
-        {app.name}
-      </Text>
+    <View style={[styles.listRow, !isLast && styles.listRowBorder]}>
+      {/* App Icon */}
       <View
         style={[
-          styles.badge,
-          { backgroundColor: isBlocked ? colors.blockedLight : colors.activeLight },
+          styles.iconBox,
+          isBlocked ? styles.iconBoxBlocked : styles.iconBoxUnblocked,
+        ]}
+      >
+        <VectorIcon
+          name={app.icon || 'cellphone'}
+          size={22}
+          color={isBlocked ? colors.blocked : colors.active}
+        />
+      </View>
+
+      {/* App Details (Name + Category) */}
+      <View style={styles.appInfo}>
+        <Text style={styles.appName} numberOfLines={1}>
+          {app.name}
+        </Text>
+        {app.category ? (
+          <Text style={styles.appCategory} numberOfLines={1}>
+            {app.category}
+          </Text>
+        ) : (
+          <Text style={styles.appCategory} numberOfLines={1}>
+            {isBlocked ? 'Restricted App' : 'Allowed App'}
+          </Text>
+        )}
+      </View>
+
+      {/* Status Badge */}
+      <View
+        style={[
+          styles.statusBadge,
+          isBlocked ? styles.statusBadgeBlocked : styles.statusBadgeUnblocked,
         ]}
       >
         <View
           style={[
-            styles.badgeDot,
+            styles.statusDot,
             { backgroundColor: isBlocked ? colors.blocked : colors.active },
           ]}
         />
         <Text
           style={[
-            styles.badgeText,
+            styles.statusText,
             { color: isBlocked ? colors.blocked : colors.active },
           ]}
         >
-          {isBlocked ? 'Blocked' : 'Unblocked'}
+          {isBlocked ? 'Blocked' : 'Allowed'}
         </Text>
       </View>
     </View>
@@ -46,186 +70,158 @@ export const AppCard = ({ app }) => {
 
 /**
  * AppGridCard Component
- *
- * Renders a responsive two-column grid of apps with individual blocked/unblocked status.
- * Accepts `apps` array where each app has a `blocked: boolean` property.
- *
- * Also supports legacy `blockedApps` prop for backward compatibility.
+ * Renders a unified, professional list container for applications on mobile.
  */
 export const AppGridCard = ({ apps = [], blockedApps, statusMode }) => {
-  // Support legacy props
   let displayApps = apps;
 
-  // Legacy: if apps empty but blockedApps provided, map them
+  // Legacy fallback support
   if (displayApps.length === 0 && blockedApps && blockedApps.length > 0) {
     const isBlocked = !statusMode || statusMode === 'ACTIVE';
     displayApps = blockedApps.map((app) => ({ ...app, blocked: isBlocked }));
   }
 
-  const blockedCount = displayApps.filter((a) => a.blocked).length;
-  const unblockedCount = displayApps.filter((a) => !a.blocked).length;
+  if (displayApps.length === 0) {
+    return (
+      <View style={styles.emptyState}>
+        <View style={styles.emptyIconCircle}>
+          <VectorIcon name="apps" size={32} color={colors.textMuted} />
+        </View>
+        <Text style={styles.emptyTitle}>No Applications Found</Text>
+        <Text style={styles.emptySubtitle}>Try adjusting your filter or search query.</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      {/* Section Header */}
-      <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>
-          {displayApps.length === 0 ? 'Applications' : `Applications (${displayApps.length})`}
-        </Text>
-        <View style={styles.statsRow}>
-          {blockedCount > 0 && (
-            <View style={styles.statBadgeRed}>
-              <View style={[styles.statDot, { backgroundColor: colors.blocked }]} />
-              <Text style={[styles.statBadgeText, { color: colors.blocked }]}>{blockedCount} Blocked</Text>
-            </View>
-          )}
-          {unblockedCount > 0 && (
-            <View style={styles.statBadgeGreen}>
-              <View style={[styles.statDot, { backgroundColor: colors.active }]} />
-              <Text style={[styles.statBadgeText, { color: colors.active }]}>{unblockedCount} Unblocked</Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {displayApps.length === 0 ? (
-        <View style={styles.emptyState}>
-          <VectorIcon name="apps" size={40} color={colors.textMuted} />
-          <Text style={styles.emptyText}>No applications found</Text>
-        </View>
-      ) : (
-        <View style={styles.grid}>
-          {displayApps.map((app, idx) => (
-            <View key={app.id || idx} style={styles.gridColumn}>
-              <AppCard app={app} />
-            </View>
-          ))}
-        </View>
-      )}
+    <View style={styles.cardContainer}>
+      {displayApps.map((app, idx) => (
+        <AppCard
+          key={app.id || idx}
+          app={app}
+          isLast={idx === displayApps.length - 1}
+        />
+      ))}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  cardContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     marginHorizontal: 20,
-    marginVertical: 10,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  statBadgeRed: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.blockedLight,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    gap: 4,
-  },
-  statBadgeGreen: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.activeLight,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    gap: 4,
-  },
-  statDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 12,
-  },
-  gridColumn: {
-    width: '48%',
-  },
-  appCard: {
-    backgroundColor: colors.card,
-    borderRadius: borderRadius.card,
-    padding: 16,
-    alignItems: 'center',
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: 'hidden',
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  listRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  iconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 1,
+    marginRight: 14,
   },
-  iconContainerBlocked: {
-    backgroundColor: colors.blockedLight,
-    borderColor: '#FECACA',
+  iconBoxBlocked: {
+    backgroundColor: '#FEE2E2',
   },
-  iconContainerUnblocked: {
-    backgroundColor: colors.activeLight,
-    borderColor: '#BBF7D0',
+  iconBoxUnblocked: {
+    backgroundColor: '#DCFCE7',
+  },
+  appInfo: {
+    flex: 1,
+    justifyContent: 'center',
   },
   appName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 8,
+    color: '#0F172A',
+    letterSpacing: -0.2,
   },
-  badge: {
+  appCategory: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    gap: 6,
   },
-  badgeDot: {
+  statusBadgeBlocked: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  statusBadgeUnblocked: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  badgeText: {
-    fontSize: 11,
+  statusText: {
+    fontSize: 12,
     fontWeight: '700',
   },
   emptyState: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginHorizontal: 20,
+    paddingVertical: 36,
+    paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
-    gap: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  emptyText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textMuted,
+  emptyIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748B',
+    textAlign: 'center',
   },
 });
 
 export default AppGridCard;
+
