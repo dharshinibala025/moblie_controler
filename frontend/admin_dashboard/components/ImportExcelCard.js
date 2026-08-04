@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import colors from '../styles/colors';
@@ -7,32 +7,95 @@ import { spacing, radius } from '../styles/globalStyles';
 
 /**
  * ImportExcelCard
- * Professional Excel (.xlsx) Import Card with Download Template and Upload Excel buttons.
+ * Professional Excel (.xlsx) Import Card with Drag-and-Drop & File Picker support.
  */
 const ImportExcelCard = ({
   title = 'Import Excel (.xlsx)',
-  subtitle = 'Upload a spreadsheet to bulk add records',
+  subtitle = 'Bulk import student records. Drag & drop or click Upload Excel.',
   onDownloadTemplate,
   onUploadExcel,
 }) => {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setIsDragging(false);
+
+    const files = e?.dataTransfer?.files || e?.nativeEvent?.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const fileName = file.name;
+
+      if (typeof FileReader !== 'undefined') {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const arrayBuffer = evt.target.result;
+          const bytes = new Uint8Array(arrayBuffer);
+          let binary = '';
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const fileBase64 = typeof global.btoa === 'function' ? global.btoa(binary) : null;
+          if (onUploadExcel) {
+            onUploadExcel(fileBase64, fileName);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    } else if (onUploadExcel) {
+      onUploadExcel();
+    }
+  };
+
   return (
     <TouchableOpacity
-      style={styles.card}
-      onPress={onUploadExcel}
+      style={[
+        styles.card,
+        isDragging && styles.cardDragging,
+      ]}
+      onPress={() => onUploadExcel && onUploadExcel()}
       activeOpacity={0.9}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
-      <View style={styles.iconWrapper}>
-        <Icon name="upload-file" size={24} color={colors.primaryBlue} />
+      <View style={[styles.iconWrapper, isDragging && styles.iconWrapperDragging]}>
+        <Icon name="upload-file" size={24} color={isDragging ? colors.white : colors.primaryBlue} />
       </View>
       <View style={styles.textWrapper}>
         <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <Text style={styles.subtitle}>
+          {isDragging ? 'Release file to drop & process Excel spreadsheet' : subtitle}
+        </Text>
       </View>
 
       <View style={styles.buttonGroup}>
         <TouchableOpacity
           style={styles.downloadButton}
-          onPress={onDownloadTemplate}
+          onPress={(e) => {
+            if (e && e.stopPropagation) e.stopPropagation();
+            onDownloadTemplate && onDownloadTemplate();
+          }}
           activeOpacity={0.8}
         >
           <Icon name="file-download" size={16} color={colors.primaryBlue} />
@@ -41,7 +104,10 @@ const ImportExcelCard = ({
 
         <TouchableOpacity
           style={styles.uploadButton}
-          onPress={onUploadExcel}
+          onPress={(e) => {
+            if (e && e.stopPropagation) e.stopPropagation();
+            onUploadExcel && onUploadExcel();
+          }}
           activeOpacity={0.8}
         >
           <Icon name="file-upload" size={16} color={colors.white} />
@@ -62,6 +128,11 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     alignItems: 'center',
   },
+  cardDragging: {
+    borderColor: colors.primaryBlue,
+    backgroundColor: colors.lightBlueBackground || '#EFF6FF',
+    borderWidth: 2,
+  },
   iconWrapper: {
     width: 46,
     height: 46,
@@ -72,6 +143,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  iconWrapperDragging: {
+    backgroundColor: colors.primaryBlue,
+    borderColor: colors.primaryBlue,
   },
   textWrapper: {
     alignItems: 'center',

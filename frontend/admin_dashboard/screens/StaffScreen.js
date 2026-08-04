@@ -182,12 +182,12 @@ const StaffScreen = () => {
     );
   };
 
-  const handleUploadExcelPress = async () => {
+  const handleUploadExcelPress = async (droppedBase64, droppedName) => {
     try {
-      let fileBase64 = null;
-      let fileName = 'staff_roster.xlsx';
+      let fileBase64 = typeof droppedBase64 === 'string' ? droppedBase64 : null;
+      let fileName = typeof droppedName === 'string' ? droppedName : 'staff_roster.xlsx';
 
-      if (typeof document !== 'undefined' && document.createElement) {
+      if (!fileBase64 && typeof document !== 'undefined' && document.createElement) {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '.xlsx, .xls, .csv';
