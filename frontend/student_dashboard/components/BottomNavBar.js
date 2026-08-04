@@ -6,7 +6,7 @@ import VectorIcon from './VectorIcon';
 export const BottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
   const tabs = [
     { id: 'home', label: 'Home', icon: 'home' },
-    { id: 'apps', label: 'Blocked Apps', icon: 'cellphone' },
+    { id: 'apps', label: 'Apps', icon: 'cellphone' },
     { id: 'notifications', label: 'Notifications', icon: 'bell', badge: 6 },
     { id: 'profile', label: 'Profile', icon: 'account-circle' },
   ];
@@ -26,7 +26,7 @@ export const BottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
               <View style={styles.iconWrapper}>
                 <VectorIcon
                   name={tab.icon}
-                  size={26} // Bottom Navigation icon size 26
+                  size={24}
                   color={isActive ? colors.primary : '#64748B'}
                 />
                 {tab.badge && tab.badge > 0 && (
@@ -37,6 +37,7 @@ export const BottomNavBar = ({ activeTab = 'home', onSelectTab }) => {
               </View>
 
               <Text
+                numberOfLines={1}
                 style={[
                   styles.tabLabel,
                   isActive && styles.tabLabelActive,

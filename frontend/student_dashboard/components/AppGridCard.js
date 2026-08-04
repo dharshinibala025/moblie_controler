@@ -31,15 +31,26 @@ const resolveAppIcon = (app) => {
   return 'cellphone';
 };
 
-export const AppCard = ({ app }) => {
+export const AppCard = ({ app, isLast }) => {
   // Use per-app blocked status; fallback to true if not defined
   const isBlocked = app.blocked !== undefined ? app.blocked : true;
   const iconName = resolveAppIcon(app);
+  const name = app.name || app.appName || 'Application';
+  const category = app.category || app.packageName || 'System Application';
 
   return (
-    <View style={styles.appCard}>
-      <View style={[styles.iconContainer, isBlocked ? styles.iconContainerBlocked : styles.iconContainerUnblocked]}>
-        <VectorIcon name={iconName} size={24} color={isBlocked ? colors.blocked : colors.active} />
+    <View style={[styles.listRow, !isLast && styles.listRowBorder]}>
+      <View style={[styles.iconBox, isBlocked ? styles.iconBoxBlocked : styles.iconBoxUnblocked]}>
+        <VectorIcon name={iconName} size={22} color={isBlocked ? colors.blocked : colors.active} />
+      </View>
+
+      <View style={styles.appInfo}>
+        <Text style={styles.appName} numberOfLines={1}>
+          {name}
+        </Text>
+        <Text style={styles.appCategory} numberOfLines={1}>
+          {category}
+        </Text>
       </View>
 
       {/* Status Badge */}
