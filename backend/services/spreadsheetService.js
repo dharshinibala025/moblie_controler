@@ -70,26 +70,66 @@ class SpreadsheetService {
       const row = rawRows[index];
       const rowNum = index + 2; // 1-indexed header + 1
 
-      const email = String(row["Email"] || row["email"] || "").trim().toLowerCase();
+      // Normalize row keys
+      const normalizedRow = {};
+      for (const k of Object.keys(row || {})) {
+        const normKey = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+        normalizedRow[normKey] = row[k];
+      }
+
+      const email = String(
+        normalizedRow["email"] ||
+        normalizedRow["emailid"] ||
+        normalizedRow["emailaddress"] ||
+        normalizedRow["mail"] ||
+        ""
+      ).trim().toLowerCase();
+
       const studentId = String(
-        row["Register Number"] ||
-        row["RegisterNo"] ||
-        row["RegisterNumber"] ||
-        row["RegNo"] ||
-        row["studentId"] ||
+        normalizedRow["registernumber"] ||
+        normalizedRow["registerno"] ||
+        normalizedRow["regno"] ||
+        normalizedRow["rollno"] ||
+        normalizedRow["rollnumber"] ||
+        normalizedRow["studentid"] ||
+        normalizedRow["id"] ||
         ""
       ).trim();
+
       const name = String(
-        row["Student Name"] ||
-        row["StudentName"] ||
-        row["Name"] ||
-        row["name"] ||
+        normalizedRow["studentname"] ||
+        normalizedRow["name"] ||
+        normalizedRow["fullname"] ||
         ""
       ).trim();
-      const deptName = String(row["Department"] || row["department"] || "").trim();
-      const yearName = String(row["Year"] || row["year"] || row["AcademicYear"] || "").trim();
-      const secName = String(row["Section"] || row["section"] || "").trim();
-      const phone = String(row["Phone"] || row["phone"] || row["Mobile"] || row["mobile"] || "").trim();
+
+      const deptName = String(
+        normalizedRow["department"] ||
+        normalizedRow["dept"] ||
+        normalizedRow["branch"] ||
+        ""
+      ).trim();
+
+      const yearName = String(
+        normalizedRow["year"] ||
+        normalizedRow["academicyear"] ||
+        normalizedRow["batch"] ||
+        ""
+      ).trim();
+
+      const secName = String(
+        normalizedRow["section"] ||
+        normalizedRow["sec"] ||
+        ""
+      ).trim();
+
+      const phone = String(
+        normalizedRow["phone"] ||
+        normalizedRow["mobile"] ||
+        normalizedRow["contact"] ||
+        normalizedRow["phonenumber"] ||
+        ""
+      ).trim();
 
       // Required row validation
       if (!email || !studentId || !name) {
@@ -289,12 +329,42 @@ class SpreadsheetService {
       const row = rawRows[index];
       const rowNum = index + 2;
 
+      // Normalize row keys
+      const normalizedRow = {};
+      for (const k of Object.keys(row || {})) {
+        const normKey = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+        normalizedRow[normKey] = row[k];
+      }
+
       const employeeId = String(
-        row["Staff ID"] || row["EmployeeID"] || row["employeeId"] || row["StaffId"] || ""
+        normalizedRow["staffid"] ||
+        normalizedRow["employeeid"] ||
+        normalizedRow["staffnameid"] ||
+        normalizedRow["id"] ||
+        ""
       ).trim();
-      const name = String(row["Name"] || row["Staff Name"] || row["StaffName"] || row["name"] || "").trim();
-      const email = String(row["Email"] || row["email"] || "").trim().toLowerCase();
-      const deptName = String(row["Department"] || row["department"] || "").trim();
+
+      const name = String(
+        normalizedRow["name"] ||
+        normalizedRow["staffname"] ||
+        normalizedRow["fullname"] ||
+        ""
+      ).trim();
+
+      const email = String(
+        normalizedRow["email"] ||
+        normalizedRow["emailid"] ||
+        normalizedRow["emailaddress"] ||
+        normalizedRow["mail"] ||
+        ""
+      ).trim().toLowerCase();
+
+      const deptName = String(
+        normalizedRow["department"] ||
+        normalizedRow["dept"] ||
+        normalizedRow["branch"] ||
+        ""
+      ).trim();
 
       if (!employeeId || !name || !email) {
         failedCount++;
