@@ -60,6 +60,8 @@ export const getStoredUser = async () => {
  *
  * Does NOT auto-refresh tokens — that logic lives in authService.
  */
+let cachedWorkingBaseUrl = null;
+
 export const apiFetch = async (path, options = {}) => {
   const token = await getAccessToken();
 
@@ -68,13 +70,6 @@ export const apiFetch = async (path, options = {}) => {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
-
-  const candidateBases = [
-    BASE_URL,
-    'http://localhost:5000',
-    'http://10.0.2.2:5000',
-    'http://127.0.0.1:5000',
-  ];
 
   const timeoutMs = options.timeout || 30000;
 
@@ -93,26 +88,49 @@ export const apiFetch = async (path, options = {}) => {
     });
   };
 
+  const candidateBases = Array.from(
+    new Set([
+      ...(cachedWorkingBaseUrl ? [cachedWorkingBaseUrl] : []),
+      BASE_URL,
+      'http://10.0.2.2:5000',
+      'http://localhost:5000',
+      'http://127.0.0.1:5000',
+    ]),
+  );
+
   let response = null;
   let lastError = null;
 
-  for (const candidateBase of candidateBases) {
+  for (let i = 0; i < candidateBases.length; i++) {
+    const candidateBase = candidateBases[i];
+    // Use short 3000ms timeout during host discovery, or full timeoutMs for cached/primary host
+    const perAttemptTimeout = candidateBase === cachedWorkingBaseUrl ? timeoutMs : Math.min(timeoutMs, 4000);
+
     try {
-      response = await fetchWithTimeout(`${candidateBase}${path}`, {
-        ...options,
-        headers,
-      }, timeoutMs);
+      response = await fetchWithTimeout(
+        `${candidateBase}${path}`,
+        {
+          ...options,
+          headers,
+        },
+        perAttemptTimeout,
+      );
+
       if (response && response.status !== 503) {
+        cachedWorkingBaseUrl = candidateBase;
         break;
       }
     } catch (err) {
       lastError = err;
+      if (candidateBase === cachedWorkingBaseUrl) {
+        cachedWorkingBaseUrl = null; // Invalidate cached URL if it fails
+      }
     }
   }
 
   if (!response) {
     const err = new Error(
-      lastError?.message || 'Unable to connect to server. Please verify backend server is running.',
+      'Server Connection Failed. Please ensure the backend server is running on port 5000.',
     );
     err.status = 503;
     throw err;
