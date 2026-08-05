@@ -49,8 +49,6 @@ const DevicesScreen = () => {
   const [selectedDept] = useState('CSE');
   const [draftYear, setDraftYear] = useState('1st Year');
   const [draftSection, setDraftSection] = useState('A');
-  const [selectedYear, setSelectedYear] = useState('1st Year');
-  const [selectedSection, setSelectedSection] = useState('A');
   const [selectedApps, setSelectedApps] = useState(['Instagram', 'WhatsApp', 'Snapchat', 'BGMI', 'PUBG']);
 
   // Schedule
@@ -127,16 +125,50 @@ const DevicesScreen = () => {
   const handleSelectAllApps = () => setSelectedApps([...SUPPORTED_APPS]);
   const handleClearSelection = () => setSelectedApps([]);
 
-  const handleApplyRestriction = () => {
+  const handleApplyRestriction = async () => {
     if (selectedApps.length === 0) {
       Alert.alert('No Apps Selected', 'Please select at least one app to block.');
       return;
     }
-    setRestrictionStatus('ACTIVE');
-    Alert.alert(
-      'Restriction Applied',
-      `Restriction policy active!\n\nTarget: ${selectedYear} - Sec ${selectedSection} (${selectedDept})\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
-    );
+
+    const formatTimeForBackend = (timeStr) => {
+      const parts = timeStr.split(' ');
+      if (parts.length < 2) return timeStr;
+      const timeVal = parts[0];
+      const modifier = parts[1];
+      let [hours, minutes] = timeVal.split(':');
+      if (hours === '12') {
+        hours = '00';
+      }
+      if (modifier === 'PM') {
+        hours = String(parseInt(hours, 10) + 12);
+      }
+      return `${hours.padStart(2, '0')}:${minutes}`;
+    };
+
+    const yearChar = draftYear.charAt(0);
+    const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
+
+    const policyData = {
+      blockedApps: selectedApps,
+      scheduleStart: formatTimeForBackend(startTime),
+      scheduleEnd: formatTimeForBackend(endTime),
+      activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      targetClassId,
+      status: 'active',
+      reason: 'Classroom Policy Restriction',
+    };
+
+    try {
+      await adminService.applyRestrictionPolicy(policyData);
+      setRestrictionStatus('ACTIVE');
+      Alert.alert(
+        'Restriction Applied',
+        `Restriction policy active!\n\nTarget: ${draftYear} - Sec ${draftSection} (${selectedDept})\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
+      );
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to apply restriction policy.');
+    }
   };
 
   const handleEmergencyUnblock = () => {

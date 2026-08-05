@@ -102,6 +102,13 @@ class AdminService {
       body: JSON.stringify({ currentPassword, newPassword }),
     });
   }
+
+  async applyRestrictionPolicy(policyData) {
+    return await apiFetch('/admin/rules', {
+      method: 'POST',
+      body: JSON.stringify(policyData),
+    });
+  }
 }
 
 export default new AdminService();
