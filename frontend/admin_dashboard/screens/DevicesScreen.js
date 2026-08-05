@@ -260,6 +260,27 @@ const DevicesScreen = () => {
             />
           </View>
 
+          <View style={styles.timeInputsRow}>
+            <View style={styles.timeInputContainer}>
+              <Text style={styles.filterFieldLabel}>Start Time (e.g. 09:00 AM)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={startTime}
+                onChangeText={setStartTime}
+                placeholder="09:00 AM"
+              />
+            </View>
+            <View style={styles.timeInputContainer}>
+              <Text style={styles.filterFieldLabel}>End Time (e.g. 04:00 PM)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={endTime}
+                onChangeText={setEndTime}
+                placeholder="04:00 PM"
+              />
+            </View>
+          </View>
+
           <View style={styles.divider} />
 
           <View style={styles.appsHeaderRow}>
@@ -509,6 +530,24 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     paddingVertical: spacing.lg,
+  },
+  timeInputsRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  timeInputContainer: {
+    flex: 1,
+  },
+  textInput: {
+    height: 38,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.white,
+    fontSize: 13,
+    color: colors.textPrimary,
   },
 });
 
