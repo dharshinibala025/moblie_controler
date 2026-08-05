@@ -1,96 +1,90 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Animated,
+  Dimensions,
 } from 'react-native';
-import colors from '../styles/colors';
-import typography from '../styles/typography';
-import { StudentIcon, StaffIcon, AdminIcon } from './AuthIcons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const ROLES = [
-  { id: 'student', title: 'Student', renderIcon: (active) => <StudentIcon active={active} color={active ? colors.textLight : colors.primary} size={20} /> },
-  { id: 'staff', title: 'Staff', renderIcon: (active) => <StaffIcon active={active} color={active ? colors.textLight : colors.primary} size={20} /> },
-  { id: 'admin', title: 'Admin', renderIcon: (active) => <AdminIcon active={active} color={active ? colors.textLight : colors.primary} size={20} /> },
+  { id: 'student', title: 'Student', icon: 'school' },
+  { id: 'staff', title: 'Staff', icon: 'person' },
+  { id: 'admin', title: 'Admin', icon: 'admin-panel-settings' },
 ];
 
 /**
- * RoleItem component preserving original card size and structure, with professional vector icons (no emojis)
+ * Segmented Control (Pill Selector) Component for Role Selection
+ * - Single pill container with background #F1F5F9
+ * - Animated sliding indicator with Primary Blue #2563EB
+ * - Smooth transition between Student | Staff | Admin
+ * - Zero shadows, clean enterprise aesthetic
  */
-const RoleItem = ({ role, isSelected, onSelect }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+export const RoleSelector = ({ selectedRole = 'student', onSelectRole }) => {
+  const selectedIndex = ROLES.findIndex((r) => r.id === selectedRole);
+  const activeIndex = selectedIndex >= 0 ? selectedIndex : 0;
 
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.94,
-      useNativeDriver: true,
-      speed: 20,
+  // Animation value for position sliding (0 to 2)
+  const slideAnim = useRef(new Animated.Value(activeIndex)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: activeIndex,
+      useNativeDriver: false,
+      speed: 18,
+      bounciness: 2,
     }).start();
-  };
+  }, [activeIndex, slideAnim]);
 
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 4,
-      tension: 100,
-      useNativeDriver: true,
-    }).start();
-  };
+  // Interpolate translateX percentage based on role index (0%, 100%, 200%)
+  const translateX = slideAnim.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: ['0%', '100%', '200%'],
+  });
 
-  return (
-    <Animated.View
-      style={[
-        styles.roleWrapper,
-        { transform: [{ scale: scaleAnim }] },
-      ]}
-    >
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={() => onSelect(role.id)}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        style={[
-          styles.roleCard,
-          isSelected ? styles.roleCardSelected : styles.roleCardUnselected,
-        ]}
-      >
-        <View style={styles.roleIconWrapper}>
-          {role.renderIcon(isSelected)}
-        </View>
-
-        <Text
-          style={[
-            styles.roleText,
-            isSelected
-              ? typography.roleTextSelected
-              : typography.roleTextUnselected,
-          ]}
-          numberOfLines={1}
-        >
-          {role.title}
-        </Text>
-
-        {isSelected && <View style={styles.activeDot} />}
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-export const RoleSelector = ({ selectedRole, onSelectRole }) => {
   return (
     <View style={styles.container}>
-      <Text style={typography.sectionTitle}>Select Your Role</Text>
-      <View style={styles.rolesRow}>
-        {ROLES.map((role) => (
-          <RoleItem
-            key={role.id}
-            role={role}
-            isSelected={selectedRole === role.id}
-            onSelect={onSelectRole}
-          />
-        ))}
+      <Text style={styles.sectionHeader}>SELECT ROLE</Text>
+
+      <View style={styles.segmentedContainer}>
+        {/* Animated Sliding Highlight Pill */}
+        <Animated.View
+          style={[
+            styles.animatedIndicator,
+            {
+              transform: [{ translateX }],
+            },
+          ]}
+        />
+
+        {/* Role Tabs */}
+        {ROLES.map((role) => {
+          const isSelected = selectedRole === role.id;
+          return (
+            <TouchableOpacity
+              key={role.id}
+              activeOpacity={0.8}
+              onPress={() => onSelectRole(role.id)}
+              style={styles.tabButton}
+            >
+              <MaterialIcons
+                name={role.icon}
+                size={18}
+                color={isSelected ? '#FFFFFF' : '#6B7280'}
+              />
+              <Text
+                style={[
+                  styles.tabText,
+                  isSelected ? styles.textSelected : styles.textUnselected,
+                ]}
+              >
+                {role.title}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -101,57 +95,51 @@ const styles = StyleSheet.create({
     marginVertical: 12,
     width: '100%',
   },
-  rolesRow: {
+  sectionHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280',
+    letterSpacing: 1.2,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  segmentedContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
+    height: 48,
+    backgroundColor: '#F1F5F9', // Light grey pill background
+    borderRadius: 12,
+    padding: 4,
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  roleWrapper: {
+  animatedIndicator: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    width: '33.33%',
+    height: 40,
+    backgroundColor: '#2563EB', // Primary Blue
+    borderRadius: 8,
+  },
+  tabButton: {
     flex: 1,
-  },
-  roleCard: {
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    borderRadius: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 78,
-    position: 'relative',
+    gap: 6,
+    zIndex: 1,
   },
-  roleCardSelected: {
-    backgroundColor: colors.roleSelectedBg,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
-    borderWidth: 0,
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
-  roleCardUnselected: {
-    backgroundColor: colors.roleUnselectedBg,
-    borderColor: colors.roleUnselectedBorder,
-    borderWidth: 1.5,
-    elevation: 1,
-    shadowColor: colors.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
+  textSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
-  roleIconWrapper: {
-    marginBottom: 6,
-  },
-  roleText: {
-    textAlign: 'center',
-  },
-  activeDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
+  textUnselected: {
+    color: '#6B7280',
   },
 });
 

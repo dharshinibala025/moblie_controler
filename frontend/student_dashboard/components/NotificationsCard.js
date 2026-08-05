@@ -19,33 +19,45 @@ export const NotificationsCard = ({ notifications = [], onViewAll }) => {
       </View>
 
       <View style={styles.card}>
-        {notifications.map((item, index) => (
-          <React.Fragment key={item.id || index}>
-            {index > 0 && <View style={styles.divider} />}
-            <View style={styles.notificationRow}>
-              {/* Notification Bell Icon */}
-              <View style={styles.iconWrapper}>
-                <VectorIcon name="bell" size={18} color={colors.primary} />
-              </View>
-
-              {/* Message Content */}
-              <View style={styles.contentWrapper}>
-                <Text
-                  style={[
-                    styles.messageText,
-                    !item.read && styles.unreadMessageText,
-                  ]}
-                >
-                  {item.message}
-                </Text>
-                <Text style={styles.timeText}>{item.time}</Text>
-              </View>
-
-              {/* Unread Dot Indicator */}
-              {!item.read && <View style={styles.unreadDot} />}
+        {notifications.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+              <VectorIcon name="bell-off-outline" size={28} color={colors.textMuted} />
             </View>
-          </React.Fragment>
-        ))}
+            <Text style={styles.emptyTitle}>No Notifications</Text>
+            <Text style={styles.emptySubtitle}>
+              Broadcast updates and policy notifications from Department HOD/Admin will appear here.
+            </Text>
+          </View>
+        ) : (
+          notifications.map((item, index) => (
+            <React.Fragment key={item.id || index}>
+              {index > 0 && <View style={styles.divider} />}
+              <View style={styles.notificationRow}>
+                {/* Notification Bell Icon */}
+                <View style={styles.iconWrapper}>
+                  <VectorIcon name="bell" size={18} color={colors.primary} />
+                </View>
+
+                {/* Message Content */}
+                <View style={styles.contentWrapper}>
+                  <Text
+                    style={[
+                      styles.messageText,
+                      !item.read && styles.unreadMessageText,
+                    ]}
+                  >
+                    {item.message}
+                  </Text>
+                  <Text style={styles.timeText}>{item.time}</Text>
+                </View>
+
+                {/* Unread Dot Indicator */}
+                {!item.read && <View style={styles.unreadDot} />}
+              </View>
+            </React.Fragment>
+          ))
+        )}
       </View>
     </View>
   );
@@ -128,6 +140,34 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.primary,
     marginLeft: 8,
+  },
+  emptyContainer: {
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });
 

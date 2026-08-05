@@ -1,13 +1,15 @@
 import StaffDashboardScreen from './screens/StaffDashboardScreen';
-import StaffHomeScreen from './screens/StaffHomeScreen';
-import StaffNotificationsScreen from './screens/StaffNotificationsScreen';
-import StaffProfileScreen from './screens/StaffProfileScreen';
+import StaffDashboardTab from './screens/StaffDashboardTab';
+import StaffDevicesTab from './screens/StaffDevicesTab';
+import StaffStudentsTab from './screens/StaffStudentsTab';
+import StaffSettingsTab from './screens/StaffSettingsTab';
 
 export {
   StaffDashboardScreen,
-  StaffHomeScreen,
-  StaffNotificationsScreen,
-  StaffProfileScreen,
+  StaffDashboardTab,
+  StaffDevicesTab,
+  StaffStudentsTab,
+  StaffSettingsTab,
 };
 
 export default StaffDashboardScreen;

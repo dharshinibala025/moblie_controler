@@ -33,7 +33,7 @@ export const GetStartedScreen = ({ onGetStarted }) => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim]);
 
   const handlePressIn = () => {
     Animated.spring(buttonScale, {
