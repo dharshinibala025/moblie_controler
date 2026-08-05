@@ -12,21 +12,21 @@ export const StaffDashboardScreen = ({ onLogout }) => {
   const renderActiveScreen = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <StaffDashboardTab />;
+        return <StaffDashboardTab onNavigateTab={setActiveTab} />;
       case 'devices':
-        return <StaffDevicesTab />;
+        return <StaffDevicesTab onNavigateTab={setActiveTab} />;
       case 'students':
-        return <StaffStudentsTab />;
+        return <StaffStudentsTab onNavigateTab={setActiveTab} />;
       case 'settings':
         return <StaffSettingsTab onLogout={onLogout} />;
       default:
-        return <StaffDashboardTab />;
+        return <StaffDashboardTab onNavigateTab={setActiveTab} />;
     }
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.screenContainer}>
         {renderActiveScreen()}
       </View>

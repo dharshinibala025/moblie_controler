@@ -98,9 +98,10 @@ export const StaffSettingsTab = ({ onLogout }) => {
 
   return (
     <View style={styles.container}>
-      {/* Top Header Clock */}
-      <View style={styles.topBar}>
-        <Text style={styles.topBarTitle}>Account Settings</Text>
+      {/* Page Header (White background, flat text) */}
+      <View style={styles.subHeader}>
+        <Text style={styles.titleText}>Account Settings</Text>
+        <Text style={styles.subtitleText}>Manage your staff profile details and account security.</Text>
       </View>
 
       <ScrollView
@@ -111,14 +112,8 @@ export const StaffSettingsTab = ({ onLogout }) => {
         {/* Profile Hero Card */}
         <View style={styles.section}>
           <View style={styles.profileCard}>
-            <View style={styles.avatarContainer}>
-              {staffProfile.avatar ? (
-                <Image source={{ uri: staffProfile.avatar }} style={styles.avatarImage} />
-              ) : (
-                <View style={styles.profileAvatar}>
-                  <Text style={styles.avatarText}>{staffProfile.initials}</Text>
-                </View>
-              )}
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarInitials}>{staffProfile.initials}</Text>
             </View>
 
             <Text style={styles.profileName}>{staffProfile.name}</Text>
@@ -352,31 +347,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     padding: 16,
-    ...shadows.card,
   },
-  avatarContainer: {
-    marginBottom: 10,
-  },
-  avatarImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#F1F5F9',
-    borderWidth: 3,
-    borderColor: '#E2E8F0',
-  },
-  profileAvatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
+  avatarCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.primary || '#2563EB',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+    elevation: 3,
+    shadowColor: colors.primary || '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 24,
+  avatarInitials: {
+    fontSize: 28,
     fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   profileName: {
     fontSize: 18,
@@ -429,7 +419,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     overflow: 'hidden',
-    ...shadows.card,
   },
   modalOverlay: {
     flex: 1,
@@ -513,6 +502,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  subHeader: {
+    paddingHorizontal: 20,
+    paddingTop: STATUSBAR_OFFSET,
+    paddingBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 12,
+  },
+  titleText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  subtitleText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748B',
+    lineHeight: 18,
+    marginTop: 4,
   },
 });
 
