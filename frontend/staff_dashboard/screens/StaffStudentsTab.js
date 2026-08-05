@@ -17,7 +17,7 @@ import staffMockData from '../data/staffMockData';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
-export const StaffStudentsTab = () => {
+export const StaffStudentsTab = ({ onNavigateTab }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'blocked' | 'offline'
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -120,7 +120,7 @@ export const StaffStudentsTab = () => {
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => setSelectedStudent(item)}
-        style={styles.studentCard}
+        style={styles.studentRow}
       >
         <View style={styles.studentHeader}>
           <View style={styles.studentInfoCol}>
@@ -169,20 +169,15 @@ export const StaffStudentsTab = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Header Clock */}
-      <View style={styles.topBar}>
-        <Text style={styles.clockText}>{currentTime || 'Mon, Jul 27, 2026 | 05:30:12 AM'}</Text>
-        <Text style={styles.topBarTitle}>Live Monitoring</Text>
+      {/* Page Header (White background, flat text) */}
+      <View style={styles.subHeader}>
+        <Text style={styles.titleText}>Student Supervision</Text>
+        <Text style={styles.subtitleText}>
+          Real-time status updates and app access attempts for your class ({mentorClass}).
+        </Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Sub-Header */}
-        <View style={styles.subHeader}>
-          <Text style={styles.titleText}>Student Supervision</Text>
-          <Text style={styles.subtitleText}>
-            Real-time status updates and app access attempts for your class ({mentorClass}).
-          </Text>
-        </View>
 
         {/* Student Mobile Status list */}
         <View style={styles.listContainer}>
@@ -298,7 +293,7 @@ export const StaffStudentsTab = () => {
                   renderItem={renderStudentItem}
                   keyExtractor={(item) => item.id}
                   scrollEnabled={false}
-                  ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+                  ItemSeparatorComponent={() => <View style={styles.separatorLine} />}
                 />
               )}
             </>
@@ -463,8 +458,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   subHeader: {
-    paddingHorizontal: 16,
-    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: STATUSBAR_OFFSET,
+    paddingBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
     marginBottom: 12,
   },
   titleText: {
@@ -486,7 +485,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    ...shadows.card,
   },
   listHeaderRow: {
     flexDirection: 'row',
@@ -550,13 +548,13 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '700',
   },
-  studentCard: {
+  studentRow: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    borderRadius: 12,
-    padding: 12,
-    ...shadows.soft,
+    paddingVertical: 12,
+  },
+  separatorLine: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
   },
   studentHeader: {
     flexDirection: 'row',

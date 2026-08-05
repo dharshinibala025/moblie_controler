@@ -3,10 +3,11 @@ import { View, Text, StyleSheet, ScrollView, FlatList, Platform, StatusBar } fro
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import staffMockData from '../data/staffMockData';
+import StaffHeader from '../components/StaffHeader';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
-export const StaffDashboardTab = () => {
+export const StaffDashboardTab = ({ onNavigateTab }) => {
   const [currentTime, setCurrentTime] = useState('');
 
   // Clock Update
@@ -64,6 +65,7 @@ export const StaffDashboardTab = () => {
   const totalStudents = sectionStudents.length;
   const blockedStudents = sectionStudents.filter((s) => s.status === 'blocked').length;
   const unblockedStudents = sectionStudents.filter((s) => s.status === 'active' || s.status === 'offline').length;
+  const warningCount = sectionStudents.reduce((sum, s) => sum + (s.attempts || 0), 0);
 
   // Sort students alphabetically by name
   const sortedStudents = [...sectionStudents].sort((a, b) => a.name.localeCompare(b.name));
@@ -121,60 +123,90 @@ export const StaffDashboardTab = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Header Clock */}
-      <View style={styles.topBar}>
-        <Text style={styles.clockText}>{currentTime || 'Mon, Jul 27, 2026 | 05:30:12 AM'}</Text>
-        <Text style={styles.topBarTitle}>Class Dashboard</Text>
-      </View>
+      <StaffHeader onNavigateTab={onNavigateTab} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Mentor Title Card */}
-        <View style={styles.welcomeBanner}>
+        {/* Mentor Title (Flat layout, no card background) */}
+        <View style={styles.welcomeHeaderSection}>
           <View style={styles.welcomeInfo}>
             <Text style={styles.welcomeLabel}>CLASS MENTOR CONSOLE</Text>
             <Text style={styles.classNameText}>{formatClassDisplay(mentorClass)}</Text>
             <Text style={styles.staffMetaText}>
               Mentor: {staffInfo.name}  •  Dept: {staffInfo.department}
             </Text>
+            {currentTime ? (
+              <Text style={styles.clockBannerText}>{currentTime}</Text>
+            ) : null}
           </View>
           <View style={styles.classIcon}>
             <VectorIcon name="school" size={24} color={colors.primary} />
           </View>
         </View>
 
-        {/* Stats Grid */}
+        {/* Stats Grid (2x2 Card layout matching the uploaded image) */}
         <View style={styles.statsGrid}>
           {/* Card 1: Total Students */}
-          <View style={[styles.statCard, { borderLeftColor: colors.primary }]}>
-            <View style={styles.statIconContainer}>
-              <VectorIcon name="account-group" size={18} color={colors.primary} />
+          <View style={styles.statCard}>
+            <View style={styles.statHeaderRow}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#EFF6FF' }]}>
+                <VectorIcon name="school" size={20} color={colors.primary} />
+              </View>
+              <View style={[styles.pillBadge, { backgroundColor: '#E0F2FE' }]}>
+                <Text style={[styles.pillBadgeText, { color: '#0369A1' }]}>100%</Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.statValue}>{totalStudents}</Text>
-              <Text style={styles.statLabel}>Total Students</Text>
-            </View>
+            <Text style={styles.statValue}>{totalStudents}</Text>
+            <Text style={styles.statLabel}>Total Students</Text>
           </View>
 
-          {/* Card 2: Blocked count */}
-          <View style={[styles.statCard, { borderLeftColor: '#EF4444' }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#FEE2E2' }]}>
-              <VectorIcon name="cellphone-off" size={18} color="#EF4444" />
+          {/* Card 2: Unblocked Students */}
+          <View style={styles.statCard}>
+            <View style={styles.statHeaderRow}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#DCFCE7' }]}>
+                <VectorIcon name="cellphone" size={20} color="#16A34A" />
+              </View>
+              <View style={[styles.pillBadge, { backgroundColor: '#DCFCE7' }]}>
+                <Text style={[styles.pillBadgeText, { color: '#15803D' }]}>
+                  {totalStudents ? Math.round((unblockedStudents / totalStudents) * 100) : 0}%
+                </Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.statValue}>{blockedStudents}</Text>
-              <Text style={styles.statLabel}>Blocked</Text>
-            </View>
+            <Text style={styles.statValue}>{unblockedStudents}</Text>
+            <Text style={styles.statLabel}>Unblocked</Text>
           </View>
 
-          {/* Card 3: Unblocked count */}
-          <View style={[styles.statCard, { borderLeftColor: '#16A34A' }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#DCFCE7' }]}>
-              <VectorIcon name="cellphone" size={18} color="#16A34A" />
+          {/* Card 3: Blocked Students */}
+          <View style={styles.statCard}>
+            <View style={styles.statHeaderRow}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#FEE2E2' }]}>
+                <VectorIcon name="cellphone-off" size={20} color="#EF4444" />
+              </View>
+              {blockedStudents > 0 ? (
+                <View style={[styles.pillBadge, { backgroundColor: '#FEE2E2' }]}>
+                  <Text style={[styles.pillBadgeText, { color: '#B91C1C' }]}>
+                    {totalStudents ? Math.round((blockedStudents / totalStudents) * 100) : 0}%
+                  </Text>
+                </View>
+              ) : null}
             </View>
-            <View>
-              <Text style={styles.statValue}>{unblockedStudents}</Text>
-              <Text style={styles.statLabel}>Unblocked</Text>
+            <Text style={styles.statValue}>{blockedStudents}</Text>
+            <Text style={styles.statLabel}>Blocked</Text>
+          </View>
+
+          {/* Card 4: Warnings count */}
+          <View style={styles.statCard}>
+            <View style={styles.statHeaderRow}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                <VectorIcon name="alert-circle" size={20} color="#D97706" />
+              </View>
+              {warningCount > 0 ? (
+                <View style={[styles.pillBadge, { backgroundColor: '#FFF9DB' }]}>
+                  <Text style={[styles.pillBadgeText, { color: '#B45309' }]}>Alerts</Text>
+                </View>
+              ) : null}
             </View>
+            <Text style={styles.statValue}>{warningCount}</Text>
+            <Text style={styles.statLabel}>Warning Count</Text>
           </View>
         </View>
 
@@ -235,17 +267,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  welcomeBanner: {
-    backgroundColor: '#FFFFFF',
-    margin: 16,
-    borderRadius: borderRadius.card,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  welcomeHeaderSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    paddingVertical: 4,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    ...shadows.card,
   },
   welcomeInfo: {
     flex: 1,
@@ -268,6 +297,12 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 6,
   },
+  clockBannerText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primary,
+    marginTop: 4,
+  },
   classIcon: {
     width: 44,
     height: 44,
@@ -278,42 +313,54 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 8,
     marginBottom: 16,
-    gap: 8,
   },
   statCard: {
-    flex: 1,
+    width: '44%',
+    flexGrow: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderLeftWidth: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    marginHorizontal: 8,
+    marginVertical: 6,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
     ...shadows.soft,
   },
+  statHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   statIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#EFF6FF',
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  pillBadge: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  pillBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
   statValue: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '800',
     color: '#0F172A',
+    marginBottom: 4,
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
-    marginTop: 1,
   },
   listContainer: {
     backgroundColor: '#FFFFFF',
@@ -322,7 +369,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    ...shadows.card,
   },
   listTitleText: {
     fontSize: 15,

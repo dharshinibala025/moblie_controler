@@ -32,7 +32,7 @@ const SUPPORTED_APPS = [
   'PUBG',
 ];
 
-export const StaffDevicesTab = () => {
+export const StaffDevicesTab = ({ onNavigateTab }) => {
   const staffInfo = staffMockData.staff;
   const mentorClass = staffInfo.assignedClass || 'Not Assigned';
 
@@ -151,23 +151,18 @@ export const StaffDevicesTab = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Header Clock */}
-      <View style={styles.topBar}>
-        <Text style={styles.clockText}>{currentTime || 'Mon, Jul 27, 2026 | 05:30:12 AM'}</Text>
-        <Text style={styles.topBarTitle}>Restrictions Control</Text>
+      {/* Page Header (White background, flat text) */}
+      <View style={styles.subHeader}>
+        <Text style={styles.titleText}>Class Restrictions & Rules</Text>
+        <Text style={styles.subtitleText}>
+          Configure and enforce mobile blocklists and schedules for your students.
+        </Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Sub-Header */}
-        <View style={styles.subHeader}>
-          <Text style={styles.titleText}>Class Restrictions & Rules</Text>
-          <Text style={styles.subtitleText}>
-            Configure and enforce mobile blocklists and schedules for your students.
-          </Text>
-        </View>
 
-        {/* Dynamic Restriction card */}
-        <View style={styles.card}>
+        {/* Flat Restriction Configuration form (No surrounding card wrap) */}
+        <View style={styles.flatFormContainer}>
           {/* Status Row */}
           <View style={styles.statusIndicatorRow}>
             <Text style={styles.labelTitle}>Restriction Status:</Text>
@@ -312,7 +307,7 @@ export const StaffDevicesTab = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     paddingBottom: 40,
@@ -340,8 +335,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   subHeader: {
-    paddingHorizontal: 16,
-    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: STATUSBAR_OFFSET,
+    paddingBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
     marginBottom: 12,
   },
   titleText: {
@@ -356,14 +355,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 4,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    borderRadius: borderRadius.card,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
-    ...shadows.card,
+  flatFormContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   statusIndicatorRow: {
     flexDirection: 'row',
