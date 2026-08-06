@@ -254,13 +254,18 @@ const StaffScreen = () => {
 
       const payload = fileBase64 || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
       const res = await adminService.uploadStaffSpreadsheet(payload, fileName);
-      const createdCount = res?.createdCount || res?.totalRows || 0;
+      
+      const firstError = res?.errors && res.errors.length > 0 ? res.errors[0].reason : null;
+      const errorSuffix = firstError ? `\n\nNote: ${firstError}` : '';
+
       Alert.alert(
-        'Import Completed Successfully',
-        `Processed ${createdCount} staff record(s) from spreadsheet.\n\n` +
-        `• Created staff accounts in database\n` +
-        `• Generated secure temporary passwords\n` +
-        `• Dispatched credential emails to staff inbox`,
+        '📊 Import Summary Report',
+        `• Total Records: ${res?.totalRecords || 0}\n` +
+        `• Successfully Imported: ${res?.createdCount || 0}\n` +
+        `• Duplicate Records Ignored: ${res?.duplicateCount || 0}\n` +
+        `• Failed Records: ${res?.failedCount || 0}\n` +
+        `• Emails Sent Successfully: ${res?.emailSentCount || 0}\n` +
+        `• Email Failures: ${res?.emailFailedCount || 0}${errorSuffix}`,
       );
       await loadStaff();
     } catch (err) {

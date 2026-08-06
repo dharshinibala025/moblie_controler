@@ -17,11 +17,14 @@ import staffMockData from '../data/staffMockData';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
-export const StaffStudentsTab = ({ onNavigateTab }) => {
+export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
+  const staffInfo = propStaffInfo || staffMockData.staff;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'blocked' | 'offline'
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentTime, setCurrentTime] = useState('');
+  const [liveStudents, setLiveStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Clock Update
   useEffect(() => {
@@ -56,26 +59,43 @@ export const StaffStudentsTab = ({ onNavigateTab }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const staffInfo = staffMockData.staff;
+  useEffect(() => {
+    const fetchLiveStatus = async (showLoading = true) => {
+      const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+      if (!classIdToQuery) return;
+      if (showLoading) setLoading(true);
+      try {
+        const staffService = require('../../services/staffService').default;
+        const data = await staffService.fetchClassLiveStatus(classIdToQuery);
+        if (data && data.students) {
+          const mapped = data.students.map((student) => ({
+            id: student.studentId || student._id,
+            name: student.name,
+            rollNo: student.rollNo,
+            email: student.email,
+            status: student.deviceStatus === 'blocked' ? 'blocked' : student.deviceStatus === 'offline' ? 'offline' : 'active',
+            device: student.deviceModel || 'Android Device',
+            screenTime: student.screenTime || 'Active',
+            attempts: student.attempts || 0,
+          }));
+          setLiveStudents(mapped);
+        }
+      } catch (e) {
+        console.warn('FocusSync: Failed to fetch student supervision data:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const classMapping = {
-    'III CSE - A': '3rd Year - A',
-    'III CSE - B': '3rd Year - B',
-    'III CSE - C': '3rd Year - C',
-    'II CSE - A': '2nd Year - A',
-    'II CSE - B': '2nd Year - B',
-    'II CSE - C': '2nd Year - C',
-    'IV CSE - A': 'Final Year - A',
-    'IV CSE - B': 'Final Year - B',
-    'IV CSE - C': 'Final Year - C',
-  };
+    fetchLiveStatus(true);
+    const interval = setInterval(() => fetchLiveStatus(false), 10000);
+    return () => clearInterval(interval);
+  }, [staffInfo]);
 
-  const mentorClass = staffInfo.assignedClass;
-  const targetSectionKey = mentorClass ? (classMapping[mentorClass] || mentorClass) : null;
-  const sectionStudents = targetSectionKey ? (staffMockData.sections[targetSectionKey] || []) : [];
+  const mentorClass = staffInfo.assignedClass || staffInfo.classId || 'Not Assigned';
 
   // Filter students based on search and status filter
-  const filteredStudents = sectionStudents.filter((student) => {
+  const filteredStudents = liveStudents.filter((student) => {
     const matchesSearch =
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.rollNo.toLowerCase().includes(searchQuery.toLowerCase());
@@ -190,7 +210,7 @@ export const StaffStudentsTab = ({ onNavigateTab }) => {
             )}
           </View>
 
-          {sectionStudents.length === 0 ? (
+          {liveStudents.length === 0 ? (
             <View style={styles.emptyContainer}>
               <VectorIcon name="cellphone-off" size={48} color="#94A3B8" />
               <Text style={styles.emptyTitleText}>No Assigned Students</Text>
@@ -222,7 +242,7 @@ export const StaffStudentsTab = ({ onNavigateTab }) => {
                   style={[styles.filterBadge, statusFilter === 'all' && styles.filterBadgeActive]}
                 >
                   <Text style={[styles.filterBadgeText, statusFilter === 'all' && styles.filterBadgeTextActive]}>
-                    All ({sectionStudents.length})
+                    All ({liveStudents.length})
                   </Text>
                 </TouchableOpacity>
 
@@ -239,7 +259,7 @@ export const StaffStudentsTab = ({ onNavigateTab }) => {
                       statusFilter === 'active' && { color: '#16A34A', fontWeight: '700' },
                     ]}
                   >
-                    Active ({sectionStudents.filter((s) => s.status === 'active').length})
+                    Active ({liveStudents.filter((s) => s.status === 'active').length})
                   </Text>
                 </TouchableOpacity>
 
@@ -256,7 +276,7 @@ export const StaffStudentsTab = ({ onNavigateTab }) => {
                       statusFilter === 'blocked' && { color: '#DC2626', fontWeight: '700' },
                     ]}
                   >
-                    Blocked ({sectionStudents.filter((s) => s.status === 'blocked').length})
+                    Blocked ({liveStudents.filter((s) => s.status === 'blocked').length})
                   </Text>
                 </TouchableOpacity>
 
@@ -273,7 +293,7 @@ export const StaffStudentsTab = ({ onNavigateTab }) => {
                       statusFilter === 'offline' && { color: '#475569', fontWeight: '700' },
                     ]}
                   >
-                    Offline ({sectionStudents.filter((s) => s.status === 'offline').length})
+                    Offline ({liveStudents.filter((s) => s.status === 'offline').length})
                   </Text>
                 </TouchableOpacity>
               </View>

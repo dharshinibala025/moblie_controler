@@ -1,26 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
 import StaffDashboardTab from './StaffDashboardTab';
 import StaffDevicesTab from './StaffDevicesTab';
 import StaffStudentsTab from './StaffStudentsTab';
 import StaffSettingsTab from './StaffSettingsTab';
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
+import { getStoredUser } from '../../services/apiConfig';
 
 export const StaffDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [staffInfo, setStaffInfo] = useState(null);
+
+  useEffect(() => {
+    const loadStaffInfo = async () => {
+      try {
+        const user = await getStoredUser();
+        if (user) {
+          setStaffInfo(user);
+        }
+      } catch (err) {
+        console.warn('FocusSync: Failed to load staff details:', err);
+      }
+    };
+    loadStaffInfo();
+  }, []);
 
   const renderActiveScreen = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <StaffDashboardTab onNavigateTab={setActiveTab} />;
+        return <StaffDashboardTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
       case 'devices':
-        return <StaffDevicesTab onNavigateTab={setActiveTab} />;
+        return <StaffDevicesTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
       case 'students':
-        return <StaffStudentsTab onNavigateTab={setActiveTab} />;
+        return <StaffStudentsTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
       case 'settings':
-        return <StaffSettingsTab onLogout={onLogout} />;
+        return <StaffSettingsTab staffInfo={staffInfo} onLogout={onLogout} />;
       default:
-        return <StaffDashboardTab onNavigateTab={setActiveTab} />;
+        return <StaffDashboardTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
     }
   };
 

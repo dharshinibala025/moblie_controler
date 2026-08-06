@@ -61,6 +61,23 @@ class SpreadsheetService {
     const errors = [];
     const createdUsersForEmail = [];
 
+    // First, remove old student members, their devices, scanned apps, usage logs, blocked attempts, and notifications
+    const Device = require("../models/Device");
+    const ScannedApp = require("../models/ScannedApp");
+    const UsageLog = require("../models/UsageLog");
+    const BlockedAttempt = require("../models/BlockedAttempt");
+    const Notification = require("../models/Notification");
+    const oldStudentList = await User.find({ role: "student" });
+    const oldStudentIds = oldStudentList.map((s) => s._id);
+    if (oldStudentIds.length > 0) {
+      await User.deleteMany({ _id: { $in: oldStudentIds } });
+      await Device.deleteMany({ userId: { $in: oldStudentIds } });
+      await ScannedApp.deleteMany({ studentId: { $in: oldStudentIds } });
+      await UsageLog.deleteMany({ studentId: { $in: oldStudentIds } });
+      await BlockedAttempt.deleteMany({ studentId: { $in: oldStudentIds } });
+      await Notification.deleteMany({ studentId: { $in: oldStudentIds } });
+    }
+
     const defaultDept = await Department.findOne({ code: "CSE" });
     const defaultYear = await AcademicYear.findOne({ name: "1st Year" });
     const defaultSec = await Section.findOne({ name: "A" });
@@ -82,6 +99,9 @@ class SpreadsheetService {
         normalizedRow["emailid"] ||
         normalizedRow["emailaddress"] ||
         normalizedRow["mail"] ||
+        normalizedRow["domainid"] ||
+        normalizedRow["domain"] ||
+        normalizedRow["domainemail"] ||
         ""
       ).trim().toLowerCase();
 
@@ -167,25 +187,60 @@ class SpreadsheetService {
       // Resolve department / year / section
       let deptObj = defaultDept;
       if (deptName) {
-        const found = await Department.findOne({
+        let found = await Department.findOne({
           $or: [{ name: new RegExp(deptName, "i") }, { code: new RegExp(deptName, "i") }],
         });
-        if (found) deptObj = found;
+        if (!found) {
+          found = await Department.create({
+            name: deptName,
+            code: deptName.toUpperCase(),
+            institutionId: "KSRCE",
+          });
+        }
+        deptObj = found;
       }
 
       let yearObj = defaultYear;
-      if (yearName) {
-        const found = await AcademicYear.findOne({ name: new RegExp(yearName, "i") });
-        if (found) yearObj = found;
+      const targetYearName = yearName ? (yearName.toLowerCase().includes("year") ? yearName : `${yearName} Year`) : "";
+      if (targetYearName) {
+        let found = await AcademicYear.findOne({ name: new RegExp(targetYearName, "i") });
+        if (!found) {
+          found = await AcademicYear.create({
+            name: targetYearName,
+            startDate: new Date("2025-06-01"),
+            endDate: new Date("2026-04-30"),
+            institutionId: "KSRCE",
+          });
+        }
+        yearObj = found;
       }
 
       let secObj = defaultSec;
       if (secName) {
-        const found = await Section.findOne({ name: new RegExp(secName, "i") });
-        if (found) secObj = found;
+        let found = await Section.findOne({ name: new RegExp(secName, "i") });
+        if (!found) {
+          found = await Section.create({
+            name: secName.toUpperCase(),
+            departmentId: deptObj ? deptObj._id : null,
+            academicYearId: yearObj ? yearObj._id : null,
+            institutionId: "KSRCE",
+          });
+        }
+        secObj = found;
       }
 
       const classCode = deptObj && yearObj && secObj ? `${deptObj.code}-${yearObj.name.charAt(0)}-${secObj.name}` : "CSE-1-A";
+      let classroomObj = await ClassRoom.findOne({ code: classCode });
+      if (!classroomObj && deptObj && yearObj && secObj) {
+        classroomObj = await ClassRoom.create({
+          name: `${deptObj.code} ${yearObj.name} - Section ${secObj.name}`,
+          code: classCode,
+          departmentId: deptObj._id,
+          sectionId: secObj._id,
+          academicYearId: yearObj._id,
+          institutionId: "KSRCE",
+        });
+      }
 
       const newUser = await User.create({
         name,
@@ -198,7 +253,7 @@ class SpreadsheetService {
         departmentId: deptObj ? deptObj._id : null,
         academicYearId: yearObj ? yearObj._id : null,
         sectionId: secObj ? secObj._id : null,
-        classRoomId: defaultClass ? defaultClass._id : null,
+        classRoomId: classroomObj ? classroomObj._id : null,
         classId: classCode,
         mustChangePassword: true,
         passwordExpiresAt: expiryDate,
@@ -323,7 +378,21 @@ class SpreadsheetService {
     const errors = [];
     const createdUsersForEmail = [];
 
+    // First, remove old staff members, their assignments, and their devices
+    const StaffAssignment = require("../models/StaffAssignment");
+    const Device = require("../models/Device");
+    const oldStaffList = await User.find({ role: "staff" });
+    const oldStaffIds = oldStaffList.map((s) => s._id);
+    if (oldStaffIds.length > 0) {
+      await User.deleteMany({ _id: { $in: oldStaffIds } });
+      await StaffAssignment.deleteMany({ staffId: { $in: oldStaffIds } });
+      await Device.deleteMany({ userId: { $in: oldStaffIds } });
+    }
+
     const defaultDept = await Department.findOne({ code: "CSE" });
+    const defaultYear = await AcademicYear.findOne({ name: "1st Year" });
+    const defaultSec = await Section.findOne({ name: "A" });
+    const defaultClass = await ClassRoom.findOne({ code: "CSE-1-A" });
 
     for (let index = 0; index < rawRows.length; index++) {
       const row = rawRows[index];
@@ -356,6 +425,9 @@ class SpreadsheetService {
         normalizedRow["emailid"] ||
         normalizedRow["emailaddress"] ||
         normalizedRow["mail"] ||
+        normalizedRow["domainid"] ||
+        normalizedRow["domain"] ||
+        normalizedRow["domainemail"] ||
         ""
       ).trim().toLowerCase();
 
@@ -363,6 +435,20 @@ class SpreadsheetService {
         normalizedRow["department"] ||
         normalizedRow["dept"] ||
         normalizedRow["branch"] ||
+        ""
+      ).trim();
+
+      const yearName = String(
+        normalizedRow["year"] ||
+        normalizedRow["academicyear"] ||
+        normalizedRow["batch"] ||
+        ""
+      ).trim();
+
+      const secName = String(
+        normalizedRow["assignedsection"] ||
+        normalizedRow["section"] ||
+        normalizedRow["sec"] ||
         ""
       ).trim();
 
@@ -392,29 +478,92 @@ class SpreadsheetService {
 
       let deptObj = defaultDept;
       if (deptName) {
-        const found = await Department.findOne({
+        let found = await Department.findOne({
           $or: [{ name: new RegExp(deptName, "i") }, { code: new RegExp(deptName, "i") }],
         });
-        if (found) deptObj = found;
+        if (!found) {
+          found = await Department.create({
+            name: deptName,
+            code: deptName.toUpperCase(),
+            institutionId: "KSRCE",
+          });
+        }
+        deptObj = found;
+      }
+
+      let yearObj = defaultYear;
+      const targetYearName = yearName ? (yearName.toLowerCase().includes("year") ? yearName : `${yearName} Year`) : "";
+      if (targetYearName) {
+        let found = await AcademicYear.findOne({ name: new RegExp(targetYearName, "i") });
+        if (!found) {
+          found = await AcademicYear.create({
+            name: targetYearName,
+            startDate: new Date("2025-06-01"),
+            endDate: new Date("2026-04-30"),
+            institutionId: "KSRCE",
+          });
+        }
+        yearObj = found;
+      }
+
+      let secObj = defaultSec;
+      if (secName) {
+        let found = await Section.findOne({ name: new RegExp(secName, "i") });
+        if (!found) {
+          found = await Section.create({
+            name: secName.toUpperCase(),
+            departmentId: deptObj ? deptObj._id : null,
+            academicYearId: yearObj ? yearObj._id : null,
+            institutionId: "KSRCE",
+          });
+        }
+        secObj = found;
+      }
+
+      const classCode = deptObj && yearObj && secObj ? `${deptObj.code}-${yearObj.name.charAt(0)}-${secObj.name}` : "CSE-1-A";
+      let classroomObj = await ClassRoom.findOne({ code: classCode });
+      if (!classroomObj && deptObj && yearObj && secObj) {
+        classroomObj = await ClassRoom.create({
+          name: `${deptObj.code} ${yearObj.name} - Section ${secObj.name}`,
+          code: classCode,
+          departmentId: deptObj._id,
+          sectionId: secObj._id,
+          academicYearId: yearObj._id,
+          institutionId: "KSRCE",
+        });
       }
 
       const randomSuffix = crypto.randomBytes(3).toString("hex").toUpperCase().slice(0, 5);
       const tempPassword = `STF-${randomSuffix}`;
-      const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
       const newStaff = await User.create({
         name,
         email,
         employeeId,
-        password: hashedPassword,
+        password: tempPassword,
         role: "staff",
         institutionId: "KSRCE",
         departmentId: deptObj ? deptObj._id : null,
-        classId: "CSE-1-A",
+        classRoomId: classroomObj ? classroomObj._id : null,
+        classId: classCode,
         mustChangePassword: true,
         passwordExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         active: true,
       });
+
+      if (classroomObj) {
+        await StaffAssignment.findOneAndUpdate(
+          { staffId: newStaff._id, classId: classroomObj._id },
+          {
+            staffId: newStaff._id,
+            classId: classroomObj._id,
+            institutionId: "KSRCE",
+            assignedBy: uploadedByUserId || newStaff._id,
+            isActive: true,
+          },
+          { upsert: true, new: true }
+        );
+      }
 
       createdCount++;
       createdUsersForEmail.push({
