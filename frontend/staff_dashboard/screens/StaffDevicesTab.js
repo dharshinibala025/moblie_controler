@@ -32,16 +32,106 @@ const SUPPORTED_APPS = [
   'PUBG',
 ];
 
-export const StaffDevicesTab = ({ onNavigateTab }) => {
-  const staffInfo = staffMockData.staff;
-  const mentorClass = staffInfo.assignedClass || 'Not Assigned';
+const APP_PACKAGE_MAPPING = {
+  'Instagram': 'com.instagram.android',
+  'Facebook': 'com.facebook.katana',
+  'WhatsApp': 'com.whatsapp',
+  'Telegram': 'org.telegram.messenger',
+  'Snapchat': 'com.snapchat.android',
+  'Discord': 'com.discord',
+  'Twitter (X)': 'com.twitter.android',
+  'YouTube': 'com.google.android.youtube',
+  'Netflix': 'com.netflix.mediaclient',
+  'Prime Video': 'com.amazon.avod.thirdpartyclient',
+  'BGMI': 'com.pubg.imobile',
+  'Free Fire': 'com.dts.freefireth',
+  'PUBG': 'com.tencent.ig',
+};
+
+const mapAppNameToPackage = (appName) => {
+  return APP_PACKAGE_MAPPING[appName] || appName.toLowerCase();
+};
+
+const mapPackageToAppName = (pkgName) => {
+  const entry = Object.entries(APP_PACKAGE_MAPPING).find(([name, pkg]) => pkg === pkgName);
+  return entry ? entry[0] : pkgName;
+};
+
+const parseTo24Hour = (timeStr) => {
+  if (!timeStr) return '09:00';
+  const clean = timeStr.trim().toUpperCase();
+  const match = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+  if (!match) return '09:00';
+  let [_, hoursStr, minutesStr, ampm] = match;
+  let hours = parseInt(hoursStr, 10);
+  if (ampm === 'PM' && hours < 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  return `${hours.toString().padStart(2, '0')}:${minutesStr}`;
+};
+
+const formatTo12Hour = (timeStr) => {
+  if (!timeStr) return '09:00 AM';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return '09:00 AM';
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+};
+
+export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
+  const staffInfo = propStaffInfo || staffMockData.staff;
+  const mentorClass = staffInfo.assignedClass || staffInfo.classId || 'Not Assigned';
 
   // State
   const [selectedApps, setSelectedApps] = useState(['Instagram', 'WhatsApp', 'Snapchat', 'BGMI', 'PUBG']);
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('04:00 PM');
-  const [restrictionStatus, setRestrictionStatus] = useState('ACTIVE'); // 'IDLE' | 'ACTIVE' | 'PAUSED'
+  const [restrictionStatus, setRestrictionStatus] = useState('IDLE'); // 'IDLE' | 'ACTIVE' | 'PAUSED'
   const [currentTime, setCurrentTime] = useState('');
+  const [activeRule, setActiveRule] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load rules on mount
+  useEffect(() => {
+    const fetchRule = async () => {
+      const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+      if (!classIdToQuery) return;
+      try {
+        const staffService = require('../../services/staffService').default;
+        const rules = await staffService.fetchClassRules(classIdToQuery);
+        if (rules && rules.length > 0) {
+          // Find most recent rule
+          const rule = rules[0];
+          setActiveRule(rule);
+
+          setStartTime(formatTo12Hour(rule.scheduleStart));
+          setEndTime(formatTo12Hour(rule.scheduleEnd));
+
+          const resolvedApps = (rule.blockedApps || []).map(pkg => mapPackageToAppName(pkg));
+          setSelectedApps(resolvedApps);
+
+          if (rule.status === 'active') {
+            setRestrictionStatus('ACTIVE');
+          } else if (rule.status === 'paused') {
+            setRestrictionStatus('PAUSED');
+          } else {
+            setRestrictionStatus('IDLE');
+          }
+        } else {
+          setRestrictionStatus('IDLE');
+        }
+      } catch (err) {
+        console.warn('FocusSync: Failed to load class rules:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRule();
+  }, [staffInfo]);
 
   // Clock Update
   useEffect(() => {
@@ -94,31 +184,107 @@ export const StaffDevicesTab = ({ onNavigateTab }) => {
   };
 
   // Restriction actions
-  const handleApplyRestriction = () => {
+  const handleApplyRestriction = async () => {
     if (selectedApps.length === 0) {
       Alert.alert('No Apps Selected', 'Please select at least one app to block.');
       return;
     }
-    setRestrictionStatus('ACTIVE');
-    Alert.alert(
-      'Restriction Applied',
-      `Restriction successfully applied to your class!\n\nClass: ${mentorClass}\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
-    );
+
+    const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+    if (!classIdToQuery) {
+      Alert.alert('Scope Error', 'No assigned class found.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const staffService = require('../../services/staffService').default;
+      
+      const payload = {
+        blockedApps: selectedApps.map(app => mapAppNameToPackage(app)),
+        scheduleStart: parseTo24Hour(startTime),
+        scheduleEnd: parseTo24Hour(endTime),
+        activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        reason: `Study Hours Policy restriction`,
+        status: 'active',
+      };
+
+      let ruleResult;
+      if (activeRule) {
+        ruleResult = await staffService.updateClassRule(classIdToQuery, activeRule._id, payload);
+      } else {
+        ruleResult = await staffService.createClassRule(classIdToQuery, payload);
+      }
+
+      // Explicitly send start command to trigger real-time dispatch (Socket/FCM)
+      await staffService.sendClassRuleCommand(classIdToQuery, ruleResult._id, 'start');
+
+      setActiveRule(ruleResult);
+      setRestrictionStatus('ACTIVE');
+
+      Alert.alert(
+        'Restriction Applied',
+        `Restriction successfully applied to your class!\n\nClass: ${mentorClass}\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
+      );
+    } catch (err) {
+      Alert.alert('Apply Failed', err.message || 'An error occurred.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePauseRestriction = () => {
-    setRestrictionStatus('PAUSED');
-    Alert.alert('Restriction Paused', 'Mobile restriction policy has been temporarily paused for your class.');
+  const handlePauseRestriction = async () => {
+    const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+    if (!classIdToQuery || !activeRule) return;
+
+    setLoading(true);
+    try {
+      const staffService = require('../../services/staffService').default;
+      const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'pause');
+      setActiveRule(ruleResult);
+      setRestrictionStatus('PAUSED');
+      Alert.alert('Restriction Paused', 'Mobile restriction policy has been temporarily paused for your class.');
+    } catch (err) {
+      Alert.alert('Pause Failed', err.message || 'An error occurred.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResumeRestriction = () => {
-    setRestrictionStatus('ACTIVE');
-    Alert.alert('Restriction Resumed', 'Mobile restriction policy is now active for your class.');
+  const handleResumeRestriction = async () => {
+    const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+    if (!classIdToQuery || !activeRule) return;
+
+    setLoading(true);
+    try {
+      const staffService = require('../../services/staffService').default;
+      const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'start');
+      setActiveRule(ruleResult);
+      setRestrictionStatus('ACTIVE');
+      Alert.alert('Restriction Resumed', 'Mobile restriction policy is now active for your class.');
+    } catch (err) {
+      Alert.alert('Resume Failed', err.message || 'An error occurred.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRemoveRestriction = () => {
-    setRestrictionStatus('IDLE');
-    Alert.alert('Restriction Removed', 'All restriction policies have been removed for your class.');
+  const handleRemoveRestriction = async () => {
+    const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+    if (!classIdToQuery || !activeRule) return;
+
+    setLoading(true);
+    try {
+      const staffService = require('../../services/staffService').default;
+      const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'stop');
+      setActiveRule(ruleResult);
+      setRestrictionStatus('IDLE');
+      Alert.alert('Restriction Removed', 'All restriction policies have been removed for your class.');
+    } catch (err) {
+      Alert.alert('Remove Failed', err.message || 'An error occurred.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEmergencyUnblock = () => {
@@ -130,12 +296,25 @@ export const StaffDevicesTab = ({ onNavigateTab }) => {
         {
           text: 'Emergency Unblock',
           style: 'destructive',
-          onPress: () => {
-            setRestrictionStatus('IDLE');
-            Alert.alert(
-              'Emergency Unblock Executed',
-              `All mobile restrictions lifted immediately for ${mentorClass}.`,
-            );
+          onPress: async () => {
+            const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+            if (!classIdToQuery || !activeRule) return;
+
+            setLoading(true);
+            try {
+              const staffService = require('../../services/staffService').default;
+              const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'stop');
+              setActiveRule(ruleResult);
+              setRestrictionStatus('IDLE');
+              Alert.alert(
+                'Emergency Unblock Executed',
+                `All mobile restrictions lifted immediately for ${mentorClass}.`,
+              );
+            } catch (err) {
+              Alert.alert('Unblock Failed', err.message || 'An error occurred.');
+            } finally {
+              setLoading(false);
+            }
           },
         },
       ],

@@ -7,8 +7,16 @@ import StaffHeader from '../components/StaffHeader';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
-export const StaffDashboardTab = ({ onNavigateTab }) => {
+export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
+  const staffInfo = propStaffInfo || staffMockData.staff;
   const [currentTime, setCurrentTime] = useState('');
+  const [liveStudents, setLiveStudents] = useState([]);
+  const [totalStudents, setTotalStudents] = useState(0);
+  const [onlineStudents, setOnlineStudents] = useState(0);
+  const [blockedStudents, setBlockedStudents] = useState(0);
+  const [unblockedStudents, setUnblockedStudents] = useState(0);
+  const [warningCount, setWarningCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   // Clock Update
   useEffect(() => {
@@ -43,32 +51,51 @@ export const StaffDashboardTab = ({ onNavigateTab }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const staffInfo = staffMockData.staff;
+  // Fetch live class status from backend
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStatus = async () => {
+      const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+      if (!classIdToQuery) return;
 
-  const classMapping = {
-    'III CSE - A': '3rd Year - A',
-    'III CSE - B': '3rd Year - B',
-    'III CSE - C': '3rd Year - C',
-    'II CSE - A': '2nd Year - A',
-    'II CSE - B': '2nd Year - B',
-    'II CSE - C': '2nd Year - C',
-    'IV CSE - A': 'Final Year - A',
-    'IV CSE - B': 'Final Year - B',
-    'IV CSE - C': 'Final Year - C',
-  };
+      try {
+        const staffService = require('../../services/staffService').default;
+        const data = await staffService.fetchClassLiveStatus(classIdToQuery);
+        if (isMounted && data) {
+          const students = data.students || [];
+          setLiveStudents(students);
+          setTotalStudents(data.totalStudents || students.length);
+          setOnlineStudents(data.onlineStudents || students.filter(s => s.isOnline).length);
 
-  const mentorClass = staffInfo.assignedClass;
-  const targetSectionKey = mentorClass ? (classMapping[mentorClass] || mentorClass) : null;
-  const sectionStudents = targetSectionKey ? (staffMockData.sections[targetSectionKey] || []) : [];
+          const blocked = students.filter(s => s.deviceStatus === 'blocked').length;
+          setBlockedStudents(blocked);
 
-  // Calculate Mentor Class Statistics
-  const totalStudents = sectionStudents.length;
-  const blockedStudents = sectionStudents.filter((s) => s.status === 'blocked').length;
-  const unblockedStudents = sectionStudents.filter((s) => s.status === 'active' || s.status === 'offline').length;
-  const warningCount = sectionStudents.reduce((sum, s) => sum + (s.attempts || 0), 0);
+          const unblocked = students.filter(s => s.deviceStatus === 'online' || s.deviceStatus === 'active').length;
+          setUnblockedStudents(unblocked);
+
+          const warnings = students.reduce((sum, s) => sum + (s.attempts || 0), 0);
+          setWarningCount(warnings);
+        }
+      } catch (err) {
+        console.warn('FocusSync: Failed to load class live status:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchStatus();
+    const pollInterval = setInterval(fetchStatus, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+    };
+  }, [staffInfo]);
+
+  const mentorClass = staffInfo.assignedClass || staffInfo.classId || 'Not Assigned';
 
   // Sort students alphabetically by name
-  const sortedStudents = [...sectionStudents].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedStudents = [...liveStudents].sort((a, b) => a.name.localeCompare(b.name));
 
   // Helper to format assigned class name (e.g. "III CSE - A" -> "3rd Year CSE - Section A")
   const formatClassDisplay = (assignedClass) => {
@@ -97,7 +124,7 @@ export const StaffDashboardTab = ({ onNavigateTab }) => {
   };
 
   const renderStudentItem = ({ item, index }) => {
-    const isBlocked = item.status === 'blocked';
+    const isBlocked = item.deviceStatus === 'blocked';
     return (
       <View style={styles.studentItem}>
         <View style={styles.indexContainer}>
@@ -105,16 +132,16 @@ export const StaffDashboardTab = ({ onNavigateTab }) => {
         </View>
         <View style={styles.studentInfo}>
           <Text style={styles.studentName}>{item.name}</Text>
-          <Text style={styles.studentRoll}>{item.rollNo}</Text>
+          <Text style={styles.studentRoll}>{item.rollNo || item.email}</Text>
         </View>
         <View
           style={[
             styles.statusBadge,
-            { backgroundColor: isBlocked ? '#FEE2E2' : '#DCFCE7' },
+            { backgroundColor: isBlocked ? '#FEE2E2' : item.deviceStatus === 'offline' ? '#F1F5F9' : '#DCFCE7' },
           ]}
         >
-          <Text style={[styles.statusText, { color: isBlocked ? '#EF4444' : '#16A34A' }]}>
-            {isBlocked ? 'Blocked' : 'Unblocked'}
+          <Text style={[styles.statusText, { color: isBlocked ? '#EF4444' : item.deviceStatus === 'offline' ? '#64748B' : '#16A34A' }]}>
+            {isBlocked ? 'Blocked' : item.deviceStatus === 'offline' ? 'Offline' : 'Unblocked'}
           </Text>
         </View>
       </View>
@@ -123,7 +150,7 @@ export const StaffDashboardTab = ({ onNavigateTab }) => {
 
   return (
     <View style={styles.container}>
-      <StaffHeader onNavigateTab={onNavigateTab} />
+      <StaffHeader staffInfo={staffInfo} onNavigateTab={onNavigateTab} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Mentor Title (Flat layout, no card background) */}
@@ -132,7 +159,7 @@ export const StaffDashboardTab = ({ onNavigateTab }) => {
             <Text style={styles.welcomeLabel}>CLASS MENTOR CONSOLE</Text>
             <Text style={styles.classNameText}>{formatClassDisplay(mentorClass)}</Text>
             <Text style={styles.staffMetaText}>
-              Mentor: {staffInfo.name}  •  Dept: {staffInfo.department}
+              Mentor: {staffInfo.name}  •  Dept: {typeof staffInfo.department === 'string' ? staffInfo.department : (staffInfo.department?.name || 'Computer Science Engineering')}
             </Text>
             {currentTime ? (
               <Text style={styles.clockBannerText}>{currentTime}</Text>
@@ -215,7 +242,7 @@ export const StaffDashboardTab = ({ onNavigateTab }) => {
           <Text style={styles.listTitleText}>My Class Student Directory</Text>
           <Text style={styles.listSubtitleText}>Class students listed in alphabetical order.</Text>
 
-          {sectionStudents.length === 0 ? (
+          {liveStudents.length === 0 ? (
             <View style={styles.emptyContainer}>
               <VectorIcon name="account-off" size={48} color="#94A3B8" />
               <Text style={styles.emptyTitleText}>No Assigned Students</Text>
@@ -225,7 +252,7 @@ export const StaffDashboardTab = ({ onNavigateTab }) => {
             <FlatList
               data={sortedStudents}
               renderItem={renderStudentItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.studentId || item.email}
               scrollEnabled={false}
               ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
               style={styles.flatList}

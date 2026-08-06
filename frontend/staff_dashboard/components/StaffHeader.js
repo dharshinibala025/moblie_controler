@@ -5,8 +5,8 @@ import staffMockData from '../data/staffMockData';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 12;
 
-export const StaffHeader = ({ onNavigateTab }) => {
-  const staffInfo = staffMockData.staff;
+export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
+  const staffInfo = propStaffInfo || staffMockData.staff;
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -28,7 +28,9 @@ export const StaffHeader = ({ onNavigateTab }) => {
         <View style={styles.textGroup}>
           <Text style={styles.greetingText}>{getGreeting()}</Text>
           <Text style={styles.staffNameText}>{staffInfo.name}</Text>
-          <Text style={styles.departmentText}>{staffInfo.department}</Text>
+          <Text style={styles.departmentText}>
+            {typeof staffInfo.department === 'string' ? staffInfo.department : (staffInfo.department?.name || 'Computer Science Engineering')}
+          </Text>
         </View>
       </View>
 
