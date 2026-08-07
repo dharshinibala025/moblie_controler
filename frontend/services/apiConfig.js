@@ -7,8 +7,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-// Base URL for Android Emulator & Backend access:
-export const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+// Base URL — physical device via adb reverse (localhost:5000), emulator uses 10.0.2.2:
+export const BASE_URL = Platform.OS === 'android' ? 'http://localhost:5000' : 'http://localhost:5000';
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 export const STORAGE_KEYS = {
