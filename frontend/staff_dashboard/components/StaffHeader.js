@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, Platform, StatusBar } 
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import staffMockData from '../data/staffMockData';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 12;
+const STATUSBAR_OFFSET = 12;
 
 export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
   const staffInfo = propStaffInfo || staffMockData.staff;
@@ -28,9 +28,13 @@ export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
         <View style={styles.textGroup}>
           <Text style={styles.greetingText}>{getGreeting()}</Text>
           <Text style={styles.staffNameText}>{staffInfo.name}</Text>
+<<<<<<< HEAD
           <Text style={styles.departmentText}>
             {typeof staffInfo.department === 'string' ? staffInfo.department : (staffInfo.department?.name || 'Computer Science Engineering')}
           </Text>
+=======
+          <Text style={styles.departmentText}>{staffInfo.departmentShort || 'CSE Department'}</Text>
+>>>>>>> 50294ee (updated staff dashboard)
         </View>
       </View>
 

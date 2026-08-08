@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import StaffDashboardTab from './StaffDashboardTab';
 import StaffDevicesTab from './StaffDevicesTab';
 import StaffStudentsTab from './StaffStudentsTab';
@@ -41,13 +42,13 @@ export const StaffDashboardScreen = ({ onLogout }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.screenContainer}>
         {renderActiveScreen()}
       </View>
       <StaffBottomNavBar activeTab={activeTab} onSelectTab={setActiveTab} />
-    </View>
+    </SafeAreaView>
   );
 };
 

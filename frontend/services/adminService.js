@@ -103,11 +103,23 @@ class AdminService {
     });
   }
 
+<<<<<<< HEAD
   async applyRestrictionPolicy(policyData) {
     return await apiFetch('/admin/rules', {
       method: 'POST',
       body: JSON.stringify(policyData),
     });
+=======
+  async deleteActivity(activityId) {
+    try {
+      return await apiFetch(`/admin/activity/${activityId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.warn('Delete activity API fallback:', error.message);
+      return null;
+    }
+>>>>>>> 50294ee (updated staff dashboard)
   }
 }
 
