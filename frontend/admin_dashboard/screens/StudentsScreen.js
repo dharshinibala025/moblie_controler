@@ -25,21 +25,6 @@ import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 import { getSectionOptions } from '../config/sectionsConfig';
 
-const INITIAL_STUDENTS = [
-  {
-    id: 's1',
-    name: 'Dharani V V',
-    registerNumber: '221CS001',
-    email: 'vvdharani57cse24_27@ksrce.ac.in',
-    department: 'CSE',
-    year: '1st Year',
-    section: 'A',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: true,
-  },
-];
-
 const getInitials = (name) =>
   name
     ? name
@@ -51,7 +36,7 @@ const getInitials = (name) =>
     : 'ST';
 
 const StudentsScreen = () => {
-  const [students, setStudents] = useState(INITIAL_STUDENTS);
+  const [students, setStudents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept] = useState('CSE');
   const [selectedYear, setSelectedYear] = useState('All');
@@ -87,13 +72,13 @@ const StudentsScreen = () => {
 
   const loadStudents = async () => {
     const data = await adminService.getStudents();
-    if (data && data.length > 0) {
-      setStudents(data);
-    }
+    setStudents(data || []);
   };
 
   useEffect(() => {
     loadStudents();
+    const interval = setInterval(loadStudents, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const yearDropdownOptions = useMemo(
@@ -236,20 +221,69 @@ const StudentsScreen = () => {
     Alert.alert('Download Excel Template', 'Student_Import_Template.xlsx downloaded successfully.');
   };
 
-  const handleUploadExcelPress = async () => {
+  const handleUploadExcelPress = async (droppedBase64, droppedName) => {
     try {
-      let pickResult = null;
+      let fileBase64 = typeof droppedBase64 === 'string' ? droppedBase64 : null;
+      let fileName = typeof droppedName === 'string' ? droppedName : 'student_roster.xlsx';
 
-      // Safely check if native RNDocumentPicker module exists in compiled binary
-      if (NativeModules && NativeModules.RNDocumentPicker) {
+      if (!fileBase64 && typeof document !== 'undefined' && document.createElement) {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.xlsx, .xls, .csv';
+
+        const fileSelectedPromise = new Promise((resolve) => {
+          fileInput.onchange = (e) => {
+            const file = e.target?.files?.[0];
+            if (!file) {
+              resolve(null);
+              return;
+            }
+            fileName = file.name;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              const arrayBuffer = evt.target.result;
+              const bytes = new Uint8Array(arrayBuffer);
+              let binary = '';
+              for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+              }
+              const base64 = typeof global.btoa === 'function' ? global.btoa(binary) : null;
+              resolve(base64);
+            };
+            reader.readAsArrayBuffer(file);
+          };
+        });
+
+        fileInput.click();
+        fileBase64 = await fileSelectedPromise;
+      }
+
+      // Native Mobile File Picker via @react-native-documents/picker
+      if (!fileBase64) {
         try {
-          const DocumentPicker = require('react-native-document-picker');
-          pickResult = await DocumentPicker.pickSingle({
-            type: [DocumentPicker.types.allFiles],
+          const { pick, types } = require('@react-native-documents/picker');
+          const [pickResult] = await pick({
+            type: [types.allFiles],
           });
+
+          if (pickResult && pickResult.uri) {
+            fileName = pickResult.name || 'student_roster.xlsx';
+            const blobRes = await fetch(pickResult.uri);
+            const blob = await blobRes.blob();
+
+            fileBase64 = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64 = reader.result ? reader.result.split(',')[1] : null;
+                resolve(base64);
+              };
+              reader.onerror = () => resolve(null);
+              reader.readAsDataURL(blob);
+            });
+          }
         } catch (pickerErr) {
           if (
-            pickerErr?.message?.toLowerCase().includes('canceled') ||
+            pickerErr?.message?.toLowerCase().includes('cancel') ||
             pickerErr?.code === 'DOCUMENT_PICKER_CANCELED'
           ) {
             return; // Silent return on user cancellation
@@ -257,11 +291,8 @@ const StudentsScreen = () => {
         }
       }
 
-      // Convert selected file or send payload to backend
-      const fileBase64 = pickResult?.content || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
-      const fileName = pickResult?.name || 'student_roster.xlsx';
-
-      const res = await adminService.uploadStudentSpreadsheet(fileBase64, fileName);
+      const payload = fileBase64 || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
+      const res = await adminService.uploadStudentSpreadsheet(payload, fileName);
 
       Alert.alert(
         '📊 Import Summary Report',

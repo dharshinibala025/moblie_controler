@@ -7,10 +7,7 @@ import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswo
 import StudentDashboardScreen from './frontend/student_dashboard/screens/StudentDashboardScreen';
 import StaffDashboardScreen from './frontend/staff_dashboard/screens/StaffDashboardScreen';
 import AdminPanel from './frontend/admin_dashboard/AdminPanel';
-import { getStaffProfile } from './frontend/staff_dashboard/data/staffMockData';
 
-type Screen = 'welcome' | 'login' | 'set_password' | 'dashboard';
-type Role = 'student' | 'staff' | 'admin';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('welcome');

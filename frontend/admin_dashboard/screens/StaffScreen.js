@@ -25,20 +25,6 @@ import { spacing, radius, softShadow } from '../styles/globalStyles';
 
 const ADVISORS = ['All', 'CA1', 'CA2', 'CA3'];
 
-const INITIAL_STAFF = [
-  {
-    id: 't1',
-    name: 'Class Staff',
-    staffId: 'STF001',
-    email: 'staff1@ksrce.ac.in',
-    department: 'Computer Science',
-    assignedAdvisor: 'CA1',
-    accountStatus: 'Active',
-    isBlocked: false,
-    mustChangePassword: true,
-  },
-];
-
 const getInitials = (name) =>
   name
     ? name
@@ -50,7 +36,7 @@ const getInitials = (name) =>
     : 'ST';
 
 const StaffScreen = () => {
-  const [staff, setStaff] = useState(INITIAL_STAFF);
+  const [staff, setStaff] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept] = useState('All');
   const [selectedAdvisor, setSelectedAdvisor] = useState('All');
@@ -71,19 +57,20 @@ const StaffScreen = () => {
   const [newStaffData, setNewStaffData] = useState({
     name: '',
     email: '',
+    staffId: '',
     department: 'Computer Science',
     assignedAdvisor: 'CA1',
   });
 
   const loadStaff = async () => {
     const data = await adminService.getStaff();
-    if (data && data.length > 0) {
-      setStaff(data);
-    }
+    setStaff(data || []);
   };
 
   useEffect(() => {
     loadStaff();
+    const interval = setInterval(loadStaff, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const filteredStaff = useMemo(() => {
@@ -195,34 +182,96 @@ const StaffScreen = () => {
     );
   };
 
-  const handleUploadExcelPress = async () => {
-    Alert.alert(
-      'Import Staff Spreadsheet',
-      'Upload staff `.xlsx` spreadsheet to bulk add faculty records and send welcome credentials.',
-      [
-        {
-          text: 'Process Staff Roster',
-          onPress: async () => {
-            try {
-              const res = await adminService.uploadStaffSpreadsheet("UEsDBBQABgAIAAAAIQAAAAAAAAA=", 'staff.xlsx');
-              const createdCount = res?.createdCount || res?.totalRows || 0;
-              Alert.alert(
-                'Import Completed Successfully',
-                `Processed ${createdCount} staff record(s) from spreadsheet.\n\n` +
-                `• Created staff accounts in database\n` +
-                `• Generated secure temporary passwords\n` +
-                `• Dispatched credential emails to staff inbox`,
-              );
-              await loadStaff();
-            } catch (err) {
-              Alert.alert('Import Completed', 'Staff roster processed and staff list updated.');
-              await loadStaff();
+  const handleUploadExcelPress = async (droppedBase64, droppedName) => {
+    try {
+      let fileBase64 = typeof droppedBase64 === 'string' ? droppedBase64 : null;
+      let fileName = typeof droppedName === 'string' ? droppedName : 'staff_roster.xlsx';
+
+      if (!fileBase64 && typeof document !== 'undefined' && document.createElement) {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.xlsx, .xls, .csv';
+
+        const fileSelectedPromise = new Promise((resolve) => {
+          fileInput.onchange = (e) => {
+            const file = e.target?.files?.[0];
+            if (!file) {
+              resolve(null);
+              return;
             }
-          },
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-    );
+            fileName = file.name;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              const arrayBuffer = evt.target.result;
+              const bytes = new Uint8Array(arrayBuffer);
+              let binary = '';
+              for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+              }
+              const base64 = typeof global.btoa === 'function' ? global.btoa(binary) : null;
+              resolve(base64);
+            };
+            reader.readAsArrayBuffer(file);
+          };
+        });
+
+        fileInput.click();
+        fileBase64 = await fileSelectedPromise;
+      }
+
+      // Native Mobile File Picker via @react-native-documents/picker
+      if (!fileBase64) {
+        try {
+          const { pick, types } = require('@react-native-documents/picker');
+          const [pickResult] = await pick({
+            type: [types.allFiles],
+          });
+
+          if (pickResult && pickResult.uri) {
+            fileName = pickResult.name || 'staff_roster.xlsx';
+            const blobRes = await fetch(pickResult.uri);
+            const blob = await blobRes.blob();
+
+            fileBase64 = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64 = reader.result ? reader.result.split(',')[1] : null;
+                resolve(base64);
+              };
+              reader.onerror = () => resolve(null);
+              reader.readAsDataURL(blob);
+            });
+          }
+        } catch (pickerErr) {
+          if (
+            pickerErr?.message?.toLowerCase().includes('cancel') ||
+            pickerErr?.code === 'DOCUMENT_PICKER_CANCELED'
+          ) {
+            return; // Silent return on user cancellation
+          }
+        }
+      }
+
+      const payload = fileBase64 || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
+      const res = await adminService.uploadStaffSpreadsheet(payload, fileName);
+      
+      const firstError = res?.errors && res.errors.length > 0 ? res.errors[0].reason : null;
+      const errorSuffix = firstError ? `\n\nNote: ${firstError}` : '';
+
+      Alert.alert(
+        '📊 Import Summary Report',
+        `• Total Records: ${res?.totalRecords || 0}\n` +
+        `• Successfully Imported: ${res?.createdCount || 0}\n` +
+        `• Duplicate Records Ignored: ${res?.duplicateCount || 0}\n` +
+        `• Failed Records: ${res?.failedCount || 0}\n` +
+        `• Emails Sent Successfully: ${res?.emailSentCount || 0}\n` +
+        `• Email Failures: ${res?.emailFailedCount || 0}${errorSuffix}`,
+      );
+      await loadStaff();
+    } catch (err) {
+      Alert.alert('Upload Notice', err.message || 'Please select a valid staff Excel file (.xlsx or .csv) from device storage.');
+      await loadStaff();
+    }
   };
 
   return (

@@ -6,20 +6,37 @@ const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 class ClassService {
   async getClassLiveStatus(classId) {
-    const students = await User.find({
-      classId,
-      role: "student",
-    }).select("name email");
+    const mongoose = require("mongoose");
+    const query = { role: "student" };
+    if (mongoose.Types.ObjectId.isValid(classId)) {
+      query.$or = [{ classRoomId: classId }, { classId: classId }];
+    } else {
+      query.classId = classId;
+    }
+
+    const students = await User.find(query).select("name email studentId");
 
     const studentIds = students.map((s) => s._id);
 
     const devices = await Device.find({
       userId: { $in: studentIds },
-    }).select("userId status lastSyncAt fcmToken");
+    }).select("userId status lastSyncAt fcmToken deviceModel screenTime");
 
     const deviceMap = new Map(
       devices.map((d) => [d.userId.toString(), d])
     );
+
+    const BlockedAttempt = require("../models/BlockedAttempt");
+
+    // Fetch attempts count for each student in a single aggregation query
+    const attemptsMap = new Map();
+    const attemptsData = await BlockedAttempt.aggregate([
+      { $match: { studentId: { $in: studentIds } } },
+      { $group: { _id: "$studentId", count: { $sum: 1 } } }
+    ]);
+    attemptsData.forEach((item) => {
+      attemptsMap.set(item._id.toString(), item.count);
+    });
 
     const liveData = students.map((student) => {
       const device = deviceMap.get(student._id.toString());
@@ -27,11 +44,15 @@ class ClassService {
         studentId: student._id,
         name: student.name,
         email: student.email,
+        rollNo: student.studentId || "",
         isOnline: device && device.lastSyncAt
           ? (Date.now() - new Date(device.lastSyncAt).getTime()) < ONLINE_THRESHOLD_MS
           : false,
         lastSyncAt: device ? device.lastSyncAt : null,
         deviceStatus: device ? device.status : "unknown",
+        deviceModel: device ? (device.deviceInfo?.deviceModel || device.status) : "None",
+        screenTime: device ? (device.status === 'blocked' ? "Blocked" : "Active") : "Offline", // Screen time placeholder or derived
+        attempts: attemptsMap.get(student._id.toString()) || 0,
       };
     });
 
@@ -45,10 +66,14 @@ class ClassService {
 
   async resolveStudentForClass(classId, studentId) {
     if (studentId) return studentId;
-    const student = await User.findOne({
-      classId,
-      role: "student",
-    }).select("_id");
+    const mongoose = require("mongoose");
+    const query = { role: "student" };
+    if (mongoose.Types.ObjectId.isValid(classId)) {
+      query.$or = [{ classRoomId: classId }, { classId: classId }];
+    } else {
+      query.classId = classId;
+    }
+    const student = await User.findOne(query).select("_id");
     return student ? student._id : null;
   }
 

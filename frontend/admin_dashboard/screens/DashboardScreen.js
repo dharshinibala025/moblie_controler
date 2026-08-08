@@ -29,30 +29,30 @@ const INITIAL_STATS = [
     id: 'total-students',
     icon: 'school',
     label: 'Total Students',
-    value: '12',
+    value: '0',
     iconColor: colors.primaryBlue,
     iconBackground: colors.secondaryBackground,
-    trend: '+4.2%',
+    trend: '0%',
     trendPositive: true,
   },
   {
     id: 'total-staff',
     icon: 'groups',
     label: 'Total Staff',
-    value: '1',
+    value: '0',
     iconColor: colors.skyBlue,
     iconBackground: colors.secondaryBackground,
-    trend: '+1.1%',
+    trend: '0%',
     trendPositive: true,
   },
   {
     id: 'connected-phones',
     icon: 'smartphone',
     label: 'Connected Phones',
-    value: '1',
+    value: '0',
     iconColor: colors.success,
     iconBackground: colors.successSoft,
-    trend: '+8.6%',
+    trend: '0%',
     trendPositive: true,
   },
   {
@@ -67,26 +67,16 @@ const INITIAL_STATS = [
   },
 ];
 
-const INITIAL_ACTIVITIES = [
-  {
-    id: 'activity-1',
-    icon: 'person-add',
-    title: 'New student registered',
-    description: 'Dharani V V joined CSE - 1st Year',
-    time: '2m ago',
-    iconColor: colors.primaryBlue,
-    iconBackground: colors.secondaryBackground,
-  },
-];
+const INITIAL_ACTIVITIES = [];
 
 const USAGE_SUMMARY_DATA = [
-  { label: 'Mon', value: 42 },
-  { label: 'Tue', value: 58 },
-  { label: 'Wed', value: 65 },
-  { label: 'Thu', value: 49 },
-  { label: 'Fri', value: 72 },
-  { label: 'Sat', value: 38 },
-  { label: 'Sun', value: 30 },
+  { label: 'Mon', value: 0 },
+  { label: 'Tue', value: 0 },
+  { label: 'Wed', value: 0 },
+  { label: 'Thu', value: 0 },
+  { label: 'Fri', value: 0 },
+  { label: 'Sat', value: 0 },
+  { label: 'Sun', value: 0 },
 ];
 
 const ANNOUNCEMENT_TARGETS = ['All Students', 'Department', 'Year', 'Section', 'Individual Student'];
@@ -105,17 +95,17 @@ const DashboardScreen = () => {
     const fetchOverview = async () => {
       const res = await adminService.getDashboardOverview();
       if (res && isMounted) {
-        if (res.stats && res.stats.length > 0) {
+        if (res.stats) {
           setStats(res.stats);
         }
-        if (res.recentActivities && res.recentActivities.length > 0) {
-          setActivities(res.recentActivities);
-        }
+        setActivities(res.recentActivities || []);
       }
     };
     fetchOverview();
+    const interval = setInterval(fetchOverview, 5000);
     return () => {
       isMounted = false;
+      clearInterval(interval);
     };
   }, []);
 

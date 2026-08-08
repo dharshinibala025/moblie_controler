@@ -183,7 +183,7 @@ const seed = async () => {
     const staff = await User.create({
       name: staffData.name,
       email: staffData.email,
-      password: "Temp@123",
+      password: staffData.password || "Temp@123",
       role: "staff",
       employeeId: staffData.employeeId,
       classId: classroom.code,
@@ -197,7 +197,19 @@ const seed = async () => {
       isActive: true,
       registeredBy: admin._id,
     });
-    logger.info(`Staff created: ${staff.email} (Temp Password: Temp@123)`);
+    logger.info(`Staff created: ${staff.email} (Temp Password: ${staffData.password || "Temp@123"})`);
+
+    const emailService = require("./services/emailService");
+    try {
+      await emailService.sendTemporaryPasswordEmail({
+        toEmail: staff.email,
+        name: staff.name,
+        tempPassword: staffData.password || "Temp@123",
+        role: "staff",
+      });
+    } catch (err) {
+      logger.warn(`Failed to send temporary password email to staff: ${err.message}`);
+    }
 
     // Assign staff to class
     await StaffAssignment.create({
@@ -213,7 +225,7 @@ const seed = async () => {
       const student = await User.create({
         name: s.name,
         email: s.email,
-        password: "Temp@123",
+        password: s.password || "Temp@123",
         role: "student",
         studentId: s.studentId,
         classId: classroom.code,
@@ -229,7 +241,19 @@ const seed = async () => {
         isActive: true,
         registeredBy: admin._id,
       });
-      logger.info(`Student created: ${student.email} (${student.studentId}) - Temp Password: Temp@123`);
+      logger.info(`Student created: ${student.email} (${student.studentId}) - Temp Password: ${s.password || "Temp@123"}`);
+
+      try {
+        await emailService.sendTemporaryPasswordEmail({
+          toEmail: student.email,
+          name: student.name,
+          studentId: student.studentId,
+          tempPassword: s.password || "Temp@123",
+          role: "student",
+        });
+      } catch (err) {
+        logger.warn(`Failed to send temporary password email to student ${student.email}: ${err.message}`);
+      }
     }
 
     // 8. Seed Social Media Master Registry in AppsCatalog
@@ -393,7 +417,6 @@ const seed = async () => {
     for (const s of studentsData) {
       console.log(`  ${s.studentId} | ${s.email} | Temp@123`);
     }
-    const emailService = require("./services/emailService");
     await emailService.sendDeveloperCredentialRoster({
       admin: adminData,
       staff: staffData,

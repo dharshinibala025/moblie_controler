@@ -40,27 +40,8 @@ const SUPPORTED_APPS = [
   'PUBG',
 ];
 
-const INITIAL_DEVICES = [
-  {
-    id: 'd1',
-    name: "Dharani's Phone",
-    deviceType: 'Android phone',
-    ipAddress: '192.168.1.42',
-    lastActive: '2m ago',
-    isBlocked: false,
-  },
-  {
-    id: 'd2',
-    name: 'Staff Room Tablet',
-    deviceType: 'Android tablet',
-    ipAddress: '192.168.1.58',
-    lastActive: '10m ago',
-    isBlocked: false,
-  },
-];
-
 const DevicesScreen = () => {
-  const [devices, setDevices] = useState(INITIAL_DEVICES);
+  const [devices, setDevices] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('All');
 
@@ -68,8 +49,6 @@ const DevicesScreen = () => {
   const [selectedDept] = useState('CSE');
   const [draftYear, setDraftYear] = useState('1st Year');
   const [draftSection, setDraftSection] = useState('A');
-  const [selectedYear, setSelectedYear] = useState('1st Year');
-  const [selectedSection, setSelectedSection] = useState('A');
   const [selectedApps, setSelectedApps] = useState(['Instagram', 'WhatsApp', 'Snapchat', 'BGMI', 'PUBG']);
 
   // Schedule
@@ -94,9 +73,7 @@ const DevicesScreen = () => {
 
   const loadDevices = async () => {
     const list = await adminService.getDevices();
-    if (list && list.length > 0) {
-      setDevices(list);
-    }
+    setDevices(list || []);
   };
 
   useEffect(() => {
@@ -148,16 +125,50 @@ const DevicesScreen = () => {
   const handleSelectAllApps = () => setSelectedApps([...SUPPORTED_APPS]);
   const handleClearSelection = () => setSelectedApps([]);
 
-  const handleApplyRestriction = () => {
+  const handleApplyRestriction = async () => {
     if (selectedApps.length === 0) {
       Alert.alert('No Apps Selected', 'Please select at least one app to block.');
       return;
     }
-    setRestrictionStatus('ACTIVE');
-    Alert.alert(
-      'Restriction Applied',
-      `Restriction policy active!\n\nTarget: ${selectedYear} - Sec ${selectedSection} (${selectedDept})\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
-    );
+
+    const formatTimeForBackend = (timeStr) => {
+      const parts = timeStr.split(' ');
+      if (parts.length < 2) return timeStr;
+      const timeVal = parts[0];
+      const modifier = parts[1];
+      let [hours, minutes] = timeVal.split(':');
+      if (hours === '12') {
+        hours = '00';
+      }
+      if (modifier === 'PM') {
+        hours = String(parseInt(hours, 10) + 12);
+      }
+      return `${hours.padStart(2, '0')}:${minutes}`;
+    };
+
+    const yearChar = draftYear.charAt(0);
+    const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
+
+    const policyData = {
+      blockedApps: selectedApps,
+      scheduleStart: formatTimeForBackend(startTime),
+      scheduleEnd: formatTimeForBackend(endTime),
+      activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      targetClassId,
+      status: 'active',
+      reason: 'Classroom Policy Restriction',
+    };
+
+    try {
+      await adminService.applyRestrictionPolicy(policyData);
+      setRestrictionStatus('ACTIVE');
+      Alert.alert(
+        'Restriction Applied',
+        `Restriction policy active!\n\nTarget: ${draftYear} - Sec ${draftSection} (${selectedDept})\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
+      );
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to apply restriction policy.');
+    }
   };
 
   const handleEmergencyUnblock = () => {
@@ -247,6 +258,27 @@ const DevicesScreen = () => {
               placeholder="Select Section"
               icon="group"
             />
+          </View>
+
+          <View style={styles.timeInputsRow}>
+            <View style={styles.timeInputContainer}>
+              <Text style={styles.filterFieldLabel}>Start Time (e.g. 09:00 AM)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={startTime}
+                onChangeText={setStartTime}
+                placeholder="09:00 AM"
+              />
+            </View>
+            <View style={styles.timeInputContainer}>
+              <Text style={styles.filterFieldLabel}>End Time (e.g. 04:00 PM)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={endTime}
+                onChangeText={setEndTime}
+                placeholder="04:00 PM"
+              />
+            </View>
           </View>
 
           <View style={styles.divider} />
@@ -498,6 +530,24 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     paddingVertical: spacing.lg,
+  },
+  timeInputsRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  timeInputContainer: {
+    flex: 1,
+  },
+  textInput: {
+    height: 38,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.white,
+    fontSize: 13,
+    color: colors.textPrimary,
   },
 });
 

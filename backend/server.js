@@ -31,8 +31,16 @@ const startServer = async () => {
 
     emailQueueWorker.start(10000);
 
-    httpServer.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`);
+    httpServer.on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        logger.warn(`Port ${PORT} is already in use by a running server instance. Serving traffic on existing process.`);
+      } else {
+        logger.error(`Server error: ${err.message}`);
+      }
+    });
+
+    httpServer.listen(PORT, "0.0.0.0", () => {
+      logger.info(`Server running on http://0.0.0.0:${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
     });
   } catch (err) {

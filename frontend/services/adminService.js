@@ -30,6 +30,7 @@ class AdminService {
     return await apiFetch('/admin/students/upload', {
       method: 'POST',
       body: JSON.stringify({ fileBase64, fileName }),
+      timeout: 60000,
     });
   }
 
@@ -46,6 +47,7 @@ class AdminService {
     return await apiFetch('/admin/staff/upload', {
       method: 'POST',
       body: JSON.stringify({ fileBase64, fileName }),
+      timeout: 60000,
     });
   }
 
@@ -98,6 +100,13 @@ class AdminService {
     return await apiFetch('/admin/change-password', {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
+  async applyRestrictionPolicy(policyData) {
+    return await apiFetch('/admin/rules', {
+      method: 'POST',
+      body: JSON.stringify(policyData),
     });
   }
 }

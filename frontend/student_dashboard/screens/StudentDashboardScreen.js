@@ -11,7 +11,13 @@ import syncService from '../../services/syncService';
 
 export const StudentDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('home');
-  const [dashboardData, setDashboardData] = useState(mockData);
+  const [dashboardData, setDashboardData] = useState({
+    student: mockData.student,
+    restrictionStatus: mockData.restrictionStatus,
+    blockedApps: [],
+    recentActivity: mockData.recentActivity,
+    notifications: [],
+  });
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -26,19 +32,16 @@ export const StudentDashboardScreen = ({ onLogout }) => {
           fetchNotifications().catch(() => null),
         ]);
 
-        if (isMounted && (dash || apps || notifs)) {
-          const backendBlocked = (apps?.apps && apps.apps.filter(a => a.blocked).length > 0)
-            ? apps.apps.filter(a => a.blocked)
-            : (dash?.blockedApps && dash.blockedApps.length > 0)
-              ? dash.blockedApps
-              : mockData.blockedApps;
+        if (isMounted) {
+          const backendBlocked = apps?.apps || dash?.blockedApps || [];
+          const realNotifications = notifs?.notifications || dash?.notifications || [];
 
           setDashboardData({
             student: dash?.student || mockData.student,
             restrictionStatus: dash?.restrictionStatus || mockData.restrictionStatus,
             blockedApps: backendBlocked,
             recentActivity: dash?.recentActivity || mockData.recentActivity,
-            notifications: notifs?.notifications || dash?.notifications || mockData.notifications,
+            notifications: realNotifications,
           });
         }
       } catch (err) {
@@ -117,6 +120,8 @@ export const StudentDashboardScreen = ({ onLogout }) => {
     }
   };
 
+  const unreadNotificationsCount = (dashboardData?.notifications || []).filter((n) => !n.read).length;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -126,7 +131,11 @@ export const StudentDashboardScreen = ({ onLogout }) => {
           {renderActiveScreen()}
         </Animated.View>
 
-        <BottomNavBar activeTab={activeTab} onSelectTab={handleTabChange} />
+        <BottomNavBar
+          activeTab={activeTab}
+          onSelectTab={handleTabChange}
+          unreadNotificationsCount={unreadNotificationsCount}
+        />
       </View>
     </SafeAreaView>
   );
