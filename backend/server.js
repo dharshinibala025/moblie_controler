@@ -15,6 +15,16 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    // Automatically configure ADB port forwarding for USB-connected physical Android devices on boot
+    const { exec } = require("child_process");
+    exec("adb reverse tcp:5000 tcp:5000", (err) => {
+      if (err) {
+        logger.info("ADB reverse notice: Physical device not connected or ADB not found.");
+      } else {
+        logger.info("Successfully configured ADB port reverse: tcp:5000 -> tcp:5000");
+      }
+    });
+
     await connectDB();
 
     initializeFirebase();

@@ -16,39 +16,72 @@ const verifyClassScope = async (req, res, next) => {
   const classId = req.params.id || req.query.classId;
   if (!classId) return next();
 
-  if (req.user.classId === classId) {
-    return next();
+  const User = require("../models/User");
+  const ClassRoom = require("../models/ClassRoom");
+
+  const staffUser = await User.findById(req.user.userId || req.user.id || req.user._id);
+  if (!staffUser || staffUser.role !== "staff") {
+    return res.status(403).json({ error: "Access denied: user is not a staff member" });
   }
 
   const mongoose = require("mongoose");
-  if (!mongoose.Types.ObjectId.isValid(classId)) {
+  let classroom = null;
+  if (mongoose.Types.ObjectId.isValid(classId)) {
+    classroom = await ClassRoom.findById(classId);
+  } else {
+    classroom = await ClassRoom.findOne({ code: classId });
+  }
+
+  if (!classroom) {
+    if (staffUser.classId === classId) {
+      return next();
+    }
     return res.status(403).json({ error: "Access denied: class scope not assigned to you" });
   }
 
-  const assignment = await StaffAssignment.findOne({
-    staffId: req.user.userId,
-    classId,
-    isActive: true,
-  });
+  const classroomYearStr = classroom.academicYearId ? classroom.academicYearId.toString() : null;
+  const staffYearStr = staffUser.academicYearId ? staffUser.academicYearId.toString() : null;
 
-  if (!assignment) {
-    return res.status(403).json({ error: "Access denied: class scope not assigned to you" });
+  const classroomSectionStr = classroom.sectionId ? classroom.sectionId.toString() : null;
+  const staffSectionStr = staffUser.sectionId ? staffUser.sectionId.toString() : null;
+
+  if (classroomYearStr !== staffYearStr || classroomSectionStr !== staffSectionStr) {
+    if (staffUser.classId === classId) {
+      return next();
+    }
+    return res.status(403).json({ error: "Access denied: classroom is outside your assigned Year and Section scope" });
   }
 
-  req.staffAssignment = assignment;
   next();
 };
 
 router.get("/my-classes", async (req, res, next) => {
   try {
-    const assignments = await StaffAssignment.find({
-      staffId: req.user.userId,
-      isActive: true,
-    })
-      .populate("classId", "name code")
-      .sort({ assignedAt: -1 });
+    const User = require("../models/User");
+    const ClassRoom = require("../models/ClassRoom");
 
-    res.json({ classes: assignments.map((a) => a.classId) });
+    const staffUser = await User.findById(req.user.userId || req.user.id || req.user._id);
+    if (!staffUser || staffUser.role !== "staff") {
+      return res.status(403).json({ error: "Access denied: user is not a staff member" });
+    }
+
+    let classrooms = [];
+    if (staffUser.academicYearId && staffUser.sectionId) {
+      classrooms = await ClassRoom.find({
+        academicYearId: staffUser.academicYearId,
+        sectionId: staffUser.sectionId,
+      }).select("name code");
+    }
+
+    if (classrooms.length === 0 && staffUser.classId) {
+      classrooms = [{
+        _id: staffUser.classId,
+        name: `Classroom ${staffUser.classId}`,
+        code: staffUser.classId,
+      }];
+    }
+
+    res.json({ classes: classrooms });
   } catch (err) {
     next(err);
   }
@@ -56,7 +89,7 @@ router.get("/my-classes", async (req, res, next) => {
 
 router.get("/classes/:id/live", verifyClassScope, async (req, res, next) => {
   try {
-    const data = await classService.getClassLiveStatus(req.params.id);
+    const data = await classService.getClassLiveStatus(req.params.id, req.user.userId);
     res.json(data);
   } catch (err) {
     next(err);
@@ -70,7 +103,8 @@ router.get("/classes/:id/activity", verifyClassScope, async (req, res, next) => 
       req.params.id,
       studentId,
       startDate,
-      endDate
+      endDate,
+      req.user.userId
     );
     res.json(data);
   } catch (err) {

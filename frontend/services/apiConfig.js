@@ -5,10 +5,29 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 
-// Base URL — physical device via adb reverse (localhost:5000), emulator uses 10.0.2.2:
-export const BASE_URL = Platform.OS === 'android' ? 'http://localhost:5000' : 'http://localhost:5000';
+// Dynamically resolve development machine IP when running on a physical device
+const getDevServerIp = () => {
+  try {
+    const scriptURL = NativeModules.SourceCode?.scriptURL;
+    if (scriptURL) {
+      const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
+      if (match && match[1]) {
+        const ip = match[1];
+        return `http://${ip}:5000`;
+      }
+    }
+  } catch (e) {
+    // ignore error
+  }
+  return null;
+};
+
+const devServerIp = getDevServerIp();
+
+// Base URL — physical device uses dynamic IP, emulator uses 10.0.2.2 on Android, localhost on iOS
+export const BASE_URL = devServerIp || (Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000');
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 export const STORAGE_KEYS = {
@@ -91,8 +110,8 @@ export const apiFetch = async (path, options = {}) => {
   const candidateBases = Array.from(
     new Set([
       ...(cachedWorkingBaseUrl ? [cachedWorkingBaseUrl] : []),
-      'http://127.0.0.1:5000',
       'http://localhost:5000',
+      'http://127.0.0.1:5000',
       BASE_URL,
       'http://10.0.2.2:5000',
     ]),
@@ -101,10 +120,11 @@ export const apiFetch = async (path, options = {}) => {
   let response = null;
   let lastError = null;
 
+  const isLargePayload = options.body && options.body.length > 50000;
   for (let i = 0; i < candidateBases.length; i++) {
     const candidateBase = candidateBases[i];
-    // Use fast 2500ms timeout during host discovery
-    const perAttemptTimeout = candidateBase === cachedWorkingBaseUrl ? timeoutMs : Math.min(timeoutMs, 2500);
+    // Use fast 3000ms timeout unless it is a large payload upload
+    const perAttemptTimeout = isLargePayload ? timeoutMs : Math.min(timeoutMs, 3000);
 
     try {
       response = await fetchWithTimeout(

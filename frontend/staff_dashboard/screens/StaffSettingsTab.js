@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,18 +19,54 @@ import { colors, shadows, borderRadius } from '../../student_dashboard/styles/th
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
-export const StaffSettingsTab = ({ onLogout }) => {
-  // Staff Profile State loaded from mock data
+export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
+  // Staff Profile State loaded dynamically
   const [staffProfile, setStaffProfile] = useState({
-    name: staffMockData.staff.name,
-    employeeId: staffMockData.staff.id,
-    department: staffMockData.staff.department,
-    email: staffMockData.staff.email,
-    phone: staffMockData.staff.mobile,
-    avatar: staffMockData.staff.avatar,
-    initials: staffMockData.staff.initials,
-    assignedClass: staffMockData.staff.assignedClass,
+    name: 'Loading...',
+    employeeId: '...',
+    department: 'Computer Science Engineering',
+    email: '...',
+    phone: '+91 94421 78905',
+    avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
+    initials: 'ST',
+    assignedClass: '...',
   });
+
+  const getInitials = (name) => {
+    if (!name) return 'ST';
+    return name
+      .split(' ')
+      .map((part) => part.charAt(0))
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  };
+
+  const formatClassId = (classId) => {
+    if (!classId) return 'None';
+    const parts = classId.split('-');
+    if (parts.length >= 3) {
+      const romanYears = { '1': 'I', '2': 'II', '3': 'III', '4': 'IV' };
+      const roman = romanYears[parts[1]] || `${parts[1]}rd`;
+      return `${roman} ${parts[0]} - ${parts[2]}`;
+    }
+    return classId;
+  };
+
+  useEffect(() => {
+    if (staffInfo) {
+      setStaffProfile({
+        name: staffInfo.name || 'Staff Member',
+        employeeId: staffInfo.employeeId || 'KSR-STF-1024',
+        department: 'Computer Science Engineering',
+        email: staffInfo.email || '',
+        phone: staffInfo.phone || '+91 94421 78905',
+        avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
+        initials: getInitials(staffInfo.name),
+        assignedClass: formatClassId(staffInfo.classId),
+      });
+    }
+  }, [staffInfo]);
 
   // Edit Profile Modal State
   const [editProfileVisible, setEditProfileVisible] = useState(false);
