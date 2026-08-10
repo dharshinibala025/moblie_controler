@@ -41,15 +41,48 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
       .toUpperCase();
   };
 
-  const formatClassId = (classId) => {
-    if (!classId) return 'None';
-    const parts = classId.split('-');
-    if (parts.length >= 3) {
-      const romanYears = { '1': 'I', '2': 'II', '3': 'III', '4': 'IV' };
-      const roman = romanYears[parts[1]] || `${parts[1]}rd`;
-      return `${roman} ${parts[0]} - ${parts[2]}`;
+  const formatClassId = (assignedClass) => {
+    if (!assignedClass) return 'No Class Assigned';
+
+    // Handle new format: e.g. "CSE-2-D"
+    if (assignedClass.includes('-') && !assignedClass.includes(' - ')) {
+      const parts = assignedClass.split('-');
+      if (parts.length === 3) {
+        const dept = parts[0];
+        const yearVal = parts[1];
+        const section = parts[2];
+
+        let yearText = `${yearVal}th Year`;
+        if (yearVal === '1') yearText = '1st Year';
+        else if (yearVal === '2') yearText = '2nd Year';
+        else if (yearVal === '3') yearText = '3rd Year';
+        else if (yearVal === '4') yearText = '4th Year';
+
+        return `${yearText} ${dept} - Section ${section}`;
+      }
     }
-    return classId;
+
+    // Handle old format: e.g. "III CSE - A"
+    const parts = assignedClass.split(' - ');
+    const classPart = parts[0]; // e.g. "III CSE"
+    const section = parts[1] || ''; // e.g. "A"
+
+    let yearText = '';
+    if (classPart.startsWith('III')) {
+      yearText = '3rd Year';
+    } else if (classPart.startsWith('II')) {
+      yearText = '2nd Year';
+    } else if (classPart.startsWith('IV')) {
+      yearText = '4th Year';
+    } else if (classPart.startsWith('I')) {
+      yearText = '1st Year';
+    } else {
+      yearText = classPart;
+    }
+
+    const deptPart = classPart.replace(/^[IVX\s]+/, '').trim(); // Remove Roman numerals
+
+    return `${yearText} ${deptPart}${section ? ` - Section ${section}` : ''}`;
   };
 
   useEffect(() => {

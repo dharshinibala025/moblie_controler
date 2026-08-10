@@ -19,32 +19,51 @@ const STATUSBAR_OFFSET = 12;
 const SUPPORTED_APPS = [
   'Instagram',
   'WhatsApp',
-  'Facebook',
-  'Snapchat',
   'Telegram',
-  'Discord',
-  'Twitter',
+  'Snapchat',
+  'Twitter (X)',
+  'Free Fire',
+  'Facebook',
   'YouTube',
-  'Netflix',
-  'Prime Video',
-  'BGMI',
   'PUBG',
+  'BGMI',
+  'Discord',
+  'Games',
+  'Threads',
+  'Hotstar',
+  'JioCinema',
+  'Netflix',
+  'Net Mirror',
+  'Sun NXT',
+  'Prime Video',
+  'Airtel Xstream',
+  'Zee5',
+  'Google Play Store',
 ];
 
 const APP_PACKAGE_MAPPING = {
   'Instagram': 'com.instagram.android',
-  'Facebook': 'com.facebook.katana',
   'WhatsApp': 'com.whatsapp',
   'Telegram': 'org.telegram.messenger',
   'Snapchat': 'com.snapchat.android',
-  'Discord': 'com.discord',
   'Twitter (X)': 'com.twitter.android',
-  'YouTube': 'com.google.android.youtube',
-  'Netflix': 'com.netflix.mediaclient',
-  'Prime Video': 'com.amazon.avod.thirdpartyclient',
-  'BGMI': 'com.pubg.imobile',
   'Free Fire': 'com.dts.freefireth',
+  'Facebook': 'com.facebook.katana',
+  'YouTube': 'com.google.android.youtube',
   'PUBG': 'com.tencent.ig',
+  'BGMI': 'com.pubg.imobile',
+  'Discord': 'com.discord',
+  'Games': 'Games', // Handled dynamically in backend to block all scanned games
+  'Threads': 'com.instagram.barcelona',
+  'Hotstar': 'in.startv.hotstar',
+  'JioCinema': 'com.jio.media.ondemand',
+  'Netflix': 'com.netflix.mediaclient',
+  'Net Mirror': 'com.netmirror',
+  'Sun NXT': 'com.sun.nxt',
+  'Prime Video': 'com.amazon.avod.thirdpartyclient',
+  'Airtel Xstream': 'com.airtel.tv',
+  'Zee5': 'com.graymatrix.did',
+  'Google Play Store': 'com.android.vending',
 };
 
 const mapAppNameToPackage = (appName) => {
@@ -84,8 +103,53 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const staffInfo = propStaffInfo || { name: '', department: '' };
   const mentorClass = staffInfo.assignedClass || staffInfo.classId || 'Not Assigned';
 
+  // Helper to format assigned class name (e.g. "III CSE - A" -> "3rd Year CSE - Section A")
+  const formatClassDisplay = (assignedClass) => {
+    if (!assignedClass) return 'No Class Assigned';
+
+    // Handle new format: e.g. "CSE-2-D"
+    if (assignedClass.includes('-') && !assignedClass.includes(' - ')) {
+      const parts = assignedClass.split('-');
+      if (parts.length === 3) {
+        const dept = parts[0];
+        const yearVal = parts[1];
+        const section = parts[2];
+
+        let yearText = `${yearVal}th Year`;
+        if (yearVal === '1') yearText = '1st Year';
+        else if (yearVal === '2') yearText = '2nd Year';
+        else if (yearVal === '3') yearText = '3rd Year';
+        else if (yearVal === '4') yearText = '4th Year';
+
+        return `${yearText} ${dept} - Section ${section}`;
+      }
+    }
+
+    // Handle old format: e.g. "III CSE - A"
+    const parts = assignedClass.split(' - ');
+    const classPart = parts[0]; // e.g. "III CSE"
+    const section = parts[1] || ''; // e.g. "A"
+
+    let yearText = '';
+    if (classPart.startsWith('III')) {
+      yearText = '3rd Year';
+    } else if (classPart.startsWith('II')) {
+      yearText = '2nd Year';
+    } else if (classPart.startsWith('IV')) {
+      yearText = '4th Year';
+    } else if (classPart.startsWith('I')) {
+      yearText = '1st Year';
+    } else {
+      yearText = classPart;
+    }
+
+    const deptPart = classPart.replace(/^[IVX\s]+/, '').trim(); // Remove Roman numerals
+
+    return `${yearText} ${deptPart}${section ? ` - Section ${section}` : ''}`;
+  };
+
   // State
-  const [selectedApps, setSelectedApps] = useState(['Instagram', 'WhatsApp', 'Snapchat', 'BGMI', 'PUBG']);
+  const [selectedApps, setSelectedApps] = useState([...SUPPORTED_APPS]);
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('04:00 PM');
   const [restrictionStatus, setRestrictionStatus] = useState('IDLE'); // 'IDLE' | 'ACTIVE' | 'PAUSED'
@@ -289,7 +353,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const handleEmergencyUnblock = () => {
     Alert.alert(
       '🚨 Emergency Unblock Confirmation',
-      `Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices assigned to your class (${mentorClass})?`,
+      `Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices assigned to your class (${formatClassDisplay(mentorClass)})?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -307,7 +371,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               setRestrictionStatus('IDLE');
               Alert.alert(
                 'Emergency Unblock Executed',
-                `All mobile restrictions lifted immediately for ${mentorClass}.`,
+                `All mobile restrictions lifted immediately for ${formatClassDisplay(mentorClass)}.`,
               );
             } catch (err) {
               Alert.alert('Unblock Failed', err.message || 'An error occurred.');
@@ -370,7 +434,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <View style={[styles.lockedBadge, { backgroundColor: colors.primaryLight }]}>
                 <VectorIcon name="book" size={14} color={colors.primaryDark} />
                 <Text style={[styles.lockedBadgeText, { color: colors.primaryDark }]}>
-                  {mentorClass}
+                  {formatClassDisplay(mentorClass)}
                 </Text>
               </View>
             </View>
