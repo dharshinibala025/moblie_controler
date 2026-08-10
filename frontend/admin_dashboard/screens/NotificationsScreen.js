@@ -198,25 +198,7 @@ const NotificationsScreen = ({ onBack }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Control Bar */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.broadcastBanner}
-            onPress={() => setAnnouncementModalVisible(true)}
-            activeOpacity={0.85}
-          >
-            <View style={styles.broadcastBannerIcon}>
-              <Icon name="campaign" size={24} color={colors.white} />
-            </View>
-            <View style={styles.broadcastBannerText}>
-              <Text style={styles.broadcastBannerTitle}>Send New Broadcast</Text>
-              <Text style={styles.broadcastBannerSubtitle}>
-                Dispatch instant push alerts to student mobile devices
-              </Text>
-            </View>
-            <Icon name="chevron-right" size={22} color={colors.white} />
-          </TouchableOpacity>
-        </View>
+
 
         <View style={styles.section}>
           <SearchBar

@@ -254,19 +254,8 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
         </DashboardCard>
       </View>
 
-      {/* Usage Summary */}
-      <View style={styles.section}>
-        <SectionTitle title="Usage Summary" subtitle="Last 7 days session activity" />
-        <DashboardCard>
-          <View style={styles.usageHeader}>
-            <Text style={styles.usageTotal}>354 sessions</Text>
-            <Text style={styles.usagePeriod}>This week</Text>
-          </View>
-          <PlaceholderChart data={USAGE_SUMMARY_DATA} />
-        </DashboardCard>
-      </View>
 
-      {/* 5. ANNOUNCEMENT NOTIFICATION MODAL */}
+
       <Modal visible={announcementModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
