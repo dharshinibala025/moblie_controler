@@ -239,6 +239,16 @@ const DevicesScreen = () => {
     }
   };
 
+  const handlePauseRestriction = () => {
+    setRestrictionStatus('PAUSED');
+    Alert.alert('Restriction Paused', 'Mobile restriction policy has been temporarily paused.');
+  };
+
+  const handleResumeRestriction = () => {
+    setRestrictionStatus('ACTIVE');
+    Alert.alert('Restriction Resumed', 'Mobile restriction policy is now active.');
+  };
+
   const handleEmergencyUnblock = () => {
     Alert.alert(
       '🚨 Emergency Unblock Confirmation',
@@ -357,10 +367,24 @@ const DevicesScreen = () => {
               <Text style={styles.applyBtnText}>Set Restriction Timing</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock} activeOpacity={0.8}>
-              <Icon name="warning" size={18} color={colors.white} />
-              <Text style={styles.emergencyBtnText}>Emergency Unblock All</Text>
-            </TouchableOpacity>
+            <View style={styles.secondaryControlsRow}>
+              {restrictionStatus === 'ACTIVE' ? (
+                <TouchableOpacity style={styles.pauseBtn} onPress={handlePauseRestriction} activeOpacity={0.8}>
+                  <Icon name="pause" size={16} color="#D97706" />
+                  <Text style={styles.pauseBtnText}>Pause</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.resumeBtn} onPress={handleResumeRestriction} activeOpacity={0.8}>
+                  <Icon name="play-arrow" size={16} color="#15803D" />
+                  <Text style={styles.resumeBtnText}>Resume</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock} activeOpacity={0.8}>
+                <Icon name="warning" size={16} color={colors.white} />
+                <Text style={styles.emergencyBtnText}>Emergency Unblock</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -501,19 +525,60 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
   },
+  secondaryControlsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  pauseBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    gap: 4,
+  },
+  pauseBtnText: {
+    ...typography.button,
+    color: '#D97706',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  resumeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#16A34A',
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    gap: 4,
+  },
+  resumeBtnText: {
+    ...typography.button,
+    color: '#15803D',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   emergencyBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.danger,
     paddingVertical: spacing.sm + 2,
     borderRadius: radius.md,
-    gap: 6,
+    gap: 4,
   },
   emergencyBtnText: {
     ...typography.button,
     color: colors.white,
-    fontSize: 13,
+    fontSize: 12,
   },
   targetFilterRow: {
     flexDirection: 'row',

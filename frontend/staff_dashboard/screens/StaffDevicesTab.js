@@ -421,11 +421,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                   <Text style={styles.resumeBtnText}>Resume</Text>
                 </TouchableOpacity>
               )}
-
-              <TouchableOpacity style={styles.removeBtn} onPress={handleRemoveRestriction}>
-                <VectorIcon name="close" size={16} color="#64748B" />
-                <Text style={styles.removeBtnText}>Remove</Text>
-              </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock}>
