@@ -123,12 +123,15 @@ router.get("/classes/:id/rules", verifyClassScope, async (req, res, next) => {
 });
 
 // POST: Create a rule for a class
-router.post("/classes/:id/rules", verifyClassScope, validate("createRule"), async (req, res, next) => {
+router.post("/classes/:id/rules", verifyClassScope, (req, res, next) => {
+  // Inject targetClassId from URL so validate("createRule") sees it
+  req.body.targetClassId = req.params.id;
+  next();
+}, validate("createRule"), async (req, res, next) => {
   try {
     const { setEmergencyUnblock } = require("../utils/emergencyHelper");
     setEmergencyUnblock(false);
 
-    req.body.targetClassId = req.params.id;
     if (req.user.institutionId) {
       req.body.institutionId = req.user.institutionId;
     }
