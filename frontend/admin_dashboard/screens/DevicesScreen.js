@@ -84,8 +84,35 @@ const DevicesScreen = () => {
     });
   }, [devices, searchQuery, filterMode]);
 
-  const activeDevices = useMemo(() => filteredDevices.filter((d) => !d.isBlocked), [filteredDevices]);
-  const blockedDevices = useMemo(() => filteredDevices.filter((d) => d.isBlocked), [filteredDevices]);
+  const displayDevices = useMemo(() => {
+    if (filterMode === 'Active Devices' || filterMode === 'Active' || filterMode === 'Connected') {
+      return filteredDevices.filter((d) => !d.isBlocked);
+    }
+    if (filterMode === 'Blocked Devices' || filterMode === 'Blocked') {
+      return filteredDevices.filter((d) => d.isBlocked);
+    }
+    return filteredDevices;
+  }, [filteredDevices, filterMode]);
+
+  const sectionTitleText = useMemo(() => {
+    if (filterMode === 'Active Devices' || filterMode === 'Active' || filterMode === 'Connected') {
+      return `Active Devices (${displayDevices.length})`;
+    }
+    if (filterMode === 'Blocked Devices' || filterMode === 'Blocked') {
+      return `Blocked Devices (${displayDevices.length})`;
+    }
+    return `All Devices (${displayDevices.length})`;
+  }, [displayDevices.length, filterMode]);
+
+  const sectionSubtitleText = useMemo(() => {
+    if (filterMode === 'Active Devices' || filterMode === 'Active' || filterMode === 'Connected') {
+      return 'Devices currently active and unblocked';
+    }
+    if (filterMode === 'Blocked Devices' || filterMode === 'Blocked') {
+      return 'Devices restricted from network access';
+    }
+    return 'All managed student mobile devices';
+  }, [filterMode]);
 
   // Calculate Remaining Timing Hours
   const remainingInfo = useMemo(() => {
@@ -338,55 +365,28 @@ const DevicesScreen = () => {
         </View>
       </View>
 
-      {/* Active Devices Section */}
-      {(filterMode === 'All' || filterMode === 'Active Devices' || filterMode === 'Connected') && (
-        <View style={styles.section}>
-          <SectionTitle
-            title={`Active Devices (${activeDevices.length})`}
-            subtitle="Devices currently active and unblocked"
-          />
-          {activeDevices.length === 0 ? (
-            <Text style={styles.emptyText}>No active devices.</Text>
-          ) : (
-            activeDevices.map((device) => (
-              <DeviceCard
-                key={device.id}
-                name={device.studentName || device.name || 'Student Device'}
-                deviceType={device.model || device.deviceType || 'Android Phone'}
-                ipAddress={device.rollNo ? `Reg. No: ${device.rollNo}` : device.deviceId || 'DEV-100'}
-                lastActive={device.lastPing || device.activeTime || 'Active'}
-                isBlocked={device.isBlocked}
-                onToggleBlock={() => handleToggleBlock(device.id)}
-              />
-            ))
-          )}
-        </View>
-      )}
-
-      {/* Blocked Devices Section */}
-      {(filterMode === 'All' || filterMode === 'Blocked Devices' || filterMode === 'Blocked') && (
-        <View style={styles.section}>
-          <SectionTitle
-            title={`Blocked Devices (${blockedDevices.length})`}
-            subtitle="Devices restricted from network access"
-          />
-          {blockedDevices.length === 0 ? (
-            <Text style={styles.emptyText}>No blocked devices.</Text>
-          ) : (
-            blockedDevices.map((device) => (
-              <DeviceCard
-                key={device.id}
-                name={device.studentName || device.name || 'Student Device'}
-                deviceType={device.model || device.deviceType || 'Android Phone'}
-                ipAddress={device.rollNo ? `Reg. No: ${device.rollNo}` : device.deviceId || 'DEV-100'}
-                lastActive={device.lastPing || device.activeTime || 'Active'}
-                isBlocked={device.isBlocked}
-                onToggleBlock={() => handleToggleBlock(device.id)}
-              />
-            ))
-          )}
-        </View>
-      )}
+      {/* Unified Devices List Section */}
+      <View style={styles.section}>
+        <SectionTitle
+          title={sectionTitleText}
+          subtitle={sectionSubtitleText}
+        />
+        {displayDevices.length === 0 ? (
+          <Text style={styles.emptyText}>No devices match your selected filter.</Text>
+        ) : (
+          displayDevices.map((device) => (
+            <DeviceCard
+              key={device.id}
+              name={device.studentName || device.name || 'Student Device'}
+              deviceType={device.model || device.deviceType || 'Android Phone'}
+              ipAddress={device.rollNo ? `Reg. No: ${device.rollNo}` : device.deviceId || 'DEV-100'}
+              lastActive={device.lastPing || device.activeTime || 'Active'}
+              isBlocked={device.isBlocked}
+              onToggleBlock={() => handleToggleBlock(device.id)}
+            />
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 };
