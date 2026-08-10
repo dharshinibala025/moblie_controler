@@ -18,7 +18,7 @@ import staffMockData from '../data/staffMockData';
 const STATUSBAR_OFFSET = 12;
 
 export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
-  const staffInfo = propStaffInfo || staffMockData.staff;
+  const staffInfo = propStaffInfo || { name: '', department: '' };
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'blocked' | 'offline'
   const [selectedStudent, setSelectedStudent] = useState(null);

@@ -12,10 +12,10 @@ import syncService from '../../services/syncService';
 export const StudentDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [dashboardData, setDashboardData] = useState({
-    student: mockData.student,
-    restrictionStatus: mockData.restrictionStatus,
+    student: null,
+    restrictionStatus: null,
     blockedApps: [],
-    recentActivity: mockData.recentActivity,
+    recentActivity: [],
     notifications: [],
   });
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -37,10 +37,10 @@ export const StudentDashboardScreen = ({ onLogout }) => {
           const realNotifications = notifs?.notifications || dash?.notifications || [];
 
           setDashboardData({
-            student: dash?.student || mockData.student,
-            restrictionStatus: dash?.restrictionStatus || mockData.restrictionStatus,
+            student: dash?.student || null,
+            restrictionStatus: dash?.restrictionStatus || null,
             blockedApps: backendBlocked,
-            recentActivity: dash?.recentActivity || mockData.recentActivity,
+            recentActivity: dash?.recentActivity || [],
             notifications: realNotifications,
           });
         }

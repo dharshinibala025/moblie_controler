@@ -67,35 +67,7 @@ const INITIAL_STATS = [
   },
 ];
 
-const INITIAL_ACTIVITIES = [
-  {
-    id: 'activity-1',
-    icon: 'person-add',
-    title: 'New student registered',
-    description: 'Dharani V V joined CSE - 1st Year',
-    time: '2m ago',
-    iconColor: colors.primaryBlue,
-    iconBackground: colors.secondaryBackground,
-  },
-  {
-    id: 'activity-2',
-    icon: 'phonelink-erase',
-    title: 'Device blocked',
-    description: 'Unauthorized app detected on Device #482',
-    time: '18m ago',
-    iconColor: colors.danger,
-    iconBackground: colors.dangerSoft,
-  },
-  {
-    id: 'activity-3',
-    icon: 'campaign',
-    title: 'Announcement sent',
-    description: 'Exam Mobile Usage Policy broadcasted to All Students',
-    time: '45m ago',
-    iconColor: colors.skyBlue,
-    iconBackground: colors.secondaryBackground,
-  },
-];
+const INITIAL_ACTIVITIES = [];
 
 const USAGE_SUMMARY_DATA = [
   { label: 'Mon', value: 0 },

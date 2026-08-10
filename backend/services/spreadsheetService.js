@@ -22,6 +22,17 @@ class SpreadsheetService {
       throw new Error("No file uploaded. Please select an Excel file (.xlsx or .csv) from your device storage.");
     }
 
+    // Basic file validation to prevent SheetJS infinite loop / freeze on corrupt zip/excel files
+    const isXlsx = String(fileName || "").toLowerCase().endsWith(".xlsx");
+    if (isXlsx) {
+      if (fileBuffer.length < 100) {
+        throw new Error("Invalid or corrupted Excel file (file size is too small).");
+      }
+      if (!fileBuffer.includes(Buffer.from([0x50, 0x4b, 0x05, 0x06]))) {
+        throw new Error("Invalid or corrupted Excel file (missing ZIP End of Central Directory signature).");
+      }
+    }
+
     // Read uploaded file buffer in memory
     const workbook = xlsx.read(fileBuffer, { type: "buffer" });
     const sheetName = workbook.Sheets["Students"] ? "Students" : workbook.SheetNames[0];
@@ -324,6 +335,9 @@ class SpreadsheetService {
       ).catch((err) => logger.warn(`Audit log notice: ${err.message}`));
     }
 
+    // Clean up unused structural entities to prevent showing orphaned mock data
+    await this._cleanupUnusedStructuralEntities();
+
     return {
       historyId: history ? history._id : null,
       totalRecords,
@@ -342,6 +356,17 @@ class SpreadsheetService {
   async processStaffUpload(fileBuffer, fileName, uploadedByUserId, role = "admin") {
     if (!fileBuffer || fileBuffer.length === 0) {
       throw new Error("No file uploaded. Please select a staff Excel file (.xlsx or .csv) from your device storage.");
+    }
+
+    // Basic file validation to prevent SheetJS infinite loop / freeze on corrupt zip/excel files
+    const isXlsx = String(fileName || "").toLowerCase().endsWith(".xlsx");
+    if (isXlsx) {
+      if (fileBuffer.length < 100) {
+        throw new Error("Invalid or corrupted Excel file (file size is too small).");
+      }
+      if (!fileBuffer.includes(Buffer.from([0x50, 0x4b, 0x05, 0x06]))) {
+        throw new Error("Invalid or corrupted Excel file (missing ZIP End of Central Directory signature).");
+      }
     }
 
     const workbook = xlsx.read(fileBuffer, { type: "buffer" });
@@ -631,6 +656,9 @@ class SpreadsheetService {
       ).catch((err) => logger.warn(`Audit log notice: ${err.message}`));
     }
 
+    // Clean up unused structural entities to prevent showing orphaned mock data
+    await this._cleanupUnusedStructuralEntities();
+
     return {
       historyId: history ? history._id : null,
       totalRecords,
@@ -641,6 +669,63 @@ class SpreadsheetService {
       emailFailedCount,
       errors,
     };
+  }
+
+  /**
+   * Cleans up structural database entities not referenced by any user
+   */
+  async _cleanupUnusedStructuralEntities() {
+    try {
+      const User = require("../models/User");
+      const Department = require("../models/Department");
+      const AcademicYear = require("../models/AcademicYear");
+      const Section = require("../models/Section");
+      const ClassRoom = require("../models/ClassRoom");
+      const Rule = require("../models/Rule");
+      const logger = require("../utils/logger");
+
+      // 1. Get all unique ObjectIds and Codes in use by Users
+      const activeDeptIds = await User.find({}).distinct("departmentId");
+      const activeYearIds = await User.find({}).distinct("academicYearId");
+      const activeSectionIds = await User.find({}).distinct("sectionId");
+      const activeClassRoomIds = await User.find({}).distinct("classRoomId");
+      const activeClassIds = await User.find({}).distinct("classId");
+
+      // 2. Delete ClassRooms not referenced by any student or staff
+      const deletedClasses = await ClassRoom.deleteMany({
+        _id: { $nin: activeClassRoomIds }
+      });
+
+      // 3. Delete Sections not referenced
+      const deletedSections = await Section.deleteMany({
+        _id: { $nin: activeSectionIds }
+      });
+
+      // 4. Delete AcademicYears not referenced
+      const deletedYears = await AcademicYear.deleteMany({
+        _id: { $nin: activeYearIds }
+      });
+
+      // 5. Delete Departments not referenced
+      const deletedDepts = await Department.deleteMany({
+        _id: { $nin: activeDeptIds }
+      });
+
+      // 6. Delete Rules targeting classes that no longer exist or have no active students
+      const deletedRules = await Rule.deleteMany({
+        targetClassId: { $nin: activeClassIds }
+      });
+
+      logger.info(`Structural Cleanup Summary:
+- Classrooms deleted: ${deletedClasses.deletedCount}
+- Sections deleted: ${deletedSections.deletedCount}
+- Academic Years deleted: ${deletedYears.deletedCount}
+- Departments deleted: ${deletedDepts.deletedCount}
+- Rules deleted: ${deletedRules.deletedCount}`);
+    } catch (err) {
+      const logger = require("../utils/logger");
+      logger.error(`Structural cleanup failed: ${err.message}`);
+    }
   }
 }
 

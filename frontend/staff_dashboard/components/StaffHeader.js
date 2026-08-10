@@ -6,7 +6,7 @@ import staffMockData from '../data/staffMockData';
 const STATUSBAR_OFFSET = 12;
 
 export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
-  const staffInfo = propStaffInfo || staffMockData.staff;
+  const staffInfo = propStaffInfo || { name: '', department: '' };
 
   const getGreeting = () => {
     const hour = new Date().getHours();

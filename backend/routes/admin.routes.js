@@ -1088,23 +1088,6 @@ router.get("/staff", async (req, res, next) => {
   }
 });
 
-router.post("/students/upload", async (req, res, next) => {
-  try {
-    const { fileBase64, fileName = "students.xlsx" } = req.body;
-    if (!fileBase64) {
-      return res.status(400).json({ error: "Missing spreadsheet file data (fileBase64 required)" });
-    }
-
-    const spreadsheetService = require("../services/spreadsheetService");
-    const buffer = Buffer.from(fileBase64, "base64");
-    const result = await spreadsheetService.processStudentUpload(buffer, fileName, req.user.userId, req.user.role);
-
-    res.status(201).json(result);
-  } catch (err) {
-    next(err);
-  }
-});
-
 router.post("/upload/excel", async (req, res, next) => {
   try {
     const { fileBase64, fileName = "import.xlsx", uploadType = "student" } = req.body;

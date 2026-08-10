@@ -8,7 +8,7 @@ import StaffHeader from '../components/StaffHeader';
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
 export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
-  const staffInfo = propStaffInfo || staffMockData.staff;
+  const staffInfo = propStaffInfo || { name: '', department: '' };
   const [currentTime, setCurrentTime] = useState('');
   const [liveStudents, setLiveStudents] = useState([]);
   const [totalStudents, setTotalStudents] = useState(0);
@@ -100,6 +100,26 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
   // Helper to format assigned class name (e.g. "III CSE - A" -> "3rd Year CSE - Section A")
   const formatClassDisplay = (assignedClass) => {
     if (!assignedClass) return 'No Class Assigned';
+
+    // Handle new format: e.g. "CSE-2-D"
+    if (assignedClass.includes('-') && !assignedClass.includes(' - ')) {
+      const parts = assignedClass.split('-');
+      if (parts.length === 3) {
+        const dept = parts[0];
+        const yearVal = parts[1];
+        const section = parts[2];
+
+        let yearText = `${yearVal}th Year`;
+        if (yearVal === '1') yearText = '1st Year';
+        else if (yearVal === '2') yearText = '2nd Year';
+        else if (yearVal === '3') yearText = '3rd Year';
+        else if (yearVal === '4') yearText = '4th Year';
+
+        return `${yearText} ${dept} - Section ${section}`;
+      }
+    }
+
+    // Handle old format: e.g. "III CSE - A"
     const parts = assignedClass.split(' - ');
     const classPart = parts[0]; // e.g. "III CSE"
     const section = parts[1] || ''; // e.g. "A"
@@ -120,7 +140,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
     // Extract department if present (e.g., "III CSE" -> "CSE")
     const deptPart = classPart.replace(/^[IVX\s]+/, '').trim(); // Remove Roman numerals
 
-    return `${yearText} ${deptPart} - Section ${section}`;
+    return `${yearText} ${deptPart}${section ? ` - Section ${section}` : ''}`;
   };
 
   const renderStudentItem = ({ item, index }) => {
@@ -274,8 +294,8 @@ const styles = StyleSheet.create({
   },
   welcomeHeaderSection: {
     marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 20,
+    marginBottom: 20,
     paddingVertical: 4,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -291,22 +311,22 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   classNameText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#0F172A',
-    marginTop: 4,
+    marginTop: 8,
   },
   staffMetaText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
-    marginTop: 6,
+    marginTop: 10,
   },
   clockBannerText: {
     fontSize: 11,
     fontWeight: '600',
     color: colors.primary,
-    marginTop: 4,
+    marginTop: 8,
   },
   classIcon: {
     width: 44,

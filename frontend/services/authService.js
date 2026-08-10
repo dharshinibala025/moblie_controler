@@ -73,24 +73,18 @@ class AuthService {
   async login(email, password, role = 'student') {
     const trimmedEmail = email ? email.trim() : '';
 
-    let data;
-    try {
-      data = await apiFetch('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email: trimmedEmail, password, role }),
-      });
-    } catch (error) {
-      console.warn('[Frontend-Only Mode] Backend unavailable, using mock login for role:', role);
-      data = this.getMockLoginResponse(trimmedEmail, role);
-    }
+    const data = await apiFetch('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: trimmedEmail, password, role }),
+    });
 
     if (!data || !data.user) {
-      data = this.getMockLoginResponse(trimmedEmail, role);
+      throw new Error('Authentication failed: Invalid credentials or missing user data.');
     }
 
     // First-time password change required
     if (data.mustChangePassword) {
-      const tokenToUse = data.tempToken || data.accessToken || 'mock-temp-token-123';
+      const tokenToUse = data.tempToken || data.accessToken;
       return {
         screen: 'passwordReset',
         mustChangePassword: true,
@@ -103,14 +97,14 @@ class AuthService {
 
     // Normal login — persist tokens and user
     await Promise.all([
-      saveTokens(data.accessToken || 'mock-access-token', data.refreshToken || 'mock-refresh-token'),
+      saveTokens(data.accessToken, data.refreshToken || ''),
       saveUser(data.user),
     ]);
 
     return {
       screen: 'dashboard',
       user: data.user,
-      accessToken: data.accessToken || 'mock-access-token',
+      accessToken: data.accessToken,
     };
   }
 
@@ -223,35 +217,20 @@ class AuthService {
    * On success, saves the real session and returns the user.
    */
   async changePasswordWithTempToken(tempToken, newPassword) {
-    try {
-      const data = await apiFetch('/auth/change-password', {
-        method: 'POST',
-        body: JSON.stringify({ tempToken, newPassword }),
-      });
+    const data = await apiFetch('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ tempToken, newPassword }),
+    });
 
-      // Persist the real session after password change
-      if (data && data.accessToken) {
-        await Promise.all([
-          saveTokens(data.accessToken, data.refreshToken),
-          saveUser(data.user),
-        ]);
-      }
-
-      return data;
-    } catch (err) {
-      console.warn('[Frontend-Only Mode] Password change fallback:', err.message);
-      const mockUser = {
-        id: 'user-mock-pwd',
-        name: 'User',
-        email: 'user@ksrce.ac.in',
-        role: 'student',
-      };
+    // Persist the real session after password change
+    if (data && data.accessToken) {
       await Promise.all([
-        saveTokens('mock-access-token-new', 'mock-refresh-token-new'),
-        saveUser(mockUser),
+        saveTokens(data.accessToken, data.refreshToken),
+        saveUser(data.user),
       ]);
-      return { success: true, user: mockUser, accessToken: 'mock-access-token-new' };
     }
+
+    return data;
   }
 }
 

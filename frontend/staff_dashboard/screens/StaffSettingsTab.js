@@ -26,7 +26,6 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
     employeeId: '...',
     department: 'Computer Science Engineering',
     email: '...',
-    phone: '+91 94421 78905',
     avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
     initials: 'ST',
     assignedClass: '...',
@@ -60,7 +59,6 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
         employeeId: staffInfo.employeeId || 'KSR-STF-1024',
         department: 'Computer Science Engineering',
         email: staffInfo.email || '',
-        phone: staffInfo.phone || '+91 94421 78905',
         avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
         initials: getInitials(staffInfo.name),
         assignedClass: formatClassId(staffInfo.classId),
@@ -92,7 +90,6 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
     staffMockData.staff.id = profileForm.employeeId;
     staffMockData.staff.department = profileForm.department;
     staffMockData.staff.email = profileForm.email;
-    staffMockData.staff.mobile = profileForm.phone;
     staffMockData.staff.assignedClass = profileForm.assignedClass;
 
     setEditProfileVisible(false);
@@ -166,10 +163,6 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
                 <Text style={styles.infoText}>{staffProfile.email}</Text>
               </View>
               <View style={styles.infoRow}>
-                <VectorIcon name="phone" size={16} color={colors.primary} />
-                <Text style={styles.infoText}>{staffProfile.phone}</Text>
-              </View>
-              <View style={styles.infoRow}>
                 <VectorIcon name="school" size={16} color={colors.primary} />
                 <Text style={styles.infoText}>Class Mentor: {staffProfile.assignedClass}</Text>
               </View>
@@ -184,7 +177,7 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
             <SettingsRow
               icon="account"
               label="Edit Profile"
-              subtitle="Update name, email, phone number, or class assignment"
+              subtitle="Update name, email, or class assignment"
               onPress={() => {
                 setProfileForm({ ...staffProfile });
                 setEditProfileVisible(true);
@@ -254,14 +247,6 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
                 value={profileForm.email}
                 keyboardType="email-address"
                 onChangeText={(t) => setProfileForm({ ...profileForm, email: t })}
-              />
-
-              <Text style={styles.inputLabel}>Phone Number</Text>
-              <TextInput
-                style={styles.textInput}
-                value={profileForm.phone}
-                keyboardType="phone-pad"
-                onChangeText={(t) => setProfileForm({ ...profileForm, phone: t })}
               />
 
               <Text style={styles.inputLabel}>Assigned Mentor Class</Text>

@@ -27,11 +27,11 @@ export const ProfileScreen = ({ student, onLogout }) => {
       .toUpperCase();
   };
 
-  const studentName = student?.name || 'Dharani V V';
-  const registerNo = student?.registerNumber || '221CS000';
-  const deptName = student?.fullDepartment || student?.department || 'Computer Science and Engineering';
-  const email = student?.email || 'vvdharani57cse24_27@ksrce.ac.in';
-  const section = student?.section || 'A';
+  const studentName = student?.name || '';
+  const registerNo = student?.registerNumber || '';
+  const deptName = student?.fullDepartment || student?.department || '';
+  const email = student?.email || '';
+  const section = student?.section || '';
   const initials = student?.initials || getInitials(studentName);
   const avatarUrl = student?.avatar;
 

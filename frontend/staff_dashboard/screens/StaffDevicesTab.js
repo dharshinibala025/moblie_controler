@@ -81,7 +81,7 @@ const formatTo12Hour = (timeStr) => {
 };
 
 export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
-  const staffInfo = propStaffInfo || staffMockData.staff;
+  const staffInfo = propStaffInfo || { name: '', department: '' };
   const mentorClass = staffInfo.assignedClass || staffInfo.classId || 'Not Assigned';
 
   // State
