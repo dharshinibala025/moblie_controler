@@ -5,6 +5,7 @@ import StaffDashboardTab from './StaffDashboardTab';
 import StaffDevicesTab from './StaffDevicesTab';
 import StaffStudentsTab from './StaffStudentsTab';
 import StaffSettingsTab from './StaffSettingsTab';
+import NotificationsScreen from '../../admin_dashboard/screens/NotificationsScreen';
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
 import { getStoredUser } from '../../services/apiConfig';
 
@@ -34,6 +35,8 @@ export const StaffDashboardScreen = ({ onLogout }) => {
         return <StaffDevicesTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
       case 'students':
         return <StaffStudentsTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
+      case 'notifications':
+        return <NotificationsScreen onBack={() => setActiveTab('dashboard')} />;
       case 'settings':
         return <StaffSettingsTab staffInfo={staffInfo} onLogout={onLogout} />;
       default:

@@ -1,4 +1,17 @@
 const STAFF_PROFILES = {
+  'arisuthan@ksrce.ac.in': {
+    name: 'Dr. K. Arisuthan',
+    designation: 'Class Advisor & Professor',
+    id: 'KSR-STF-1001',
+    department: 'Computer Science Engineering',
+    email: 'arisuthan@ksrce.ac.in',
+    mobile: '+91 94432 10987',
+    roleAssignment: 'Class Advisor - CSE III CSE A',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256',
+    initials: 'KA',
+    assignedClass: 'III CSE - A',
+    password: 'staff@123',
+  },
   'rajesh.kumar@ksrce.ac.in': {
     name: 'Dr. Rajesh Kumar',
     designation: 'Professor & Head',
@@ -67,12 +80,12 @@ const STAFF_PROFILES = {
 };
 
 export const getStaffProfile = (email) => {
-  return STAFF_PROFILES[email] || STAFF_PROFILES['rajesh.kumar@ksrce.ac.in'];
+  return STAFF_PROFILES[email] || STAFF_PROFILES['arisuthan@ksrce.ac.in'] || STAFF_PROFILES['rajesh.kumar@ksrce.ac.in'];
 };
 
 export const STAFF_EMAILS = Object.keys(STAFF_PROFILES);
 
-const defaultStaff = STAFF_PROFILES['rajesh.kumar@ksrce.ac.in'];
+const defaultStaff = STAFF_PROFILES['arisuthan@ksrce.ac.in'] || STAFF_PROFILES['rajesh.kumar@ksrce.ac.in'];
 
 const classMapping = {
   'III CSE - A': '3rd Year - A',
@@ -84,6 +97,8 @@ const classMapping = {
   'IV CSE - A': 'Final Year - A',
   'IV CSE - B': 'Final Year - B',
   'IV CSE - C': 'Final Year - C',
+  'CSE - Section 3rd Year A': '3rd Year - A',
+  'CSE - Section 2nd Year A': '2nd Year - A',
 };
 
 export const getSectionKeyFromClass = (assignedClass) => {
@@ -183,9 +198,19 @@ const ALL_NOTIFICATIONS = {
 
 export const getStudentsForClass = (assignedClass) => {
   const sectionKey = getSectionKeyFromClass(assignedClass);
-  const students = SECTIONS[sectionKey] || [];
+  const students = SECTIONS[sectionKey] || SECTIONS['3rd Year - A'];
   return students.map(s => ({
     ...s,
+    id: s.id,
+    name: s.name,
+    rollNo: s.rollNo,
+    email: s.email || `${s.rollNo.toLowerCase()}@ksrce.ac.in`,
+    status: s.status === 'blocked' ? 'blocked' : s.status === 'offline' ? 'offline' : 'active',
+    deviceStatus: s.status === 'blocked' ? 'blocked' : s.status === 'offline' ? 'offline' : 'active',
+    device: s.device || 'Android Phone',
+    deviceType: s.device || 'Android Phone',
+    screenTime: s.screenTime || '1h 20m',
+    attempts: s.attempts || 0,
     online: s.status !== 'offline',
     lastSync: s.status === 'offline' ? '15 min ago' : s.status === 'blocked' ? '2 min ago' : 'Just now',
   }));

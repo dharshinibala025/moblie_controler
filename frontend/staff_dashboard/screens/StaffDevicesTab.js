@@ -184,11 +184,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
   // Restriction actions
   const handleApplyRestriction = async () => {
-    if (selectedApps.length === 0) {
-      Alert.alert('No Apps Selected', 'Please select at least one app to block.');
-      return;
-    }
-
     const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
     if (!classIdToQuery) {
       Alert.alert('Scope Error', 'No assigned class found.');
@@ -223,7 +218,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
       Alert.alert(
         'Restriction Applied',
-        `Restriction successfully applied to your class!\n\nClass: ${mentorClass}\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
+        `Restriction schedule successfully applied to your class!\n\nClass: ${mentorClass}\nSchedule: ${startTime} – ${endTime}`,
       );
     } catch (err) {
       Alert.alert('Apply Failed', err.message || 'An error occurred.');
@@ -378,46 +373,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
           <View style={styles.divider} />
 
-          {/* App block selection */}
-          <View style={styles.appsHeaderRow}>
-            <Text style={styles.labelTitle}>1. APPS TO BLOCK ({selectedApps.length})</Text>
-            <View style={styles.appActionsGroup}>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleSelectAllApps}>
-                <Text style={styles.miniBtnText}>Select All</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleClearSelection}>
-                <Text style={styles.miniBtnText}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.appsGrid}>
-            {SUPPORTED_APPS.map((app) => {
-              const isBlocked = selectedApps.includes(app);
-              return (
-                <TouchableOpacity
-                  key={app}
-                  style={[styles.appChip, isBlocked && styles.appChipBlocked]}
-                  onPress={() => handleToggleApp(app)}
-                  activeOpacity={0.8}
-                >
-                  <VectorIcon
-                    name={isBlocked ? 'check-circle' : 'circle-outline'}
-                    size={16}
-                    color={isBlocked ? '#FFFFFF' : '#94A3B8'}
-                  />
-                  <Text style={[styles.appChipText, isBlocked && styles.appChipTextBlocked]}>
-                    {app}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={styles.divider} />
-
           {/* Restriction Schedule */}
-          <Text style={styles.labelTitle}>2. RESTRICTION SCHEDULE</Text>
+          <Text style={styles.labelTitle}>RESTRICTION SCHEDULE</Text>
 
           <View style={styles.scheduleRow}>
             <View style={styles.timeInputBox}>
@@ -448,8 +405,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               onPress={handleApplyRestriction}
               activeOpacity={0.8}
             >
-              <VectorIcon name="lock" size={18} color="#FFFFFF" />
-              <Text style={styles.applyBtnText}>Apply Restriction</Text>
+              <VectorIcon name="clock-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.applyBtnText}>Set Restriction Timing</Text>
             </TouchableOpacity>
 
             <View style={styles.secondaryControlsRow}>
