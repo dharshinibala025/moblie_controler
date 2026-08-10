@@ -50,7 +50,7 @@ const DeviceCard = ({
 
       <View style={styles.rightWrapper}>
         <StatusBadge
-          label={isBlocked ? 'Blocked' : 'Connected'}
+          label={isBlocked ? 'Blocked' : 'Active'}
           variant={isBlocked ? 'danger' : 'success'}
         />
         <TouchableOpacity
