@@ -490,6 +490,9 @@ router.post("/staff", async (req, res, next) => {
 
 router.post("/rules", validate("createRule"), async (req, res, next) => {
   try {
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+
     if (req.scopeInstitutionId) {
       req.body.institutionId = req.scopeInstitutionId;
     }
@@ -523,6 +526,9 @@ router.get("/rules", async (req, res, next) => {
 
 router.patch("/rules/:id", validate("updateRule"), async (req, res, next) => {
   try {
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+
     const rule = await ruleService.updateRule(req.params.id, req.body, req.user.userId, req.scopeInstitutionId);
     await auditService.logAction(
       req.user.userId,
@@ -541,6 +547,11 @@ router.patch("/rules/:id", validate("updateRule"), async (req, res, next) => {
 router.post("/rules/:id/command", validate("commandBody"), async (req, res, next) => {
   try {
     const { action } = req.body;
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    if (action === "start") {
+      setEmergencyUnblock(false);
+    }
+
     const rule = await ruleService.sendCommand(req.params.id, action, req.user.userId, req.scopeInstitutionId);
     await auditService.logAction(
       req.user.userId,
@@ -1183,6 +1194,7 @@ router.get("/devices/list", async (req, res, next) => {
         status: d.status,
         userName,
         userRole: d.userId ? d.userId.role : "student",
+        classId: d.userId ? d.userId.classId : null,
       };
     });
 
@@ -1372,6 +1384,9 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
     const Device = require("../models/Device");
     const auditService = require("../services/auditService");
     const { emitToClass } = require("../config/socket");
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+
+    setEmergencyUnblock(true);
 
     await Rule.updateMany({}, { $set: { status: "paused" } });
     await Device.updateMany({}, { $set: { status: "active" } });

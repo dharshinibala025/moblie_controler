@@ -24,55 +24,6 @@ import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 import { getSectionOptions } from '../config/sectionsConfig';
 
-const SUPPORTED_APPS = [
-  'Instagram',
-  'WhatsApp',
-  'Telegram',
-  'Snapchat',
-  'Twitter (X)',
-  'Free Fire',
-  'Facebook',
-  'YouTube',
-  'PUBG',
-  'BGMI',
-  'Discord',
-  'Games',
-  'Threads',
-  'Hotstar',
-  'JioCinema',
-  'Netflix',
-  'Net Mirror',
-  'Sun NXT',
-  'Prime Video',
-  'Airtel Xstream',
-  'Zee5',
-  'Google Play Store',
-];
-
-const APP_PACKAGE_MAPPING = {
-  'Instagram': 'com.instagram.android',
-  'WhatsApp': 'com.whatsapp',
-  'Telegram': 'org.telegram.messenger',
-  'Snapchat': 'com.snapchat.android',
-  'Twitter (X)': 'com.twitter.android',
-  'Free Fire': 'com.dts.freefireth',
-  'Facebook': 'com.facebook.katana',
-  'YouTube': 'com.google.android.youtube',
-  'PUBG': 'com.tencent.ig',
-  'BGMI': 'com.pubg.imobile',
-  'Discord': 'com.discord',
-  'Games': 'Games', // Handled by backend dynamically to resolve all student scanned games
-  'Threads': 'com.instagram.barcelona',
-  'Hotstar': 'in.startv.hotstar',
-  'JioCinema': 'com.jio.media.ondemand',
-  'Netflix': 'com.netflix.mediaclient',
-  'Net Mirror': 'com.netmirror',
-  'Sun NXT': 'com.sun.nxt',
-  'Prime Video': 'com.amazon.avod.thirdpartyclient',
-  'Airtel Xstream': 'com.airtel.tv',
-  'Zee5': 'com.graymatrix.did',
-  'Google Play Store': 'com.android.vending',
-};
 const DevicesScreen = () => {
   const [devices, setDevices] = useState(MOCK_DEVICES);
   const [searchQuery, setSearchQuery] = useState('');
@@ -82,7 +33,6 @@ const DevicesScreen = () => {
   const [selectedDept] = useState('CSE');
   const [draftYear, setDraftYear] = useState('1st Year');
   const [draftSection, setDraftSection] = useState('A');
-  const [selectedApps, setSelectedApps] = useState([...SUPPORTED_APPS]);
 
   // Schedule
   const [startTime, setStartTime] = useState('09:00 AM');
@@ -115,7 +65,17 @@ const DevicesScreen = () => {
 
   const filteredDevices = useMemo(() => {
     const q = searchQuery.toLowerCase();
+    const yearChar = draftYear.charAt(0);
+    const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
+
     return devices.filter((device) => {
+      // 1. Only show student devices
+      if (device.userRole !== 'student') return false;
+
+      // 2. Filter by target class ID (academic year, section, department)
+      if (device.classId !== targetClassId) return false;
+
+      // 3. Search match
       const name = String(device?.studentName || device?.name || '').toLowerCase();
       const model = String(device?.model || device?.deviceType || '').toLowerCase();
       const deviceId = String(device?.deviceId || device?.id || '').toLowerCase();
@@ -132,7 +92,7 @@ const DevicesScreen = () => {
       if (filterMode === 'Blocked') return matchesSearch && device.isBlocked;
       return matchesSearch;
     });
-  }, [devices, searchQuery, filterMode]);
+  }, [devices, searchQuery, filterMode, selectedDept, draftYear, draftSection]);
 
   const connectedDevices = useMemo(() => filteredDevices.filter((d) => !d.isBlocked), [filteredDevices]);
   const blockedDevices = useMemo(() => filteredDevices.filter((d) => d.isBlocked), [filteredDevices]);
@@ -239,7 +199,7 @@ const DevicesScreen = () => {
     const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
 
     const policyData = {
-      blockedApps: selectedApps.map(app => APP_PACKAGE_MAPPING[app] || app.toLowerCase()),
+      blockedApps: ['SocialMedia'],
       scheduleStart: formatTimeForBackend(startTime),
       scheduleEnd: formatTimeForBackend(endTime),
       activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],

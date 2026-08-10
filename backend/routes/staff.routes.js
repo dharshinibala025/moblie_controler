@@ -125,6 +125,9 @@ router.get("/classes/:id/rules", verifyClassScope, async (req, res, next) => {
 // POST: Create a rule for a class
 router.post("/classes/:id/rules", verifyClassScope, validate("createRule"), async (req, res, next) => {
   try {
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+
     req.body.targetClassId = req.params.id;
     if (req.user.institutionId) {
       req.body.institutionId = req.user.institutionId;
@@ -147,6 +150,9 @@ router.post("/classes/:id/rules", verifyClassScope, validate("createRule"), asyn
 // PATCH: Update a rule for a class
 router.patch("/classes/:id/rules/:ruleId", verifyClassScope, validate("updateRule"), async (req, res, next) => {
   try {
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+
     const Rule = require("../models/Rule");
     const ruleCheck = await Rule.findOne({ _id: req.params.ruleId, targetClassId: req.params.id });
     if (!ruleCheck) {
@@ -174,6 +180,11 @@ router.post("/classes/:id/rules/:ruleId/command", verifyClassScope, async (req, 
     const { action } = req.body;
     if (!action || !["start", "pause", "stop"].includes(action)) {
       return res.status(400).json({ error: "Invalid or missing action. Must be start, pause, or stop." });
+    }
+
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    if (action === "start") {
+      setEmergencyUnblock(false);
     }
 
     const Rule = require("../models/Rule");

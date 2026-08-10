@@ -16,64 +16,6 @@ import staffMockData from '../data/staffMockData';
 
 const STATUSBAR_OFFSET = 12;
 
-const SUPPORTED_APPS = [
-  'Instagram',
-  'WhatsApp',
-  'Telegram',
-  'Snapchat',
-  'Twitter (X)',
-  'Free Fire',
-  'Facebook',
-  'YouTube',
-  'PUBG',
-  'BGMI',
-  'Discord',
-  'Games',
-  'Threads',
-  'Hotstar',
-  'JioCinema',
-  'Netflix',
-  'Net Mirror',
-  'Sun NXT',
-  'Prime Video',
-  'Airtel Xstream',
-  'Zee5',
-  'Google Play Store',
-];
-
-const APP_PACKAGE_MAPPING = {
-  'Instagram': 'com.instagram.android',
-  'WhatsApp': 'com.whatsapp',
-  'Telegram': 'org.telegram.messenger',
-  'Snapchat': 'com.snapchat.android',
-  'Twitter (X)': 'com.twitter.android',
-  'Free Fire': 'com.dts.freefireth',
-  'Facebook': 'com.facebook.katana',
-  'YouTube': 'com.google.android.youtube',
-  'PUBG': 'com.tencent.ig',
-  'BGMI': 'com.pubg.imobile',
-  'Discord': 'com.discord',
-  'Games': 'Games', // Handled dynamically in backend to block all scanned games
-  'Threads': 'com.instagram.barcelona',
-  'Hotstar': 'in.startv.hotstar',
-  'JioCinema': 'com.jio.media.ondemand',
-  'Netflix': 'com.netflix.mediaclient',
-  'Net Mirror': 'com.netmirror',
-  'Sun NXT': 'com.sun.nxt',
-  'Prime Video': 'com.amazon.avod.thirdpartyclient',
-  'Airtel Xstream': 'com.airtel.tv',
-  'Zee5': 'com.graymatrix.did',
-  'Google Play Store': 'com.android.vending',
-};
-
-const mapAppNameToPackage = (appName) => {
-  return APP_PACKAGE_MAPPING[appName] || appName.toLowerCase();
-};
-
-const mapPackageToAppName = (pkgName) => {
-  const entry = Object.entries(APP_PACKAGE_MAPPING).find(([name, pkg]) => pkg === pkgName);
-  return entry ? entry[0] : pkgName;
-};
 
 const parseTo24Hour = (timeStr) => {
   if (!timeStr) return '09:00';
@@ -149,7 +91,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   };
 
   // State
-  const [selectedApps, setSelectedApps] = useState([...SUPPORTED_APPS]);
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('04:00 PM');
   const [restrictionStatus, setRestrictionStatus] = useState('IDLE'); // 'IDLE' | 'ACTIVE' | 'PAUSED'
@@ -172,9 +113,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
           setStartTime(formatTo12Hour(rule.scheduleStart));
           setEndTime(formatTo12Hour(rule.scheduleEnd));
-
-          const resolvedApps = (rule.blockedApps || []).map(pkg => mapPackageToAppName(pkg));
-          setSelectedApps(resolvedApps);
 
           if (rule.status === 'active') {
             setRestrictionStatus('ACTIVE');
@@ -229,30 +167,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
     return () => clearInterval(interval);
   }, []);
 
-  // Toggle single app chip
-  const handleToggleApp = (appName) => {
-    setSelectedApps((prev) =>
-      prev.includes(appName) ? prev.filter((a) => a !== appName) : [...prev, appName],
-    );
-  };
-
-  // Select all apps
-  const handleSelectAllApps = () => {
-    setSelectedApps([...SUPPORTED_APPS]);
-  };
-
-  // Clear apps
-  const handleClearSelection = () => {
-    setSelectedApps([]);
-  };
-
   // Restriction actions
   const handleApplyRestriction = async () => {
-    if (selectedApps.length === 0) {
-      Alert.alert('No Apps Selected', 'Please select at least one app to block.');
-      return;
-    }
-
     const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
     if (!classIdToQuery) {
       Alert.alert('Scope Error', 'No assigned class found.');
@@ -264,7 +180,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       const staffService = require('../../services/staffService').default;
       
       const payload = {
-        blockedApps: selectedApps.map(app => mapAppNameToPackage(app)),
+        blockedApps: ['SocialMedia'],
         scheduleStart: parseTo24Hour(startTime),
         scheduleEnd: parseTo24Hour(endTime),
         activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -442,46 +358,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
           <View style={styles.divider} />
 
-          {/* App block selection */}
-          <View style={styles.appsHeaderRow}>
-            <Text style={styles.labelTitle}>1. APPS TO BLOCK ({selectedApps.length})</Text>
-            <View style={styles.appActionsGroup}>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleSelectAllApps}>
-                <Text style={styles.miniBtnText}>Select All</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleClearSelection}>
-                <Text style={styles.miniBtnText}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.appsGrid}>
-            {SUPPORTED_APPS.map((app) => {
-              const isBlocked = selectedApps.includes(app);
-              return (
-                <TouchableOpacity
-                  key={app}
-                  style={[styles.appChip, isBlocked && styles.appChipBlocked]}
-                  onPress={() => handleToggleApp(app)}
-                  activeOpacity={0.8}
-                >
-                  <VectorIcon
-                    name={isBlocked ? 'check-circle' : 'circle-outline'}
-                    size={16}
-                    color={isBlocked ? '#FFFFFF' : '#94A3B8'}
-                  />
-                  <Text style={[styles.appChipText, isBlocked && styles.appChipTextBlocked]}>
-                    {app}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={styles.divider} />
-
           {/* Restriction Schedule */}
-          <Text style={styles.labelTitle}>2. RESTRICTION SCHEDULE</Text>
+          <Text style={styles.labelTitle}>RESTRICTION SCHEDULE</Text>
 
           <View style={styles.scheduleRow}>
             <View style={styles.timeInputBox}>
