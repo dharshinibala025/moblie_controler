@@ -91,18 +91,6 @@ const ImportExcelCard = ({
 
       <View style={styles.buttonGroup}>
         <TouchableOpacity
-          style={styles.downloadButton}
-          onPress={(e) => {
-            if (e && e.stopPropagation) e.stopPropagation();
-            onDownloadTemplate && onDownloadTemplate();
-          }}
-          activeOpacity={0.8}
-        >
-          <Icon name="file-download" size={16} color={colors.primaryBlue} />
-          <Text style={styles.downloadButtonText}>Download Template</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={styles.uploadButton}
           onPress={(e) => {
             if (e && e.stopPropagation) e.stopPropagation();
