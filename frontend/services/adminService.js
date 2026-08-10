@@ -374,10 +374,10 @@ class AdminService {
   async getDashboardOverview() {
     try {
       const res = await apiFetch('/admin/dashboard/overview');
-      return res || MOCK_DASHBOARD_OVERVIEW;
+      return res || { stats: [], recentActivities: [] };
     } catch (error) {
       console.warn('Admin overview fetch fallback:', error.message);
-      return MOCK_DASHBOARD_OVERVIEW;
+      return { stats: [], recentActivities: [] };
     }
   }
 
@@ -391,10 +391,10 @@ class AdminService {
   async getStudents() {
     try {
       const res = await apiFetch('/admin/students');
-      return res && Array.isArray(res) && res.length > 0 ? res : MOCK_STUDENTS;
+      return res && Array.isArray(res) ? res : [];
     } catch (error) {
       console.warn('Admin students fetch fallback:', error.message);
-      return MOCK_STUDENTS;
+      return [];
     }
   }
 
@@ -409,10 +409,10 @@ class AdminService {
   async getStaff() {
     try {
       const res = await apiFetch('/admin/staff');
-      return res && Array.isArray(res) && res.length > 0 ? res : MOCK_STAFF;
+      return res && Array.isArray(res) ? res : [];
     } catch (error) {
       console.warn('Admin staff fetch fallback:', error.message);
-      return MOCK_STAFF;
+      return [];
     }
   }
 
@@ -427,10 +427,10 @@ class AdminService {
   async getDevices() {
     try {
       const res = await apiFetch('/admin/devices/list');
-      return res && Array.isArray(res) && res.length > 0 ? res : MOCK_DEVICES;
+      return res && Array.isArray(res) ? res : [];
     } catch (error) {
       console.warn('Admin devices list fetch fallback:', error.message);
-      return MOCK_DEVICES;
+      return [];
     }
   }
 
@@ -493,6 +493,28 @@ class AdminService {
       console.warn('Delete activity API fallback:', error.message);
       return null;
     }
+  }
+
+  async getAdminNotifications() {
+    try {
+      const res = await apiFetch('/admin/notifications');
+      return res && Array.isArray(res) ? res : [];
+    } catch (error) {
+      console.warn('Admin getNotifications fallback:', error.message);
+      return [];
+    }
+  }
+
+  async deleteAdminNotification(id) {
+    return await apiFetch(`/admin/notifications/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async markAllNotificationsRead() {
+    return await apiFetch('/admin/notifications/mark-read', {
+      method: 'POST',
+    });
   }
 }
 

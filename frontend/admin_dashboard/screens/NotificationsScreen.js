@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,73 +21,10 @@ import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 import adminService from '../../services/adminService';
 
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 'n1',
-    type: 'Broadcast',
-    title: 'Exam Mobile Usage Policy Broadcasted',
-    message: 'All mobile phones must be deposited in restriction mode before entering the exam hall.',
-    target: 'All Students',
-    time: '2m ago',
-    deliveredCount: 16,
-    readCount: 14,
-    status: 'Delivered',
-    isRead: false,
-    icon: 'campaign',
-    iconColor: colors.primaryBlue,
-    iconBg: colors.secondaryBackground,
-  },
-  {
-    id: 'n2',
-    type: 'Device Warning',
-    title: 'Unauthorized App Restriction Triggered',
-    message: 'High risk app (Instagram) launched during restriction hours on DEV-4820 (Bhavna Ramesh).',
-    target: 'CSE - 1st Year Sec C',
-    time: '18m ago',
-    deliveredCount: 1,
-    readCount: 1,
-    status: 'Action Required',
-    isRead: false,
-    icon: 'phonelink-erase',
-    iconColor: colors.danger,
-    iconBg: colors.dangerSoft,
-  },
-  {
-    id: 'n3',
-    type: 'Broadcast',
-    title: 'Class Advisor Assignment Notice',
-    message: 'Prof. Anitha Parthiban has been assigned as Class Advisor for CSE 2nd Year Sec A.',
-    target: 'Staff & Faculty',
-    time: '1h ago',
-    deliveredCount: 5,
-    readCount: 5,
-    status: 'Delivered',
-    isRead: true,
-    icon: 'groups',
-    iconColor: colors.skyBlue,
-    iconBg: colors.secondaryBackground,
-  },
-  {
-    id: 'n4',
-    type: 'System Alert',
-    title: 'Server Maintenance Scheduled',
-    message: 'Scheduled backend socket synchronization at 11:00 PM IST today.',
-    target: 'All Admin & Staff',
-    time: '3h ago',
-    deliveredCount: 21,
-    readCount: 19,
-    status: 'Info',
-    isRead: true,
-    icon: 'dns',
-    iconColor: colors.success,
-    iconBg: colors.successSoft,
-  },
-];
-
 const ANNOUNCEMENT_TARGETS = ['All Students', 'Department', 'Year', 'Section', 'Individual Student'];
 
 const NotificationsScreen = ({ onBack }) => {
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('All');
 
@@ -102,13 +39,26 @@ const NotificationsScreen = ({ onBack }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
 
+  const loadNotifications = async () => {
+    try {
+      const data = await adminService.getAdminNotifications();
+      setNotifications(data || []);
+    } catch (err) {
+      console.warn('Failed to load notifications:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
   const filteredList = notifications.filter((item) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !q ||
-      item.title.toLowerCase().includes(q) ||
-      item.message.toLowerCase().includes(q) ||
-      item.target.toLowerCase().includes(q);
+      (item.title || '').toLowerCase().includes(q) ||
+      (item.message || '').toLowerCase().includes(q) ||
+      (item.target || '').toLowerCase().includes(q);
 
     if (filterType === 'Broadcasts') return matchesSearch && item.type === 'Broadcast';
     if (filterType === 'Alerts') return matchesSearch && (item.type === 'System Alert' || item.type === 'Device Warning');
@@ -121,25 +71,6 @@ const NotificationsScreen = ({ onBack }) => {
       return;
     }
 
-    const newNotif = {
-      id: `n_${Date.now()}`,
-      type: 'Broadcast',
-      title: announcementTitle,
-      message: announcementMessage,
-      target: selectedTarget + (targetDetail ? ` (${targetDetail})` : ''),
-      time: 'Just now',
-      deliveredCount: 16,
-      readCount: 0,
-      status: 'Delivered',
-      isRead: false,
-      icon: 'campaign',
-      iconColor: colors.primaryBlue,
-      iconBg: colors.secondaryBackground,
-    };
-
-    setNotifications((prev) => [newNotif, ...prev]);
-    setAnnouncementModalVisible(false);
-
     try {
       await adminService.broadcastAnnouncement({
         title: announcementTitle,
@@ -149,14 +80,15 @@ const NotificationsScreen = ({ onBack }) => {
           targetId: targetDetail || undefined,
         },
       });
+      Alert.alert('Broadcast Sent', 'Notification dispatched to student devices.');
+      setAnnouncementTitle('');
+      setAnnouncementMessage('');
+      setTargetDetail('');
+      setAnnouncementModalVisible(false);
+      loadNotifications();
     } catch (err) {
-      // Offline fallback already updated state
+      Alert.alert('Error', 'Failed to dispatch broadcast: ' + err.message);
     }
-
-    Alert.alert('Broadcast Sent', 'Notification dispatched to student devices.');
-    setAnnouncementTitle('');
-    setAnnouncementMessage('');
-    setTargetDetail('');
   };
 
   const handleDelete = (id) => {
@@ -165,15 +97,25 @@ const NotificationsScreen = ({ onBack }) => {
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () => {
+        onPress: async () => {
           setNotifications((prev) => prev.filter((n) => n.id !== id));
+          try {
+            await adminService.deleteAdminNotification(id);
+          } catch (err) {
+            console.warn('Failed to delete notification:', err.message);
+          }
         },
       },
     ]);
   };
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    try {
+      await adminService.markAllNotificationsRead();
+    } catch (err) {
+      console.warn('Failed to mark notifications read:', err.message);
+    }
   };
 
   return (

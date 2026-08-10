@@ -949,48 +949,16 @@ router.get("/dashboard/overview", async (req, res, next) => {
 
     const recentActivities = [];
 
-    // Prepend compliance warnings for students without login or with disabled permissions
-    const allStudents = await User.find({ role: "student" }).select("name email studentId");
-    const allDevices = await Device.find();
-    const deviceMap = new Map(allDevices.map((d) => [d.userId.toString(), d]));
-
-    for (const student of allStudents) {
-      const dev = deviceMap.get(student._id.toString());
-      if (!dev) {
-        recentActivities.push({
-          id: `warn-login-${student._id}`,
-          icon: "person-off",
-          title: "Student Not Logged In",
-          description: `${student.name} (${student.studentId || student.email}) has not registered a device yet`,
-          time: "Warning",
-          iconColor: "#F59E0B",
-          iconBackground: "#FEF3C7",
-        });
-      } else if (!dev.deviceInfo || dev.deviceInfo.accessibilityEnabled === false || dev.deviceInfo.overlayEnabled === false) {
-        recentActivities.push({
-          id: `crit-perm-${student._id}`,
-          icon: "report-problem",
-          title: "Permissions Disabled",
-          description: `${student.name} disabled ${
-            dev.deviceInfo?.accessibilityEnabled === false ? "Accessibility" : "Overlay"
-          } permissions`,
-          time: "Non-Compliant",
-          iconColor: "#EF4444",
-          iconBackground: "#FEE2E2",
-        });
-      }
-    }
-
-    for (const attempt of recentAttempts) {
-      const studentName = attempt.studentId ? attempt.studentId.name : "Student";
+    for (const audit of recentAudits) {
+      const actorName = audit.actorId ? audit.actorId.name : "Admin";
       recentActivities.push({
-        id: `att-${attempt._id}`,
-        icon: "phonelink-erase",
-        title: "Device blocked attempt",
-        description: `Unauthorized app (${attempt.packageName}) on ${studentName}'s device`,
-        time: attempt.attemptedAt ? `${Math.max(1, Math.round((Date.now() - new Date(attempt.attemptedAt).getTime()) / 60000))}m ago` : "Recently",
-        iconColor: "#EF4444",
-        iconBackground: "#FEE2E2",
+        id: `aud-${audit._id}`,
+        icon: "how-to-reg",
+        title: audit.action.replace(/\./g, " ").toUpperCase(),
+        description: `Performed by ${actorName}`,
+        time: audit.createdAt ? `${Math.max(1, Math.round((Date.now() - new Date(audit.createdAt).getTime()) / 60000))}m ago` : "Recently",
+        iconColor: "#2563EB",
+        iconBackground: "#EFF6FF",
       });
     }
 
@@ -1460,6 +1428,73 @@ router.post("/staff/upload", async (req, res, next) => {
     );
 
     res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/notifications", async (req, res, next) => {
+  try {
+    const Notification = require("../models/Notification");
+    const notifications = await Notification.find({ studentId: req.user.userId }).sort({ createdAt: -1 });
+    
+    const formatted = notifications.map((n) => {
+      let icon = "campaign";
+      let iconColor = "#2563EB";
+      let iconBg = "#EFF6FF";
+      
+      if (n.type === "restriction") {
+        icon = "phonelink-erase";
+        iconColor = "#EF4444";
+        iconBg = "#FEE2E2";
+      } else if (n.type === "system") {
+        icon = "dns";
+        iconColor = "#16A34A";
+        iconBg = "#DCFCE7";
+      }
+      
+      const diffMs = Date.now() - new Date(n.createdAt).getTime();
+      const diffMins = Math.max(1, Math.round(diffMs / 60000));
+      const timeStr = diffMins < 60 ? `${diffMins}m ago` : `${Math.round(diffMins / 60)}h ago`;
+
+      return {
+        id: n._id.toString(),
+        type: n.type === "restriction" ? "Device Warning" : n.type === "system" ? "System Alert" : "Broadcast",
+        title: n.title,
+        message: n.message,
+        target: n.metadata?.target || "All",
+        time: timeStr,
+        deliveredCount: n.metadata?.deliveredCount || 0,
+        readCount: n.metadata?.readCount || 0,
+        status: n.type === "restriction" ? "Action Required" : "Delivered",
+        isRead: n.read,
+        icon,
+        iconColor,
+        iconBg,
+      };
+    });
+    
+    res.json(formatted);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/notifications/:id", async (req, res, next) => {
+  try {
+    const Notification = require("../models/Notification");
+    await Notification.deleteOne({ _id: req.params.id, studentId: req.user.userId });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/notifications/mark-read", async (req, res, next) => {
+  try {
+    const Notification = require("../models/Notification");
+    await Notification.updateMany({ studentId: req.user.userId }, { $set: { read: true } });
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }

@@ -36,7 +36,7 @@ const getInitials = (name) =>
     : 'ST';
 
 const StudentsScreen = () => {
-  const [students, setStudents] = useState(MOCK_STUDENTS);
+  const [students, setStudents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept] = useState('CSE');
   const [selectedYear, setSelectedYear] = useState('All');

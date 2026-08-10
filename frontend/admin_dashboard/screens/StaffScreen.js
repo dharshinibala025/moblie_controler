@@ -36,7 +36,7 @@ const getInitials = (name) =>
     : 'ST';
 
 const StaffScreen = () => {
-  const [staff, setStaff] = useState(MOCK_STAFF);
+  const [staff, setStaff] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept] = useState('All');
   const [selectedAdvisor, setSelectedAdvisor] = useState('All');

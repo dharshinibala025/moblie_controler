@@ -300,6 +300,9 @@ router.post("/blocked-attempt", async (req, res, next) => {
     const { packageName, appName, policyVersion, attemptedAt } = req.body;
     const User = require("../models/User");
     const BlockedAttempt = require("../models/BlockedAttempt");
+    const StaffAssignment = require("../models/StaffAssignment");
+    const Notification = require("../models/Notification");
+    const { emitToClass } = require("../config/socket");
 
     const student = await User.findById(req.user.userId);
     if (!student) {
@@ -328,6 +331,40 @@ router.post("/blocked-attempt", async (req, res, next) => {
       { packageName, appName, policyVersion },
       student.institutionId || "KSRCE"
     );
+
+    // Fetch Admin users
+    const admins = await User.find({ role: "admin" }).select("_id");
+    const adminIds = admins.map((a) => a._id);
+
+    // Fetch assigned Staff users for this class
+    const assignments = await StaffAssignment.find({ classId: student.classId, isActive: true });
+    const staffIds = assignments.map((a) => a.staffId);
+
+    const recipientIds = [...new Set([...adminIds, ...staffIds])];
+
+    const modelName = device.deviceInfo?.deviceModel || device.deviceInfo?.model || "student device";
+    const displayName = student.name;
+    const resolvedAppName = appName || packageName;
+
+    const notificationsToCreate = recipientIds.map((recId) => ({
+      studentId: recId,
+      title: "Unauthorized App Restriction Triggered",
+      message: `High risk app (${resolvedAppName}) launched during restriction hours on ${modelName} (${displayName}).`,
+      type: "restriction",
+      metadata: {
+        studentId: student._id,
+        packageName,
+        deliveredCount: 1,
+        readCount: 0,
+        target: student.classId || "General",
+      },
+    }));
+
+    if (notificationsToCreate.length > 0) {
+      await Notification.insertMany(notificationsToCreate);
+    }
+
+    emitToClass("ALL", "notification:new", { timestamp: new Date() });
 
     res.status(201).json({ success: true, attemptId: attempt._id });
   } catch (err) {

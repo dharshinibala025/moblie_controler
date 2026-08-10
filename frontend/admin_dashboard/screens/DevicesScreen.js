@@ -25,7 +25,7 @@ import { spacing, radius, softShadow } from '../styles/globalStyles';
 import { getSectionOptions } from '../config/sectionsConfig';
 
 const DevicesScreen = () => {
-  const [devices, setDevices] = useState(MOCK_DEVICES);
+  const [devices, setDevices] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('All');
 
