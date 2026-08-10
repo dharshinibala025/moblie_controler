@@ -17,7 +17,7 @@ import SelectDropdown from '../components/SelectDropdown';
 import StatusBadge from '../components/StatusBadge';
 import SearchBar from '../components/SearchBar';
 import FilterChipGroup from '../components/FilterChipGroup';
-import adminService from '../../services/adminService';
+import adminService, { MOCK_DEVICES } from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
@@ -75,7 +75,7 @@ const APP_PACKAGE_MAPPING = {
 };
 
 const DevicesScreen = () => {
-  const [devices, setDevices] = useState([]);
+  const [devices, setDevices] = useState(MOCK_DEVICES);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('All');
 
@@ -92,17 +92,17 @@ const DevicesScreen = () => {
 
   const yearDropdownOptions = useMemo(
     () => [
-      { label: 'I Year', value: '1st Year' },
-      { label: 'II Year', value: '2nd Year' },
-      { label: 'III Year', value: '3rd Year' },
-      { label: 'IV Year', value: '4th Year' },
+      { label: '1st Year', value: '1st Year' },
+      { label: '2nd Year', value: '2nd Year' },
+      { label: '3rd Year', value: '3rd Year' },
+      { label: '4th Year', value: '4th Year' },
     ],
     [],
   );
 
   const sectionDropdownOptions = useMemo(() => {
     const sections = getSectionOptions(draftYear);
-    return sections.map((s) => ({ label: s, value: s }));
+    return sections.map((s) => ({ label: `Section ${s}`, value: s }));
   }, [draftYear]);
 
   const loadDevices = async () => {
@@ -115,10 +115,20 @@ const DevicesScreen = () => {
   }, []);
 
   const filteredDevices = useMemo(() => {
+    const q = searchQuery.toLowerCase();
     return devices.filter((device) => {
+      const name = String(device?.studentName || device?.name || '').toLowerCase();
+      const model = String(device?.model || device?.deviceType || '').toLowerCase();
+      const deviceId = String(device?.deviceId || device?.id || '').toLowerCase();
+      const rollNo = String(device?.rollNo || '').toLowerCase();
+
       const matchesSearch =
-        device.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        device.deviceType.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        name.includes(q) ||
+        model.includes(q) ||
+        deviceId.includes(q) ||
+        rollNo.includes(q);
+
       if (filterMode === 'Connected') return matchesSearch && !device.isBlocked;
       if (filterMode === 'Blocked') return matchesSearch && device.isBlocked;
       return matchesSearch;
@@ -380,10 +390,10 @@ const DevicesScreen = () => {
           connectedDevices.map((device) => (
             <DeviceCard
               key={device.id}
-              name={device.name}
-              deviceType={device.deviceType}
-              ipAddress={device.ipAddress}
-              lastActive={device.lastActive}
+              name={device.studentName || device.name || 'Student Device'}
+              deviceType={device.model || device.deviceType || 'Android Phone'}
+              ipAddress={device.rollNo ? `Reg. No: ${device.rollNo}` : device.deviceId || 'DEV-100'}
+              lastActive={device.lastPing || device.activeTime || 'Active'}
               isBlocked={device.isBlocked}
               onToggleBlock={() => handleToggleBlock(device.id)}
             />
@@ -403,10 +413,10 @@ const DevicesScreen = () => {
           blockedDevices.map((device) => (
             <DeviceCard
               key={device.id}
-              name={device.name}
-              deviceType={device.deviceType}
-              ipAddress={device.ipAddress}
-              lastActive={device.lastActive}
+              name={device.studentName || device.name || 'Student Device'}
+              deviceType={device.model || device.deviceType || 'Android Phone'}
+              ipAddress={device.rollNo ? `Reg. No: ${device.rollNo}` : device.deviceId || 'DEV-100'}
+              lastActive={device.lastPing || device.activeTime || 'Active'}
               isBlocked={device.isBlocked}
               onToggleBlock={() => handleToggleBlock(device.id)}
             />

@@ -18,7 +18,7 @@ import SelectDropdown from '../components/SelectDropdown';
 import ImportExcelCard from '../components/ImportExcelCard';
 import SectionTitle from '../components/SectionTitle';
 import PersonRecordCard from '../components/PersonRecordCard';
-import adminService from '../../services/adminService';
+import adminService, { MOCK_STUDENTS } from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
@@ -36,7 +36,7 @@ const getInitials = (name) =>
     : 'ST';
 
 const StudentsScreen = () => {
-  const [students, setStudents] = useState([]);
+  const [students, setStudents] = useState(MOCK_STUDENTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept] = useState('CSE');
   const [selectedYear, setSelectedYear] = useState('All');
@@ -84,17 +84,20 @@ const StudentsScreen = () => {
   const yearDropdownOptions = useMemo(
     () => [
       { label: 'All Years', value: 'All' },
-      { label: 'I Year', value: '1st Year' },
-      { label: 'II Year', value: '2nd Year' },
-      { label: 'III Year', value: '3rd Year' },
-      { label: 'IV Year', value: '4th Year' },
+      { label: '1st Year', value: '1st Year' },
+      { label: '2nd Year', value: '2nd Year' },
+      { label: '3rd Year', value: '3rd Year' },
+      { label: '4th Year', value: '4th Year' },
     ],
     [],
   );
 
   const sectionDropdownOptions = useMemo(() => {
     const sections = getSectionOptions(draftYear);
-    return [{ label: 'All Sections', value: 'All' }, ...sections.map((s) => ({ label: s, value: s }))];
+    return [
+      { label: 'All Sections', value: 'All' },
+      ...sections.map((s) => ({ label: `Section ${s}`, value: s })),
+    ];
   }, [draftYear]);
 
   useEffect(() => {
@@ -411,7 +414,7 @@ const StudentsScreen = () => {
         <View style={styles.section}>
           <SectionTitle
             title={`All Students (${filteredStudents.length})`}
-            subtitle="View, Edit, Delete or Toggle Device Restrictions"
+            subtitle="View, Edit, or Delete Student Records"
           />
 
           {filteredStudents.length === 0 ? (
@@ -600,11 +603,11 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
   searchFilterArea: {
     backgroundColor: colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingBottom: spacing.xs,
   },
   filterSection: {
     paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.md,
   },
   filterRow: {

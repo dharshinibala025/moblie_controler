@@ -29,7 +29,9 @@ export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
           <Text style={styles.greetingText}>{getGreeting()}</Text>
           <Text style={styles.staffNameText}>{staffInfo.name}</Text>
           <Text style={styles.departmentText}>
-            {typeof staffInfo.department === 'string' ? staffInfo.department : (staffInfo.department?.name || 'Computer Science Engineering')}
+            {typeof staffInfo.department === 'string'
+              ? staffInfo.department
+              : (staffInfo.department?.name || staffInfo.departmentShort || 'Computer Science Engineering')}
           </Text>
         </View>
       </View>

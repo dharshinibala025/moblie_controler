@@ -17,7 +17,7 @@ import SearchBar from '../components/SearchBar';
 import ImportExcelCard from '../components/ImportExcelCard';
 import SectionTitle from '../components/SectionTitle';
 import PersonRecordCard from '../components/PersonRecordCard';
-import adminService from '../../services/adminService';
+import adminService, { MOCK_STAFF } from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
@@ -36,7 +36,7 @@ const getInitials = (name) =>
     : 'ST';
 
 const StaffScreen = () => {
-  const [staff, setStaff] = useState([]);
+  const [staff, setStaff] = useState(MOCK_STAFF);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept] = useState('All');
   const [selectedAdvisor, setSelectedAdvisor] = useState('All');
@@ -359,7 +359,7 @@ const StaffScreen = () => {
       <View style={styles.section}>
         <SectionTitle
           title={`All Staff (${filteredStaff.length})`}
-          subtitle="View, Edit, Delete or Toggle Account Status"
+          subtitle="View, Edit, or Delete Staff Records"
         />
 
         {filteredStaff.length === 0 ? (
