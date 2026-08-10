@@ -29,23 +29,38 @@ export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
           <Text style={styles.greetingText}>{getGreeting()}</Text>
           <Text style={styles.staffNameText}>{staffInfo.name}</Text>
           <Text style={styles.departmentText}>
-            {typeof staffInfo.department === 'string' ? staffInfo.department : (staffInfo.department?.name || 'Computer Science Engineering')}
+            {typeof staffInfo.department === 'string'
+              ? staffInfo.department
+              : (staffInfo.department?.name || staffInfo.departmentShort || 'Computer Science Engineering')}
           </Text>
         </View>
       </View>
 
       {onNavigateTab && (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => onNavigateTab('settings')}
-          style={styles.avatarButton}
-        >
-          <VectorIcon
-            name="account-circle-outline"
-            size={36}
-            color="#2563EB"
-          />
-        </TouchableOpacity>
+        <View style={styles.rightActionsGroup}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => onNavigateTab('notifications')}
+            style={styles.actionButton}
+          >
+            <VectorIcon
+              name="bullhorn-outline"
+              size={22}
+              color="#2563EB"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => onNavigateTab('settings')}
+            style={styles.avatarButton}
+          >
+            <VectorIcon
+              name="account-circle-outline"
+              size={34}
+              color="#2563EB"
+            />
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
@@ -60,8 +75,7 @@ const styles = StyleSheet.create({
     paddingTop: STATUSBAR_OFFSET,
     paddingBottom: 12,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomWidth: 0,
   },
   headerLeftGroup: {
     flexDirection: 'row',
@@ -105,8 +119,18 @@ const styles = StyleSheet.create({
     color: '#2563EB',
     marginTop: 2,
   },
+  rightActionsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: {
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: '#EFF6FF',
+  },
   avatarButton: {
-    padding: 4,
+    padding: 2,
   },
 });
 

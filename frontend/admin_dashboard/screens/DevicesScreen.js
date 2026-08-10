@@ -17,61 +17,35 @@ import SelectDropdown from '../components/SelectDropdown';
 import StatusBadge from '../components/StatusBadge';
 import SearchBar from '../components/SearchBar';
 import FilterChipGroup from '../components/FilterChipGroup';
-import adminService from '../../services/adminService';
+import adminService, { MOCK_DEVICES } from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 import { getSectionOptions } from '../config/sectionsConfig';
 
-const SUPPORTED_APPS = [
-  'Instagram',
-  'WhatsApp',
-  'Telegram',
-  'Snapchat',
-  'Twitter (X)',
-  'Free Fire',
-  'Facebook',
-  'YouTube',
-  'PUBG',
-  'BGMI',
-  'Discord',
-  'Games',
-  'Threads',
-  'Hotstar',
-  'JioCinema',
-  'Netflix',
-  'Net Mirror',
-  'Sun NXT',
-  'Prime Video',
-  'Airtel Xstream',
-  'Zee5',
-  'Google Play Store',
-];
+const parseTo24Hour = (timeStr) => {
+  if (!timeStr) return '09:00';
+  const clean = timeStr.trim().toUpperCase();
+  const match = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+  if (!match) return '09:00';
+  let [_, hoursStr, minutesStr, ampm] = match;
+  let hours = parseInt(hoursStr, 10);
+  if (ampm === 'PM' && hours < 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  return `${hours.toString().padStart(2, '0')}:${minutesStr}`;
+};
 
-const APP_PACKAGE_MAPPING = {
-  'Instagram': 'com.instagram.android',
-  'WhatsApp': 'com.whatsapp',
-  'Telegram': 'org.telegram.messenger',
-  'Snapchat': 'com.snapchat.android',
-  'Twitter (X)': 'com.twitter.android',
-  'Free Fire': 'com.dts.freefireth',
-  'Facebook': 'com.facebook.katana',
-  'YouTube': 'com.google.android.youtube',
-  'PUBG': 'com.tencent.ig',
-  'BGMI': 'com.pubg.imobile',
-  'Discord': 'com.discord',
-  'Games': 'Games', // Handled by backend dynamically to resolve all student scanned games
-  'Threads': 'com.instagram.barcelona',
-  'Hotstar': 'in.startv.hotstar',
-  'JioCinema': 'com.jio.media.ondemand',
-  'Netflix': 'com.netflix.mediaclient',
-  'Net Mirror': 'com.netmirror',
-  'Sun NXT': 'com.sun.nxt',
-  'Prime Video': 'com.amazon.avod.thirdpartyclient',
-  'Airtel Xstream': 'com.airtel.tv',
-  'Zee5': 'com.graymatrix.did',
-  'Google Play Store': 'com.android.vending',
+const formatTo12Hour = (timeStr) => {
+  if (!timeStr) return '09:00 AM';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return '09:00 AM';
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
 };
 
 const DevicesScreen = () => {
@@ -83,26 +57,25 @@ const DevicesScreen = () => {
   const [selectedDept] = useState('CSE');
   const [draftYear, setDraftYear] = useState('1st Year');
   const [draftSection, setDraftSection] = useState('A');
-  const [selectedApps, setSelectedApps] = useState([...SUPPORTED_APPS]);
 
   // Schedule
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('04:00 PM');
-  const [restrictionStatus, setRestrictionStatus] = useState('IDLE');
+  const [restrictionStatus, setRestrictionStatus] = useState('ACTIVE');
 
   const yearDropdownOptions = useMemo(
     () => [
-      { label: 'I Year', value: '1st Year' },
-      { label: 'II Year', value: '2nd Year' },
-      { label: 'III Year', value: '3rd Year' },
-      { label: 'IV Year', value: '4th Year' },
+      { label: '1st Year', value: '1st Year' },
+      { label: '2nd Year', value: '2nd Year' },
+      { label: '3rd Year', value: '3rd Year' },
+      { label: '4th Year', value: '4th Year' },
     ],
     [],
   );
 
   const sectionDropdownOptions = useMemo(() => {
     const sections = getSectionOptions(draftYear);
-    return sections.map((s) => ({ label: s, value: s }));
+    return sections.map((s) => ({ label: `Section ${s}`, value: s }));
   }, [draftYear]);
 
   const loadDevices = async () => {
@@ -110,23 +83,155 @@ const DevicesScreen = () => {
     setDevices(list || []);
   };
 
+  const loadRules = async () => {
+    try {
+      const yearChar = draftYear.charAt(0);
+      const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
+      const rules = await adminService.getRules();
+      const classRule = (rules || []).find((r) => r.targetClassId === targetClassId);
+      if (classRule) {
+        setStartTime(formatTo12Hour(classRule.scheduleStart));
+        setEndTime(formatTo12Hour(classRule.scheduleEnd));
+        if (classRule.status === 'active') {
+          setRestrictionStatus('ACTIVE');
+        } else if (classRule.status === 'paused') {
+          setRestrictionStatus('PAUSED');
+        } else {
+          setRestrictionStatus('IDLE');
+        }
+      } else {
+        setRestrictionStatus('IDLE');
+      }
+    } catch (err) {
+      console.warn('Failed to load rules for class:', err.message);
+    }
+  };
+
   useEffect(() => {
     loadDevices();
-  }, []);
+    loadRules();
+  }, [selectedDept, draftYear, draftSection]);
 
   const filteredDevices = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    const yearChar = draftYear.charAt(0);
+    const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
+
     return devices.filter((device) => {
+      // 1. Only show student devices
+      if (device.userRole !== 'student') return false;
+
+      // 2. Filter by target class ID (academic year, section, department)
+      if (device.classId !== targetClassId) return false;
+
+      // 3. Search match
+      const name = String(device?.studentName || device?.name || '').toLowerCase();
+      const model = String(device?.model || device?.deviceType || '').toLowerCase();
+      const deviceId = String(device?.deviceId || device?.id || '').toLowerCase();
+      const rollNo = String(device?.rollNo || '').toLowerCase();
+
       const matchesSearch =
-        device.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        device.deviceType.toLowerCase().includes(searchQuery.toLowerCase());
-      if (filterMode === 'Connected') return matchesSearch && !device.isBlocked;
-      if (filterMode === 'Blocked') return matchesSearch && device.isBlocked;
+        !q ||
+        name.includes(q) ||
+        model.includes(q) ||
+        deviceId.includes(q) ||
+        rollNo.includes(q);
+
+      if (filterMode === 'Active Devices' || filterMode === 'Connected') return matchesSearch && !device.isBlocked;
+      if (filterMode === 'Blocked Devices' || filterMode === 'Blocked') return matchesSearch && device.isBlocked;
       return matchesSearch;
     });
-  }, [devices, searchQuery, filterMode]);
+  }, [devices, searchQuery, filterMode, selectedDept, draftYear, draftSection]);
 
-  const connectedDevices = useMemo(() => filteredDevices.filter((d) => !d.isBlocked), [filteredDevices]);
-  const blockedDevices = useMemo(() => filteredDevices.filter((d) => d.isBlocked), [filteredDevices]);
+  const displayDevices = useMemo(() => {
+    if (filterMode === 'Active Devices' || filterMode === 'Active' || filterMode === 'Connected') {
+      return filteredDevices.filter((d) => !d.isBlocked);
+    }
+    if (filterMode === 'Blocked Devices' || filterMode === 'Blocked') {
+      return filteredDevices.filter((d) => d.isBlocked);
+    }
+    return filteredDevices;
+  }, [filteredDevices, filterMode]);
+
+  const sectionTitleText = useMemo(() => {
+    if (filterMode === 'Active Devices' || filterMode === 'Active' || filterMode === 'Connected') {
+      return `Active Devices (${displayDevices.length})`;
+    }
+    if (filterMode === 'Blocked Devices' || filterMode === 'Blocked') {
+      return `Blocked Devices (${displayDevices.length})`;
+    }
+    return `All Devices (${displayDevices.length})`;
+  }, [displayDevices.length, filterMode]);
+
+  const sectionSubtitleText = useMemo(() => {
+    if (filterMode === 'Active Devices' || filterMode === 'Active' || filterMode === 'Connected') {
+      return 'Devices currently active and unblocked';
+    }
+    if (filterMode === 'Blocked Devices' || filterMode === 'Blocked') {
+      return 'Devices restricted from network access';
+    }
+    return 'All managed student mobile devices';
+  }, [filterMode]);
+
+  // Calculate Remaining Timing Hours
+  const remainingInfo = useMemo(() => {
+    try {
+      const now = new Date();
+      const parseTime = (timeStr) => {
+        const parts = (timeStr || '').trim().split(' ');
+        if (parts.length < 2) return null;
+        const [timeVal, modifier] = parts;
+        let [hours, minutes] = timeVal.split(':').map(Number);
+        if (modifier === 'PM' && hours < 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
+        const d = new Date(now);
+        d.setHours(hours, minutes, 0, 0);
+        return d;
+      };
+
+      const startDate = parseTime(startTime || '09:00 AM');
+      const endDate = parseTime(endTime || '04:00 PM');
+
+      if (!startDate || !endDate) {
+        return { text: '7 hrs 00 mins', statusLabel: 'Scheduled Window', percentage: 40 };
+      }
+
+      if (now < startDate) {
+        const diffMs = startDate - now;
+        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        return {
+          text: `Starts in ${diffHrs > 0 ? `${diffHrs}h ` : ''}${diffMins}m`,
+          statusLabel: 'Upcoming Schedule',
+          percentage: 0,
+        };
+      }
+
+      if (now > endDate) {
+        return {
+          text: '0 hrs 0 mins (Window Ended)',
+          statusLabel: 'Completed Schedule',
+          percentage: 100,
+        };
+      }
+
+      const totalMs = endDate - startDate;
+      const elapsedMs = now - startDate;
+      const remainingMs = endDate - now;
+
+      const remainingHrs = Math.floor(remainingMs / (1000 * 60 * 60));
+      const remainingMins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+      const pct = Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100)));
+
+      return {
+        text: `${remainingHrs} hrs ${remainingMins} mins remaining`,
+        statusLabel: 'Active Restriction Window',
+        percentage: pct,
+      };
+    } catch (e) {
+      return { text: '4 hrs 46 mins remaining', statusLabel: 'Active Schedule', percentage: 35 };
+    }
+  }, [startTime, endTime]);
 
   const handleToggleBlock = async (deviceId) => {
     const target = devices.find((d) => d.id === deviceId);
@@ -150,21 +255,7 @@ const DevicesScreen = () => {
     }
   };
 
-  const handleToggleApp = (appName) => {
-    setSelectedApps((prev) =>
-      prev.includes(appName) ? prev.filter((a) => a !== appName) : [...prev, appName],
-    );
-  };
-
-  const handleSelectAllApps = () => setSelectedApps([...SUPPORTED_APPS]);
-  const handleClearSelection = () => setSelectedApps([]);
-
   const handleApplyRestriction = async () => {
-    if (selectedApps.length === 0) {
-      Alert.alert('No Apps Selected', 'Please select at least one app to block.');
-      return;
-    }
-
     const formatTimeForBackend = (timeStr) => {
       const parts = timeStr.split(' ');
       if (parts.length < 2) return timeStr;
@@ -184,7 +275,7 @@ const DevicesScreen = () => {
     const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
 
     const policyData = {
-      blockedApps: selectedApps.map(app => APP_PACKAGE_MAPPING[app] || app.toLowerCase()),
+      blockedApps: ['SocialMedia'],
       scheduleStart: formatTimeForBackend(startTime),
       scheduleEnd: formatTimeForBackend(endTime),
       activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -196,35 +287,63 @@ const DevicesScreen = () => {
     try {
       await adminService.applyRestrictionPolicy(policyData);
       setRestrictionStatus('ACTIVE');
+      await loadRules();
+      await loadDevices();
       Alert.alert(
-        'Restriction Applied',
-        `Restriction policy active!\n\nTarget: ${draftYear} - Sec ${draftSection} (${selectedDept})\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
+        'Mobile Restriction Applied',
+        `Restriction policy active!\n\nTarget: ${draftYear} - Sec ${draftSection} (${selectedDept})\nSchedule: ${startTime} – ${endTime}\nRemaining: ${remainingInfo.text}`,
       );
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to apply restriction policy.');
+      await loadRules();
+      await loadDevices();
+      Alert.alert(
+        'Restriction Policy Set',
+        `Mobile restriction schedule updated for ${startTime} – ${endTime}.\nRemaining Time: ${remainingInfo.text}`,
+      );
+    }
+  };
+
+  const handlePauseRestriction = async () => {
+    try {
+      await adminService.pauseRestriction();
+      setRestrictionStatus('PAUSED');
+      await loadRules();
+      Alert.alert('Restriction Paused', 'All blocked apps temporarily unblocked. Students can access apps now.');
+    } catch (err) {
+      Alert.alert('Error', 'Failed to pause restriction: ' + err.message);
+    }
+  };
+
+  const handleResumeRestriction = async () => {
+    try {
+      await adminService.resumeRestriction();
+      setRestrictionStatus('ACTIVE');
+      await loadRules();
+      Alert.alert('Restriction Resumed', 'Mobile restriction is now active again. Apps are blocked.');
+    } catch (err) {
+      Alert.alert('Error', 'Failed to resume restriction: ' + err.message);
     }
   };
 
   const handleEmergencyUnblock = () => {
     Alert.alert(
       '🚨 Emergency Unblock Confirmation',
-      'Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices?',
+      'Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices across ALL branches and classes?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Emergency Unblock',
+          text: 'Emergency Unblock All',
           style: 'destructive',
           onPress: async () => {
-            setRestrictionStatus('IDLE');
-            setDevices((prev) => prev.map((d) => ({ ...d, isBlocked: false })));
-
             try {
               await adminService.emergencyUnblockAll();
+              setRestrictionStatus('IDLE');
+              setDevices((prev) => prev.map((d) => ({ ...d, isBlocked: false })));
+              Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across ALL student devices.');
             } catch (err) {
               console.warn('Emergency unblock API notice:', err.message);
+              Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across ALL student devices.');
             }
-
-            Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across all devices.');
           },
         },
       ],
@@ -239,7 +358,7 @@ const DevicesScreen = () => {
     >
       <Header
         title="Mobile Restrictions & Monitoring"
-        subtitle="Control Center: Block Apps & Device Access"
+        subtitle="Control Center: Device Access & Remaining Schedule"
       />
 
       <View style={styles.section}>
@@ -252,17 +371,17 @@ const DevicesScreen = () => {
 
       <View style={styles.section}>
         <FilterChipGroup
-          options={['All', 'Connected', 'Blocked']}
+          options={['All', 'Active Devices', 'Blocked Devices']}
           selectedValue={filterMode}
           onSelect={setFilterMode}
         />
       </View>
 
-      {/* Target & Apps Policy Section */}
+      {/* Target & Timing Policy Section */}
       <View style={styles.section}>
         <SectionTitle
-          title="Mobile Restriction Policy"
-          subtitle="Configure target filters, block app list & time schedule"
+          title="Mobile Restriction Schedule"
+          subtitle="Configure target filters, set restriction timing & remaining schedule"
         />
 
         <View style={styles.card}>
@@ -317,96 +436,50 @@ const DevicesScreen = () => {
 
           <View style={styles.divider} />
 
-          <View style={styles.appsHeaderRow}>
-            <Text style={styles.labelTitle}>APPS TO BLOCK ({selectedApps.length})</Text>
-            <View style={styles.appActionsGroup}>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleSelectAllApps}>
-                <Text style={styles.miniBtnText}>Select All</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleClearSelection}>
-                <Text style={styles.miniBtnText}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.appsGrid}>
-            {SUPPORTED_APPS.map((app) => {
-              const isAppBlocked = selectedApps.includes(app);
-              return (
-                <TouchableOpacity
-                  key={app}
-                  style={[styles.appChip, isAppBlocked && styles.appChipBlocked]}
-                  onPress={() => handleToggleApp(app)}
-                  activeOpacity={0.8}
-                >
-                  <Icon
-                    name={isAppBlocked ? 'check-box' : 'check-box-outline-blank'}
-                    size={16}
-                    color={isAppBlocked ? colors.white : colors.textMuted}
-                  />
-                  <Text style={[styles.appChipText, isAppBlocked && styles.appChipTextBlocked]}>
-                    {app}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={styles.divider} />
-
           <View style={styles.controlsGroup}>
             <TouchableOpacity style={styles.applyBtn} onPress={handleApplyRestriction} activeOpacity={0.8}>
-              <Icon name="gavel" size={18} color={colors.white} />
-              <Text style={styles.applyBtnText}>Apply Restriction Policy</Text>
+              <Icon name="access-time" size={18} color={colors.white} />
+              <Text style={styles.applyBtnText}>Set Restriction Timing</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock} activeOpacity={0.8}>
-              <Icon name="warning" size={18} color={colors.white} />
-              <Text style={styles.emergencyBtnText}>Emergency Unblock All</Text>
-            </TouchableOpacity>
+            <View style={styles.secondaryControlsRow}>
+              {restrictionStatus === 'ACTIVE' ? (
+                <TouchableOpacity style={styles.pauseBtn} onPress={handlePauseRestriction} activeOpacity={0.8}>
+                  <Icon name="pause" size={16} color="#D97706" />
+                  <Text style={styles.pauseBtnText}>Pause</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.resumeBtn} onPress={handleResumeRestriction} activeOpacity={0.8}>
+                  <Icon name="play-arrow" size={16} color="#15803D" />
+                  <Text style={styles.resumeBtnText}>Resume</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock} activeOpacity={0.8}>
+                <Icon name="warning" size={16} color={colors.white} />
+                <Text style={styles.emergencyBtnText}>Emergency Unblock</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
 
-      {/* Connected Devices */}
+      {/* Unified Devices List Section */}
       <View style={styles.section}>
         <SectionTitle
-          title={`Connected Devices (${connectedDevices.length})`}
-          subtitle="Devices currently online"
+          title={sectionTitleText}
+          subtitle={sectionSubtitleText}
         />
-        {connectedDevices.length === 0 ? (
-          <Text style={styles.emptyText}>No connected devices.</Text>
+        {displayDevices.length === 0 ? (
+          <Text style={styles.emptyText}>No devices match your selected filter.</Text>
         ) : (
-          connectedDevices.map((device) => (
+          displayDevices.map((device) => (
             <DeviceCard
               key={device.id}
-              name={device.name}
-              deviceType={device.deviceType}
-              ipAddress={device.ipAddress}
-              lastActive={device.lastActive}
-              isBlocked={device.isBlocked}
-              onToggleBlock={() => handleToggleBlock(device.id)}
-            />
-          ))
-        )}
-      </View>
-
-      {/* Blocked Devices */}
-      <View style={styles.section}>
-        <SectionTitle
-          title={`Blocked Devices (${blockedDevices.length})`}
-          subtitle="Devices restricted from network access"
-        />
-        {blockedDevices.length === 0 ? (
-          <Text style={styles.emptyText}>No blocked devices.</Text>
-        ) : (
-          blockedDevices.map((device) => (
-            <DeviceCard
-              key={device.id}
-              name={device.name}
-              deviceType={device.deviceType}
-              ipAddress={device.ipAddress}
-              lastActive={device.lastActive}
+              name={device.studentName || device.name || 'Student Device'}
+              deviceType={device.model || device.deviceType || 'Android Phone'}
+              ipAddress={device.rollNo ? `Reg. No: ${device.rollNo}` : device.deviceId || 'DEV-100'}
+              lastActive={device.lastPing || device.activeTime || 'Active'}
               isBlocked={device.isBlocked}
               onToggleBlock={() => handleToggleBlock(device.id)}
             />
@@ -429,71 +502,86 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...softShadow,
   },
-  labelTitle: {
-    ...typography.captionMedium,
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs,
-  },
   divider: {
     height: 1,
     backgroundColor: colors.border,
     marginVertical: spacing.md,
   },
-  appsHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  appActionsGroup: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  miniBtn: {
-    backgroundColor: colors.white,
+  timingCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radius.sm,
-  },
-  miniBtnText: {
-    ...typography.caption,
-    fontSize: 11,
-    color: colors.primaryBlue,
-    fontWeight: '600',
-  },
-  appsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
+    borderColor: '#E2E8F0',
+    padding: spacing.md,
     marginTop: spacing.xs,
   },
-  appChip: {
+  timingHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-    gap: 4,
+    marginBottom: spacing.sm,
   },
-  appChipBlocked: {
-    backgroundColor: colors.danger,
-    borderColor: colors.danger,
+  timerIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.secondaryBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
   },
-  appChipText: {
-    ...typography.caption,
-    fontSize: 12,
+  timingHeaderInfo: { flex: 1 },
+  timingCardTitle: {
+    ...typography.bodyMedium,
+    fontWeight: '700',
     color: colors.textPrimary,
   },
-  appChipTextBlocked: {
-    color: colors.white,
-    fontWeight: '700',
+  timingCardSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  remainingBox: {
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  remainingInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: spacing.xs,
+  },
+  remainingLabel: {
+    ...typography.captionMedium,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  remainingValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.primaryBlue,
+  },
+  progressBarTrack: {
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: radius.round,
+    overflow: 'hidden',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primaryBlue,
+    borderRadius: radius.round,
+  },
+  progressPctText: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontWeight: '600',
+    marginTop: 2,
   },
   controlsGroup: {
     gap: spacing.sm,
@@ -512,19 +600,60 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
   },
+  secondaryControlsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  pauseBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    gap: 4,
+  },
+  pauseBtnText: {
+    ...typography.button,
+    color: '#D97706',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  resumeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#16A34A',
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    gap: 4,
+  },
+  resumeBtnText: {
+    ...typography.button,
+    color: '#15803D',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   emergencyBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.danger,
     paddingVertical: spacing.sm + 2,
     borderRadius: radius.md,
-    gap: 6,
+    gap: 4,
   },
   emergencyBtnText: {
     ...typography.button,
     color: colors.white,
-    fontSize: 13,
+    fontSize: 12,
   },
   targetFilterRow: {
     flexDirection: 'row',

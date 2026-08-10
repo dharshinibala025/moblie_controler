@@ -91,22 +91,40 @@ const PersonRecordCard = ({
         ) : null}
       </View>
 
-      {/* Footer Action Row: Block / Unblock Toggle Button */}
+      {/* Footer Action Row: View, Edit, and Delete Options */}
       <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.blockButton, isBlocked ? styles.unblockButton : styles.blockDangerButton]}
-          onPress={onToggleBlock}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons
-            name={isBlocked ? 'lock-open' : 'block'}
-            size={16}
-            color={isBlocked ? colors.success : colors.danger}
-          />
-          <Text style={[styles.blockButtonText, { color: isBlocked ? colors.success : colors.danger }]}>
-            {isBlocked ? 'Unblock Device' : 'Block Device'}
-          </Text>
-        </TouchableOpacity>
+        {onView ? (
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={onView}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="visibility" size={15} color={colors.primaryBlue} />
+            <Text style={[styles.actionBtnText, { color: colors.primaryBlue }]}>View</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {onEdit ? (
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={onEdit}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="edit" size={15} color={colors.skyBlue || '#0284C7'} />
+            <Text style={[styles.actionBtnText, { color: colors.skyBlue || '#0284C7' }]}>Edit</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {onDelete ? (
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.deleteBtn]}
+            onPress={onDelete}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="delete-outline" size={15} color={colors.danger} />
+            <Text style={[styles.actionBtnText, { color: colors.danger }]}>Delete</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -206,32 +224,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   actionRow: {
-    marginTop: spacing.md,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    alignItems: 'flex-end',
-  },
-  blockButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    justifyContent: 'flex-end',
+    marginTop: spacing.md,
+    paddingTop: spacing.xs + 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.xs,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
     borderRadius: radius.md,
     borderWidth: 1,
-    gap: 6,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    gap: 4,
   },
-  blockDangerButton: {
-    borderColor: colors.danger,
+  deleteBtn: {
+    borderColor: '#FCA5A5',
     backgroundColor: colors.dangerSoft,
   },
-  unblockButton: {
-    borderColor: colors.success,
-    backgroundColor: colors.successSoft,
-  },
-  blockButtonText: {
-    ...typography.captionMedium,
-    fontWeight: '700',
+  actionBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });
 

@@ -12,68 +12,10 @@ import {
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import staffMockData from '../data/staffMockData';
+import adminService from '../../services/adminService';
 
 const STATUSBAR_OFFSET = 12;
 
-const SUPPORTED_APPS = [
-  'Instagram',
-  'WhatsApp',
-  'Telegram',
-  'Snapchat',
-  'Twitter (X)',
-  'Free Fire',
-  'Facebook',
-  'YouTube',
-  'PUBG',
-  'BGMI',
-  'Discord',
-  'Games',
-  'Threads',
-  'Hotstar',
-  'JioCinema',
-  'Netflix',
-  'Net Mirror',
-  'Sun NXT',
-  'Prime Video',
-  'Airtel Xstream',
-  'Zee5',
-  'Google Play Store',
-];
-
-const APP_PACKAGE_MAPPING = {
-  'Instagram': 'com.instagram.android',
-  'WhatsApp': 'com.whatsapp',
-  'Telegram': 'org.telegram.messenger',
-  'Snapchat': 'com.snapchat.android',
-  'Twitter (X)': 'com.twitter.android',
-  'Free Fire': 'com.dts.freefireth',
-  'Facebook': 'com.facebook.katana',
-  'YouTube': 'com.google.android.youtube',
-  'PUBG': 'com.tencent.ig',
-  'BGMI': 'com.pubg.imobile',
-  'Discord': 'com.discord',
-  'Games': 'Games', // Handled dynamically in backend to block all scanned games
-  'Threads': 'com.instagram.barcelona',
-  'Hotstar': 'in.startv.hotstar',
-  'JioCinema': 'com.jio.media.ondemand',
-  'Netflix': 'com.netflix.mediaclient',
-  'Net Mirror': 'com.netmirror',
-  'Sun NXT': 'com.sun.nxt',
-  'Prime Video': 'com.amazon.avod.thirdpartyclient',
-  'Airtel Xstream': 'com.airtel.tv',
-  'Zee5': 'com.graymatrix.did',
-  'Google Play Store': 'com.android.vending',
-};
-
-const mapAppNameToPackage = (appName) => {
-  return APP_PACKAGE_MAPPING[appName] || appName.toLowerCase();
-};
-
-const mapPackageToAppName = (pkgName) => {
-  const entry = Object.entries(APP_PACKAGE_MAPPING).find(([name, pkg]) => pkg === pkgName);
-  return entry ? entry[0] : pkgName;
-};
 
 const parseTo24Hour = (timeStr) => {
   if (!timeStr) return '09:00';
@@ -149,7 +91,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   };
 
   // State
-  const [selectedApps, setSelectedApps] = useState([...SUPPORTED_APPS]);
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('04:00 PM');
   const [restrictionStatus, setRestrictionStatus] = useState('IDLE'); // 'IDLE' | 'ACTIVE' | 'PAUSED'
@@ -172,9 +113,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
           setStartTime(formatTo12Hour(rule.scheduleStart));
           setEndTime(formatTo12Hour(rule.scheduleEnd));
-
-          const resolvedApps = (rule.blockedApps || []).map(pkg => mapPackageToAppName(pkg));
-          setSelectedApps(resolvedApps);
 
           if (rule.status === 'active') {
             setRestrictionStatus('ACTIVE');
@@ -229,30 +167,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
     return () => clearInterval(interval);
   }, []);
 
-  // Toggle single app chip
-  const handleToggleApp = (appName) => {
-    setSelectedApps((prev) =>
-      prev.includes(appName) ? prev.filter((a) => a !== appName) : [...prev, appName],
-    );
-  };
-
-  // Select all apps
-  const handleSelectAllApps = () => {
-    setSelectedApps([...SUPPORTED_APPS]);
-  };
-
-  // Clear apps
-  const handleClearSelection = () => {
-    setSelectedApps([]);
-  };
-
   // Restriction actions
   const handleApplyRestriction = async () => {
-    if (selectedApps.length === 0) {
-      Alert.alert('No Apps Selected', 'Please select at least one app to block.');
-      return;
-    }
-
     const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
     if (!classIdToQuery) {
       Alert.alert('Scope Error', 'No assigned class found.');
@@ -264,7 +180,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       const staffService = require('../../services/staffService').default;
       
       const payload = {
-        blockedApps: selectedApps.map(app => mapAppNameToPackage(app)),
+        blockedApps: ['SocialMedia'],
         scheduleStart: parseTo24Hour(startTime),
         scheduleEnd: parseTo24Hour(endTime),
         activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -287,7 +203,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
       Alert.alert(
         'Restriction Applied',
-        `Restriction successfully applied to your class!\n\nClass: ${mentorClass}\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
+        `Restriction schedule successfully applied to your class!\n\nClass: ${mentorClass}\nSchedule: ${startTime} – ${endTime}`,
       );
     } catch (err) {
       Alert.alert('Apply Failed', err.message || 'An error occurred.');
@@ -298,15 +214,14 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
   const handlePauseRestriction = async () => {
     const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
-    if (!classIdToQuery || !activeRule) return;
+    if (!classIdToQuery) return;
 
     setLoading(true);
     try {
       const staffService = require('../../services/staffService').default;
-      const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'pause');
-      setActiveRule(ruleResult);
+      await staffService.pauseClassRestriction(classIdToQuery);
       setRestrictionStatus('PAUSED');
-      Alert.alert('Restriction Paused', 'Mobile restriction policy has been temporarily paused for your class.');
+      Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused. Students can access apps now.');
     } catch (err) {
       Alert.alert('Pause Failed', err.message || 'An error occurred.');
     } finally {
@@ -316,15 +231,14 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
   const handleResumeRestriction = async () => {
     const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
-    if (!classIdToQuery || !activeRule) return;
+    if (!classIdToQuery) return;
 
     setLoading(true);
     try {
       const staffService = require('../../services/staffService').default;
-      const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'start');
-      setActiveRule(ruleResult);
+      await staffService.resumeClassRestriction(classIdToQuery);
       setRestrictionStatus('ACTIVE');
-      Alert.alert('Restriction Resumed', 'Mobile restriction policy is now active for your class.');
+      Alert.alert('Restriction Resumed', 'Mobile restriction is active again. Apps are now blocked.');
     } catch (err) {
       Alert.alert('Resume Failed', err.message || 'An error occurred.');
     } finally {
@@ -353,25 +267,20 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const handleEmergencyUnblock = () => {
     Alert.alert(
       '🚨 Emergency Unblock Confirmation',
-      `Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices assigned to your class (${formatClassDisplay(mentorClass)})?`,
+      'Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices across ALL branches and classes?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Emergency Unblock',
+          text: 'Emergency Unblock All',
           style: 'destructive',
           onPress: async () => {
-            const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
-            if (!classIdToQuery || !activeRule) return;
-
             setLoading(true);
             try {
-              const staffService = require('../../services/staffService').default;
-              const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'stop');
-              setActiveRule(ruleResult);
+              await adminService.emergencyUnblockAll();
               setRestrictionStatus('IDLE');
               Alert.alert(
                 'Emergency Unblock Executed',
-                `All mobile restrictions lifted immediately for ${formatClassDisplay(mentorClass)}.`,
+                'All mobile restrictions lifted immediately across ALL student devices.',
               );
             } catch (err) {
               Alert.alert('Unblock Failed', err.message || 'An error occurred.');
@@ -442,46 +351,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
           <View style={styles.divider} />
 
-          {/* App block selection */}
-          <View style={styles.appsHeaderRow}>
-            <Text style={styles.labelTitle}>1. APPS TO BLOCK ({selectedApps.length})</Text>
-            <View style={styles.appActionsGroup}>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleSelectAllApps}>
-                <Text style={styles.miniBtnText}>Select All</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleClearSelection}>
-                <Text style={styles.miniBtnText}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.appsGrid}>
-            {SUPPORTED_APPS.map((app) => {
-              const isBlocked = selectedApps.includes(app);
-              return (
-                <TouchableOpacity
-                  key={app}
-                  style={[styles.appChip, isBlocked && styles.appChipBlocked]}
-                  onPress={() => handleToggleApp(app)}
-                  activeOpacity={0.8}
-                >
-                  <VectorIcon
-                    name={isBlocked ? 'check-circle' : 'circle-outline'}
-                    size={16}
-                    color={isBlocked ? '#FFFFFF' : '#94A3B8'}
-                  />
-                  <Text style={[styles.appChipText, isBlocked && styles.appChipTextBlocked]}>
-                    {app}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={styles.divider} />
-
           {/* Restriction Schedule */}
-          <Text style={styles.labelTitle}>2. RESTRICTION SCHEDULE</Text>
+          <Text style={styles.labelTitle}>RESTRICTION SCHEDULE</Text>
 
           <View style={styles.scheduleRow}>
             <View style={styles.timeInputBox}>
@@ -512,8 +383,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               onPress={handleApplyRestriction}
               activeOpacity={0.8}
             >
-              <VectorIcon name="lock" size={18} color="#FFFFFF" />
-              <Text style={styles.applyBtnText}>Apply Restriction</Text>
+              <VectorIcon name="clock-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.applyBtnText}>Set Restriction Timing</Text>
             </TouchableOpacity>
 
             <View style={styles.secondaryControlsRow}>
@@ -528,11 +399,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                   <Text style={styles.resumeBtnText}>Resume</Text>
                 </TouchableOpacity>
               )}
-
-              <TouchableOpacity style={styles.removeBtn} onPress={handleRemoveRestriction}>
-                <VectorIcon name="close" size={16} color="#64748B" />
-                <Text style={styles.removeBtnText}>Remove</Text>
-              </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock}>
@@ -581,8 +447,7 @@ const styles = StyleSheet.create({
     paddingTop: STATUSBAR_OFFSET,
     paddingBottom: 14,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomWidth: 0,
     marginBottom: 12,
   },
   titleText: {

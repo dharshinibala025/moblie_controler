@@ -37,6 +37,53 @@ router.get("/latest", async (req, res, next) => {
       return res.status(404).json({ error: "Student not found" });
     }
 
+    const { getEmergencyUnblock } = require("../utils/emergencyHelper");
+
+    const SOCIAL_MEDIA_AND_GAMES_PACKAGES = [
+      "com.instagram.android",
+      "com.whatsapp",
+      "org.telegram.messenger",
+      "com.snapchat.android",
+      "com.twitter.android",
+      "com.facebook.katana",
+      "com.google.android.youtube",
+      "com.instagram.barcelona", // Threads
+      "in.startv.hotstar",       // Hotstar
+      "com.jio.media.ondemand",  // JioCinema
+      "com.netflix.mediaclient",
+      "com.netmirror",
+      "com.sun.nxt",
+      "com.amazon.avod.thirdpartyclient", // Prime Video
+      "com.airtel.tv",           // Airtel Xstream
+      "com.graymatrix.did",      // Zee5
+      "com.android.vending",     // Google Play Store
+      "com.dts.freefireth",      // Free fire
+      "com.tencent.ig",          // PUBG
+      "com.pubg.imobile",        // BGMI
+      "com.discord"              // Discord
+    ];
+
+    const getAutoBlockPackages = async (studentId) => {
+      const blocked = [...SOCIAL_MEDIA_AND_GAMES_PACKAGES];
+      try {
+        const ScannedApp = require("../models/ScannedApp");
+        const games = await ScannedApp.find({
+          studentId,
+          category: "games",
+          removedAt: null
+        });
+        const seen = new Set(blocked);
+        for (const game of games) {
+          if (!seen.has(game.packageName)) {
+            blocked.push(game.packageName);
+          }
+        }
+      } catch (err) {
+        logger.error("Error fetching scanned games for auto-block:", err);
+      }
+      return blocked;
+    };
+
     const activeRules = await Rule.find({
       $or: [
         { targetClassId: student.classId },
@@ -52,14 +99,13 @@ router.get("/latest", async (req, res, next) => {
     const { isRuleActiveNow } = require("../utils/scheduleHelper");
     const currentlyEnforcedRules = activeRules.filter((rule) => isRuleActiveNow(rule, new Date()));
 
-    const blockedPackages = [];
-    const seen = new Set();
+    let blockedPackages = [];
     let maxPolicyVersion = 0;
     let scheduleStart = "09:00";
     let scheduleEnd = "16:00";
     let activeDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    let reason = "Institutional restriction policy";
-    let status = "inactive";
+    let reason = "All social media and games blocked automatically";
+    let status = "active";
 
     if (activeRules.length > 0) {
       const primaryRule = activeRules[0];
@@ -73,87 +119,26 @@ router.get("/latest", async (req, res, next) => {
       }
     }
 
-    if (currentlyEnforcedRules.length > 0) {
+    if (device.status === "blocked") {
+      // Manual individual device block overrides everything
+      blockedPackages = await getAutoBlockPackages(student._id);
       status = "active";
-      for (const rule of currentlyEnforcedRules) {
-        for (const pkg of rule.blockedApps) {
-          if (pkg === "Games") {
-            const ScannedApp = require("../models/ScannedApp");
-            const games = await ScannedApp.find({
-              studentId: student._id,
-              category: "games",
-              removedAt: null
-            });
-            for (const game of games) {
-              if (!seen.has(game.packageName)) {
-                seen.add(game.packageName);
-                blockedPackages.push(game.packageName);
-              }
-            }
-          } else {
-            if (!seen.has(pkg)) {
-              seen.add(pkg);
-              blockedPackages.push(pkg);
-            }
-          }
-        }
-      }
-    } else if (activeRules.length === 0) {
-      // Automatic default block policy (if no custom rules exist at all)
-      const mockDefaultRule = {
-        scheduleStart: "09:00",
-        scheduleEnd: "16:00",
-        activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      };
-      if (isRuleActiveNow(mockDefaultRule, new Date())) {
-        status = "active";
-        scheduleStart = "09:00";
-        scheduleEnd = "16:00";
-        reason = "Institutional default restriction policy";
-        
-        // Auto-block the listed packages
-        const defaults = [
-          "com.instagram.android",
-          "com.whatsapp",
-          "org.telegram.messenger",
-          "com.snapchat.android",
-          "com.twitter.android",
-          "com.facebook.katana",
-          "com.google.android.youtube",
-          "com.instagram.barcelona", // Threads
-          "in.startv.hotstar",       // Hotstar
-          "com.jio.media.ondemand",  // JioCinema
-          "com.netflix.mediaclient",
-          "com.netmirror",
-          "com.sun.nxt",
-          "com.amazon.avod.thirdpartyclient", // Prime Video
-          "com.airtel.tv",           // Airtel Xstream
-          "com.graymatrix.did",      // Zee5
-          "com.graymatrix.did",      // Zee5
-          "com.android.vending"      // Google Play Store
-        ];
-
-        for (const pkg of defaults) {
-          if (!seen.has(pkg)) {
-            seen.add(pkg);
-            blockedPackages.push(pkg);
-          }
-        }
-
-        // Auto-block all scanned games
-        const ScannedApp = require("../models/ScannedApp");
-        const games = await ScannedApp.find({
-          studentId: student._id,
-          category: "games",
-          removedAt: null
-        });
-        for (const game of games) {
-          if (!seen.has(game.packageName)) {
-            seen.add(game.packageName);
-            blockedPackages.push(game.packageName);
-          }
-        }
-      }
+      reason = "Device blocked manually by administrator";
+    } else if (getEmergencyUnblock()) {
+      // Global emergency unblock override
+      blockedPackages = [];
+      status = "inactive";
+      reason = "Emergency unblock active (restrictions temporarily lifted)";
+    } else if (currentlyEnforcedRules.length > 0) {
+      // Inside restricted timing window (access blocked)
+      blockedPackages = await getAutoBlockPackages(student._id);
+      status = "active";
+      reason = "Inside restricted timing window (social media and games blocked)";
+    } else {
+      // Outside restricted timing window / no rules exist -> unblock all
+      blockedPackages = [];
+      status = "inactive";
+      reason = "Outside restricted timing window (social media and games unblocked)";
     }
 
     const policyVersionBefore = device.lastKnownCommand?.policyVersion || 0;

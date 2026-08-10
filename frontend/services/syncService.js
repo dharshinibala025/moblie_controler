@@ -29,6 +29,8 @@ class SyncService {
         deviceId: 'default-device-id',
       };
 
+      const permissions = await this.checkPermissions();
+
       // 2. Register device with backend
       const registrationPayload = {
         fcmToken: 'fcm_placeholder', // fallback FCM token
@@ -38,6 +40,8 @@ class SyncService {
           appVersion: nativeInfo.appVersion,
           deviceModel: nativeInfo.deviceModel,
           deviceId: nativeInfo.deviceId,
+          accessibilityEnabled: permissions.accessibilityEnabled,
+          overlayEnabled: permissions.overlayEnabled,
         },
       };
 
@@ -131,6 +135,69 @@ class SyncService {
       });
     } catch (error) {
       console.warn('FocusSync: Blocked attempt logging failed:', error.message);
+    }
+  }
+
+  async requestAllPermissions() {
+    try {
+      const { PermissionsAndroid, Platform, Alert } = require('react-native');
+      
+      // 1. Notification Permission (Android 13+)
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          {
+            title: 'Notification Permission Required',
+            message: 'Allow Smart Classroom to send you alerts about your restriction status and important updates.',
+            buttonPositive: 'Allow',
+            buttonNegative: 'Don\'t Allow',
+          }
+        );
+      }
+
+      // 2. Check and prompt for Accessibility and Overlay
+      if (AppScannerModule && AppScannerModule.checkPermissions) {
+        const permissions = await AppScannerModule.checkPermissions();
+        
+        if (!permissions.accessibilityEnabled) {
+          Alert.alert(
+            'Accessibility Permission Required',
+            'Please turn on "Smart Classroom Protection Service" under Installed Services in your Accessibility settings to monitor application usage.',
+            [
+              {
+                text: 'Grant Permission',
+                onPress: () => {
+                  if (AppScannerModule.openAccessibilitySettings) {
+                    AppScannerModule.openAccessibilitySettings();
+                  }
+                }
+              },
+              { text: 'Cancel', style: 'cancel' }
+            ]
+          );
+          return;
+        }
+
+        if (!permissions.overlayEnabled) {
+          Alert.alert(
+            'Overlay Permission Required',
+            'Please enable "Display Over Other Apps" for Smart Classroom to enforce restrictions.',
+            [
+              {
+                text: 'Grant Permission',
+                onPress: () => {
+                  if (AppScannerModule.openOverlaySettings) {
+                    AppScannerModule.openOverlaySettings();
+                  }
+                }
+              },
+              { text: 'Cancel', style: 'cancel' }
+            ]
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('FocusSync: Failed to prompt permissions:', err);
     }
   }
 }

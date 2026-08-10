@@ -95,6 +95,18 @@ export const sendClassRuleCommand = async (classRoomId, ruleId, action) => {
   });
 };
 
+export const pauseClassRestriction = async (classRoomId) => {
+  return fetchWithRefresh(`/staff/classes/${classRoomId}/override/pause`, {
+    method: 'POST',
+  });
+};
+
+export const resumeClassRestriction = async (classRoomId) => {
+  return fetchWithRefresh(`/staff/classes/${classRoomId}/override/resume`, {
+    method: 'POST',
+  });
+};
+
 export default {
   fetchMyClasses,
   fetchClassLiveStatus,
@@ -103,4 +115,7 @@ export default {
   createClassRule,
   updateClassRule,
   sendClassRuleCommand,
+  pauseClassRestriction,
+  resumeClassRestriction,
 };
+

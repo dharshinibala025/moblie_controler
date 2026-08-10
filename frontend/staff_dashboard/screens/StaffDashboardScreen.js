@@ -5,8 +5,10 @@ import StaffDashboardTab from './StaffDashboardTab';
 import StaffDevicesTab from './StaffDevicesTab';
 import StaffStudentsTab from './StaffStudentsTab';
 import StaffSettingsTab from './StaffSettingsTab';
+import NotificationsScreen from '../../admin_dashboard/screens/NotificationsScreen';
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
 import { getStoredUser } from '../../services/apiConfig';
+import syncService from '../../services/syncService';
 
 export const StaffDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -19,6 +21,7 @@ export const StaffDashboardScreen = ({ onLogout }) => {
         if (user) {
           setStaffInfo(user);
         }
+        syncService.requestAllPermissions().catch(() => null);
       } catch (err) {
         console.warn('FocusSync: Failed to load staff details:', err);
       }
@@ -34,6 +37,8 @@ export const StaffDashboardScreen = ({ onLogout }) => {
         return <StaffDevicesTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
       case 'students':
         return <StaffStudentsTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
+      case 'notifications':
+        return <NotificationsScreen onBack={() => setActiveTab('dashboard')} />;
       case 'settings':
         return <StaffSettingsTab staffInfo={staffInfo} onLogout={onLogout} />;
       default:

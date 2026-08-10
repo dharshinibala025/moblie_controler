@@ -17,7 +17,7 @@ import SearchBar from '../components/SearchBar';
 import ImportExcelCard from '../components/ImportExcelCard';
 import SectionTitle from '../components/SectionTitle';
 import PersonRecordCard from '../components/PersonRecordCard';
-import adminService from '../../services/adminService';
+import adminService, { MOCK_STAFF } from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
@@ -359,7 +359,7 @@ const StaffScreen = () => {
       <View style={styles.section}>
         <SectionTitle
           title={`All Staff (${filteredStaff.length})`}
-          subtitle="View, Edit, Delete or Toggle Account Status"
+          subtitle="View, Edit, or Delete Staff Records"
         />
 
         {filteredStaff.length === 0 ? (
@@ -560,8 +560,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     backgroundColor: colors.cardBackground,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 0,
+    borderTopWidth: 0,
+    borderBottomWidth: 0,
     overflow: 'hidden',
     ...softShadow,
   },

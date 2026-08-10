@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, FlatList, Platform, StatusBar } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import staffMockData from '../data/staffMockData';
 import StaffHeader from '../components/StaffHeader';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
@@ -17,6 +16,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
   const [unblockedStudents, setUnblockedStudents] = useState(0);
   const [warningCount, setWarningCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [classAlerts, setClassAlerts] = useState([]);
 
   // Clock Update
   useEffect(() => {
@@ -75,6 +75,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
 
           const warnings = students.reduce((sum, s) => sum + (s.attempts || 0), 0);
           setWarningCount(warnings);
+          setClassAlerts(data.alerts || []);
         }
       } catch (err) {
         console.warn('FocusSync: Failed to load class live status:', err);
@@ -92,12 +93,16 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
     };
   }, [staffInfo]);
 
-  const mentorClass = staffInfo.assignedClass || staffInfo.classId || 'Not Assigned';
+  const mentorClass = staffInfo.assignedClass || staffInfo.classId || '';
+
+  const displayTotal = totalStudents || liveStudents.length;
+  const displayBlocked = blockedStudents || liveStudents.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length;
+  const displayUnblocked = unblockedStudents || (displayTotal - displayBlocked);
 
   // Sort students alphabetically by name
-  const sortedStudents = [...liveStudents].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedStudents = [...liveStudents].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-  // Helper to format assigned class name (e.g. "III CSE - A" -> "3rd Year CSE - Section A")
+  // Helper to format assigned class name (e.g. "III CSE - A" -> "CSE - Section 3rd Year A")
   const formatClassDisplay = (assignedClass) => {
     if (!assignedClass) return 'No Class Assigned';
 
@@ -115,36 +120,56 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
         else if (yearVal === '3') yearText = '3rd Year';
         else if (yearVal === '4') yearText = '4th Year';
 
-        return `${yearText} ${dept} - Section ${section}`;
+        return `${dept} - Section ${yearText ? `${yearText} ` : ''}${section}`;
       }
     }
 
-    // Handle old format: e.g. "III CSE - A"
-    const parts = assignedClass.split(' - ');
-    const classPart = parts[0]; // e.g. "III CSE"
-    const section = parts[1] || ''; // e.g. "A"
-
+    const str = String(assignedClass).trim();
     let yearText = '';
-    if (classPart.startsWith('III')) {
-      yearText = '3rd Year';
-    } else if (classPart.startsWith('II')) {
-      yearText = '2nd Year';
-    } else if (classPart.startsWith('IV')) {
-      yearText = '4th Year';
-    } else if (classPart.startsWith('I')) {
-      yearText = '1st Year';
+    if (str.includes('III') || str.includes('3rd')) yearText = '3rd Year';
+    else if (str.includes('IV') || str.includes('4th') || str.includes('Final')) yearText = 'Final Year';
+    else if (str.includes('II') || str.includes('2nd')) yearText = '2nd Year';
+    else if (str.includes('I') || str.includes('1st')) yearText = '1st Year';
+
+    let section = 'A';
+    if (str.includes(' - ')) {
+      section = str.split(' - ')[1] || 'A';
+    } else if (str.match(/Section\s+([A-Z])/i)) {
+      section = str.match(/Section\s+([A-Z])/i)[1];
     } else {
-      yearText = classPart;
+      const lastChar = str.trim().slice(-1);
+      if (['A', 'B', 'C', 'D'].includes(lastChar)) section = lastChar;
     }
 
-    // Extract department if present (e.g., "III CSE" -> "CSE")
-    const deptPart = classPart.replace(/^[IVX\s]+/, '').trim(); // Remove Roman numerals
-
-    return `${yearText} ${deptPart}${section ? ` - Section ${section}` : ''}`;
+    return `CSE - Section ${yearText ? `${yearText} ` : ''}${section}`;
   };
 
   const renderStudentItem = ({ item, index }) => {
     const isBlocked = item.deviceStatus === 'blocked';
+    
+    // Determine status badge style and text
+    let badgeBgColor = '#DCFCE7';
+    let badgeTextColor = '#16A34A';
+    let badgeText = 'Unblocked';
+
+    if (!item.hasDevice) {
+      badgeBgColor = '#FEF3C7';
+      badgeTextColor = '#D97706';
+      badgeText = 'No Login';
+    } else if (!item.accessibilityEnabled || !item.overlayEnabled) {
+      badgeBgColor = '#FEE2E2';
+      badgeTextColor = '#EF4444';
+      badgeText = 'No Perms';
+    } else if (isBlocked) {
+      badgeBgColor = '#FEE2E2';
+      badgeTextColor = '#EF4444';
+      badgeText = 'Blocked';
+    } else if (item.deviceStatus === 'offline') {
+      badgeBgColor = '#F1F5F9';
+      badgeTextColor = '#64748B';
+      badgeText = 'Offline';
+    }
+
     return (
       <View style={styles.studentItem}>
         <View style={styles.indexContainer}>
@@ -157,11 +182,11 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
         <View
           style={[
             styles.statusBadge,
-            { backgroundColor: isBlocked ? '#FEE2E2' : item.deviceStatus === 'offline' ? '#F1F5F9' : '#DCFCE7' },
+            { backgroundColor: badgeBgColor },
           ]}
         >
-          <Text style={[styles.statusText, { color: isBlocked ? '#EF4444' : item.deviceStatus === 'offline' ? '#64748B' : '#16A34A' }]}>
-            {isBlocked ? 'Blocked' : item.deviceStatus === 'offline' ? 'Offline' : 'Unblocked'}
+          <Text style={[styles.statusText, { color: badgeTextColor }]}>
+            {badgeText}
           </Text>
         </View>
       </View>
@@ -190,6 +215,26 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
           </View>
         </View>
 
+        {/* Dynamic Class Alerts & Warnings Banner */}
+        {classAlerts.length > 0 ? (
+          <View style={styles.alertsBannerContainer}>
+            <View style={styles.alertsBannerHeader}>
+              <VectorIcon name="alert-circle" size={16} color="#EF4444" />
+              <Text style={styles.alertsBannerTitle}>COMPLIANCE ALERTS ({classAlerts.length})</Text>
+            </View>
+            <ScrollView style={styles.alertsScroll} nestedScrollEnabled={true}>
+              {classAlerts.map((alert, idx) => (
+                <View key={idx} style={styles.alertRow}>
+                  <Text style={styles.alertDot}>•</Text>
+                  <Text style={styles.alertMessageText} numberOfLines={2}>
+                    {alert.message}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {/* 3 Executive Compact Stats Cards */}
         <View style={styles.statsGrid}>
           {/* Card 1: Total Students */}
@@ -200,7 +245,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
               </View>
               <Text style={[styles.badgeText, { color: '#0284C7' }]}>100%</Text>
             </View>
-            <Text style={styles.statValue}>{totalStudents}</Text>
+            <Text style={styles.statValue}>{displayTotal}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Total</Text>
           </View>
 
@@ -211,10 +256,10 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
                 <VectorIcon name="cellphone" size={14} color="#16A34A" />
               </View>
               <Text style={[styles.badgeText, { color: '#16A34A' }]}>
-                {totalStudents ? Math.round((unblockedStudents / totalStudents) * 100) : 0}%
+                {displayTotal ? Math.round((displayUnblocked / displayTotal) * 100) : 0}%
               </Text>
             </View>
-            <Text style={styles.statValue}>{unblockedStudents}</Text>
+            <Text style={styles.statValue}>{displayUnblocked}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Unblocked</Text>
           </View>
 
@@ -224,13 +269,13 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
               <View style={[styles.statIconContainer, { backgroundColor: '#FEE2E2' }]}>
                 <VectorIcon name="cellphone-off" size={14} color="#EF4444" />
               </View>
-              {blockedStudents > 0 ? (
+              {displayBlocked > 0 ? (
                 <Text style={[styles.badgeText, { color: '#EF4444' }]}>
-                  {totalStudents ? Math.round((blockedStudents / totalStudents) * 100) : 0}%
+                  {displayTotal ? Math.round((displayBlocked / displayTotal) * 100) : 0}%
                 </Text>
               ) : null}
             </View>
-            <Text style={styles.statValue}>{blockedStudents}</Text>
+            <Text style={styles.statValue}>{displayBlocked}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Blocked</Text>
           </View>
         </View>
@@ -291,6 +336,48 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  alertsBannerContainer: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: 12,
+  },
+  alertsBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  alertsBannerTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#EF4444',
+    marginLeft: 6,
+    letterSpacing: 0.5,
+  },
+  alertsScroll: {
+    maxHeight: 100,
+  },
+  alertRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  alertDot: {
+    color: '#EF4444',
+    marginRight: 6,
+    fontSize: 14,
+    lineHeight: 14,
+  },
+  alertMessageText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1E293B',
+    flex: 1,
+    lineHeight: 16,
   },
   welcomeHeaderSection: {
     marginHorizontal: 16,

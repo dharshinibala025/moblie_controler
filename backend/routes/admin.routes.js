@@ -490,6 +490,9 @@ router.post("/staff", async (req, res, next) => {
 
 router.post("/rules", validate("createRule"), async (req, res, next) => {
   try {
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+
     if (req.scopeInstitutionId) {
       req.body.institutionId = req.scopeInstitutionId;
     }
@@ -523,6 +526,9 @@ router.get("/rules", async (req, res, next) => {
 
 router.patch("/rules/:id", validate("updateRule"), async (req, res, next) => {
   try {
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+
     const rule = await ruleService.updateRule(req.params.id, req.body, req.user.userId, req.scopeInstitutionId);
     await auditService.logAction(
       req.user.userId,
@@ -541,6 +547,11 @@ router.patch("/rules/:id", validate("updateRule"), async (req, res, next) => {
 router.post("/rules/:id/command", validate("commandBody"), async (req, res, next) => {
   try {
     const { action } = req.body;
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    if (action === "start") {
+      setEmergencyUnblock(false);
+    }
+
     const rule = await ruleService.sendCommand(req.params.id, action, req.user.userId, req.scopeInstitutionId);
     await auditService.logAction(
       req.user.userId,
@@ -938,19 +949,6 @@ router.get("/dashboard/overview", async (req, res, next) => {
 
     const recentActivities = [];
 
-    for (const attempt of recentAttempts) {
-      const studentName = attempt.studentId ? attempt.studentId.name : "Student";
-      recentActivities.push({
-        id: `att-${attempt._id}`,
-        icon: "phonelink-erase",
-        title: "Device blocked attempt",
-        description: `Unauthorized app (${attempt.packageName}) on ${studentName}'s device`,
-        time: attempt.attemptedAt ? `${Math.max(1, Math.round((Date.now() - new Date(attempt.attemptedAt).getTime()) / 60000))}m ago` : "Recently",
-        iconColor: "#EF4444",
-        iconBackground: "#FEE2E2",
-      });
-    }
-
     for (const audit of recentAudits) {
       const actorName = audit.actorId ? audit.actorId.name : "Admin";
       recentActivities.push({
@@ -1151,6 +1149,7 @@ router.get("/devices/list", async (req, res, next) => {
         status: d.status,
         userName,
         userRole: d.userId ? d.userId.role : "student",
+        classId: d.userId ? d.userId.classId : null,
       };
     });
 
@@ -1340,6 +1339,9 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
     const Device = require("../models/Device");
     const auditService = require("../services/auditService");
     const { emitToClass } = require("../config/socket");
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+
+    setEmergencyUnblock(true);
 
     await Rule.updateMany({}, { $set: { status: "paused" } });
     await Device.updateMany({}, { $set: { status: "active" } });
@@ -1413,6 +1415,73 @@ router.post("/staff/upload", async (req, res, next) => {
     );
 
     res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/notifications", async (req, res, next) => {
+  try {
+    const Notification = require("../models/Notification");
+    const notifications = await Notification.find({ studentId: req.user.userId }).sort({ createdAt: -1 });
+    
+    const formatted = notifications.map((n) => {
+      let icon = "campaign";
+      let iconColor = "#2563EB";
+      let iconBg = "#EFF6FF";
+      
+      if (n.type === "restriction") {
+        icon = "phonelink-erase";
+        iconColor = "#EF4444";
+        iconBg = "#FEE2E2";
+      } else if (n.type === "system") {
+        icon = "dns";
+        iconColor = "#16A34A";
+        iconBg = "#DCFCE7";
+      }
+      
+      const diffMs = Date.now() - new Date(n.createdAt).getTime();
+      const diffMins = Math.max(1, Math.round(diffMs / 60000));
+      const timeStr = diffMins < 60 ? `${diffMins}m ago` : `${Math.round(diffMins / 60)}h ago`;
+
+      return {
+        id: n._id.toString(),
+        type: n.type === "restriction" ? "Device Warning" : n.type === "system" ? "System Alert" : "Broadcast",
+        title: n.title,
+        message: n.message,
+        target: n.metadata?.target || "All",
+        time: timeStr,
+        deliveredCount: n.metadata?.deliveredCount || 0,
+        readCount: n.metadata?.readCount || 0,
+        status: n.type === "restriction" ? "Action Required" : "Delivered",
+        isRead: n.read,
+        icon,
+        iconColor,
+        iconBg,
+      };
+    });
+    
+    res.json(formatted);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/notifications/:id", async (req, res, next) => {
+  try {
+    const Notification = require("../models/Notification");
+    await Notification.deleteOne({ _id: req.params.id, studentId: req.user.userId });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/notifications/mark-read", async (req, res, next) => {
+  try {
+    const Notification = require("../models/Notification");
+    await Notification.updateMany({ studentId: req.user.userId }, { $set: { read: true } });
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }

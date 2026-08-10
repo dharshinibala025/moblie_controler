@@ -21,6 +21,8 @@ const deviceSchema = new mongoose.Schema(
       appVersion: { type: String, default: null },
       deviceModel: { type: String, default: null },
       deviceId: { type: String, default: null },
+      accessibilityEnabled: { type: Boolean, default: false },
+      overlayEnabled: { type: Boolean, default: false },
     },
     status: {
       type: String,

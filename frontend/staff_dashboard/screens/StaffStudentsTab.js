@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import staffMockData from '../data/staffMockData';
+
 
 const STATUSBAR_OFFSET = 12;
 
@@ -92,7 +92,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
     return () => clearInterval(interval);
   }, [staffInfo]);
 
-  const mentorClass = staffInfo.assignedClass || staffInfo.classId || 'Not Assigned';
+  const mentorClass = staffInfo.assignedClass || staffInfo.classId || '';
 
   // Helper to format assigned class name (e.g. "III CSE - A" -> "3rd Year CSE - Section A")
   const formatClassDisplay = (assignedClass) => {
@@ -141,12 +141,13 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
 
   // Filter students based on search and status filter
   const filteredStudents = liveStudents.filter((student) => {
-    const matchesSearch =
-      student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.rollNo.toLowerCase().includes(searchQuery.toLowerCase());
+    const name = String(student.name || '').toLowerCase();
+    const rollNo = String(student.rollNo || '').toLowerCase();
+    const query = searchQuery.toLowerCase();
 
+    const matchesSearch = !query || name.includes(query) || rollNo.includes(query);
     const matchesStatus =
-      statusFilter === 'all' || student.status === statusFilter;
+      statusFilter === 'all' || student.status === statusFilter || student.deviceStatus === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
@@ -255,7 +256,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
             )}
           </View>
 
-          {liveStudents.length === 0 ? (
+          {studentsToUse.length === 0 ? (
             <View style={styles.emptyContainer}>
               <VectorIcon name="cellphone-off" size={48} color="#94A3B8" />
               <Text style={styles.emptyTitleText}>No Assigned Students</Text>
@@ -287,7 +288,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
                   style={[styles.filterBadge, statusFilter === 'all' && styles.filterBadgeActive]}
                 >
                   <Text style={[styles.filterBadgeText, statusFilter === 'all' && styles.filterBadgeTextActive]}>
-                    All ({liveStudents.length})
+                    All ({studentsToUse.length})
                   </Text>
                 </TouchableOpacity>
 
@@ -304,7 +305,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
                       statusFilter === 'active' && { color: '#16A34A', fontWeight: '700' },
                     ]}
                   >
-                    Active ({liveStudents.filter((s) => s.status === 'active').length})
+                    Active ({studentsToUse.filter((s) => s.status === 'active' || s.deviceStatus === 'active').length})
                   </Text>
                 </TouchableOpacity>
 
@@ -321,7 +322,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
                       statusFilter === 'blocked' && { color: '#DC2626', fontWeight: '700' },
                     ]}
                   >
-                    Blocked ({liveStudents.filter((s) => s.status === 'blocked').length})
+                    Blocked ({studentsToUse.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length})
                   </Text>
                 </TouchableOpacity>
 
@@ -338,7 +339,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
                       statusFilter === 'offline' && { color: '#475569', fontWeight: '700' },
                     ]}
                   >
-                    Offline ({liveStudents.filter((s) => s.status === 'offline').length})
+                    Offline ({studentsToUse.filter((s) => s.status === 'offline' || s.deviceStatus === 'offline').length})
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -527,8 +528,7 @@ const styles = StyleSheet.create({
     paddingTop: STATUSBAR_OFFSET,
     paddingBottom: 14,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomWidth: 0,
     marginBottom: 12,
   },
   titleText: {
