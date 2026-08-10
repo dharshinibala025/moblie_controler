@@ -203,7 +203,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
       Alert.alert(
         'Restriction Applied',
-        `Restriction successfully applied to your class!\n\nClass: ${mentorClass}\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
+        `Restriction schedule successfully applied to your class!\n\nClass: ${mentorClass}\nSchedule: ${startTime} – ${endTime}`,
       );
     } catch (err) {
       Alert.alert('Apply Failed', err.message || 'An error occurred.');
@@ -390,8 +390,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               onPress={handleApplyRestriction}
               activeOpacity={0.8}
             >
-              <VectorIcon name="lock" size={18} color="#FFFFFF" />
-              <Text style={styles.applyBtnText}>Apply Restriction</Text>
+              <VectorIcon name="clock-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.applyBtnText}>Set Restriction Timing</Text>
             </TouchableOpacity>
 
             <View style={styles.secondaryControlsRow}>
@@ -406,11 +406,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                   <Text style={styles.resumeBtnText}>Resume</Text>
                 </TouchableOpacity>
               )}
-
-              <TouchableOpacity style={styles.removeBtn} onPress={handleRemoveRestriction}>
-                <VectorIcon name="close" size={16} color="#64748B" />
-                <Text style={styles.removeBtnText}>Remove</Text>
-              </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock}>

@@ -94,12 +94,23 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
     };
   }, [staffInfo]);
 
-  const mentorClass = staffInfo.assignedClass || staffInfo.classId || 'Not Assigned';
+  const mentorClass = staffInfo.assignedClass || staffInfo.classId || '3rd Year - A';
+
+  const defaultMockStudents = React.useMemo(() => {
+    const { getStudentsForClass } = require('../data/staffMockData');
+    return getStudentsForClass(mentorClass);
+  }, [mentorClass]);
+
+  const studentsToUse = liveStudents.length > 0 ? liveStudents : defaultMockStudents;
+
+  const displayTotal = totalStudents || studentsToUse.length;
+  const displayBlocked = blockedStudents || studentsToUse.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length;
+  const displayUnblocked = unblockedStudents || (displayTotal - displayBlocked);
 
   // Sort students alphabetically by name
-  const sortedStudents = [...liveStudents].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedStudents = [...studentsToUse].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-  // Helper to format assigned class name (e.g. "III CSE - A" -> "3rd Year CSE - Section A")
+  // Helper to format assigned class name (e.g. "III CSE - A" -> "CSE - Section 3rd Year A")
   const formatClassDisplay = (assignedClass) => {
     if (!assignedClass) return 'No Class Assigned';
 
@@ -117,32 +128,28 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
         else if (yearVal === '3') yearText = '3rd Year';
         else if (yearVal === '4') yearText = '4th Year';
 
-        return `${yearText} ${dept} - Section ${section}`;
+        return `${dept} - Section ${yearText ? `${yearText} ` : ''}${section}`;
       }
     }
 
-    // Handle old format: e.g. "III CSE - A"
-    const parts = assignedClass.split(' - ');
-    const classPart = parts[0]; // e.g. "III CSE"
-    const section = parts[1] || ''; // e.g. "A"
-
+    const str = String(assignedClass).trim();
     let yearText = '';
-    if (classPart.startsWith('III')) {
-      yearText = '3rd Year';
-    } else if (classPart.startsWith('II')) {
-      yearText = '2nd Year';
-    } else if (classPart.startsWith('IV')) {
-      yearText = '4th Year';
-    } else if (classPart.startsWith('I')) {
-      yearText = '1st Year';
+    if (str.includes('III') || str.includes('3rd')) yearText = '3rd Year';
+    else if (str.includes('IV') || str.includes('4th') || str.includes('Final')) yearText = 'Final Year';
+    else if (str.includes('II') || str.includes('2nd')) yearText = '2nd Year';
+    else if (str.includes('I') || str.includes('1st')) yearText = '1st Year';
+
+    let section = 'A';
+    if (str.includes(' - ')) {
+      section = str.split(' - ')[1] || 'A';
+    } else if (str.match(/Section\s+([A-Z])/i)) {
+      section = str.match(/Section\s+([A-Z])/i)[1];
     } else {
-      yearText = classPart;
+      const lastChar = str.trim().slice(-1);
+      if (['A', 'B', 'C', 'D'].includes(lastChar)) section = lastChar;
     }
 
-    // Extract department if present (e.g., "III CSE" -> "CSE")
-    const deptPart = classPart.replace(/^[IVX\s]+/, '').trim(); // Remove Roman numerals
-
-    return `${yearText} ${deptPart}${section ? ` - Section ${section}` : ''}`;
+    return `CSE - Section ${yearText ? `${yearText} ` : ''}${section}`;
   };
 
   const renderStudentItem = ({ item, index }) => {
@@ -246,7 +253,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
               </View>
               <Text style={[styles.badgeText, { color: '#0284C7' }]}>100%</Text>
             </View>
-            <Text style={styles.statValue}>{totalStudents}</Text>
+            <Text style={styles.statValue}>{displayTotal}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Total</Text>
           </View>
 
@@ -257,10 +264,10 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
                 <VectorIcon name="cellphone" size={14} color="#16A34A" />
               </View>
               <Text style={[styles.badgeText, { color: '#16A34A' }]}>
-                {totalStudents ? Math.round((unblockedStudents / totalStudents) * 100) : 0}%
+                {displayTotal ? Math.round((displayUnblocked / displayTotal) * 100) : 0}%
               </Text>
             </View>
-            <Text style={styles.statValue}>{unblockedStudents}</Text>
+            <Text style={styles.statValue}>{displayUnblocked}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Unblocked</Text>
           </View>
 
@@ -270,13 +277,13 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
               <View style={[styles.statIconContainer, { backgroundColor: '#FEE2E2' }]}>
                 <VectorIcon name="cellphone-off" size={14} color="#EF4444" />
               </View>
-              {blockedStudents > 0 ? (
+              {displayBlocked > 0 ? (
                 <Text style={[styles.badgeText, { color: '#EF4444' }]}>
-                  {totalStudents ? Math.round((blockedStudents / totalStudents) * 100) : 0}%
+                  {displayTotal ? Math.round((displayBlocked / displayTotal) * 100) : 0}%
                 </Text>
               ) : null}
             </View>
-            <Text style={styles.statValue}>{blockedStudents}</Text>
+            <Text style={styles.statValue}>{displayBlocked}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Blocked</Text>
           </View>
         </View>

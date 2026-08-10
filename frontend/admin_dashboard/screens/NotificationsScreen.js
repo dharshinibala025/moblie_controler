@@ -156,10 +156,6 @@ const NotificationsScreen = ({ onBack }) => {
             selectedValue={filterType}
             onSelect={setFilterType}
           />
-          <TouchableOpacity style={styles.markReadBtn} onPress={handleMarkAllRead}>
-            <Icon name="done-all" size={14} color={colors.primaryBlue} />
-            <Text style={styles.markReadText}>Mark All Read</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Notifications List */}
