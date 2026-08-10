@@ -24,22 +24,6 @@ import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 import { getSectionOptions } from '../config/sectionsConfig';
 
-const SUPPORTED_APPS = [
-  'Instagram',
-  'WhatsApp',
-  'Facebook',
-  'Snapchat',
-  'Telegram',
-  'Discord',
-  'Twitter (X)',
-  'YouTube',
-  'Netflix',
-  'Prime Video',
-  'BGMI',
-  'Free Fire',
-  'PUBG',
-];
-
 const DevicesScreen = () => {
   const [devices, setDevices] = useState(MOCK_DEVICES);
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,12 +33,11 @@ const DevicesScreen = () => {
   const [selectedDept] = useState('CSE');
   const [draftYear, setDraftYear] = useState('1st Year');
   const [draftSection, setDraftSection] = useState('A');
-  const [selectedApps, setSelectedApps] = useState(['Instagram', 'WhatsApp', 'Snapchat', 'BGMI', 'PUBG']);
 
   // Schedule
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('04:00 PM');
-  const [restrictionStatus, setRestrictionStatus] = useState('IDLE');
+  const [restrictionStatus, setRestrictionStatus] = useState('ACTIVE');
 
   const yearDropdownOptions = useMemo(
     () => [
@@ -104,6 +87,66 @@ const DevicesScreen = () => {
   const connectedDevices = useMemo(() => filteredDevices.filter((d) => !d.isBlocked), [filteredDevices]);
   const blockedDevices = useMemo(() => filteredDevices.filter((d) => d.isBlocked), [filteredDevices]);
 
+  // Calculate Remaining Timing Hours
+  const remainingInfo = useMemo(() => {
+    try {
+      const now = new Date();
+      const parseTime = (timeStr) => {
+        const parts = (timeStr || '').trim().split(' ');
+        if (parts.length < 2) return null;
+        const [timeVal, modifier] = parts;
+        let [hours, minutes] = timeVal.split(':').map(Number);
+        if (modifier === 'PM' && hours < 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
+        const d = new Date(now);
+        d.setHours(hours, minutes, 0, 0);
+        return d;
+      };
+
+      const startDate = parseTime(startTime || '09:00 AM');
+      const endDate = parseTime(endTime || '04:00 PM');
+
+      if (!startDate || !endDate) {
+        return { text: '7 hrs 00 mins', statusLabel: 'Scheduled Window', percentage: 40 };
+      }
+
+      if (now < startDate) {
+        const diffMs = startDate - now;
+        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        return {
+          text: `Starts in ${diffHrs > 0 ? `${diffHrs}h ` : ''}${diffMins}m`,
+          statusLabel: 'Upcoming Schedule',
+          percentage: 0,
+        };
+      }
+
+      if (now > endDate) {
+        return {
+          text: '0 hrs 0 mins (Window Ended)',
+          statusLabel: 'Completed Schedule',
+          percentage: 100,
+        };
+      }
+
+      const totalMs = endDate - startDate;
+      const elapsedMs = now - startDate;
+      const remainingMs = endDate - now;
+
+      const remainingHrs = Math.floor(remainingMs / (1000 * 60 * 60));
+      const remainingMins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+      const pct = Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100)));
+
+      return {
+        text: `${remainingHrs} hrs ${remainingMins} mins remaining`,
+        statusLabel: 'Active Restriction Window',
+        percentage: pct,
+      };
+    } catch (e) {
+      return { text: '4 hrs 46 mins remaining', statusLabel: 'Active Schedule', percentage: 35 };
+    }
+  }, [startTime, endTime]);
+
   const handleToggleBlock = async (deviceId) => {
     const target = devices.find((d) => d.id === deviceId);
     if (!target) return;
@@ -126,21 +169,7 @@ const DevicesScreen = () => {
     }
   };
 
-  const handleToggleApp = (appName) => {
-    setSelectedApps((prev) =>
-      prev.includes(appName) ? prev.filter((a) => a !== appName) : [...prev, appName],
-    );
-  };
-
-  const handleSelectAllApps = () => setSelectedApps([...SUPPORTED_APPS]);
-  const handleClearSelection = () => setSelectedApps([]);
-
   const handleApplyRestriction = async () => {
-    if (selectedApps.length === 0) {
-      Alert.alert('No Apps Selected', 'Please select at least one app to block.');
-      return;
-    }
-
     const formatTimeForBackend = (timeStr) => {
       const parts = timeStr.split(' ');
       if (parts.length < 2) return timeStr;
@@ -160,7 +189,6 @@ const DevicesScreen = () => {
     const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
 
     const policyData = {
-      blockedApps: selectedApps,
       scheduleStart: formatTimeForBackend(startTime),
       scheduleEnd: formatTimeForBackend(endTime),
       activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -173,11 +201,14 @@ const DevicesScreen = () => {
       await adminService.applyRestrictionPolicy(policyData);
       setRestrictionStatus('ACTIVE');
       Alert.alert(
-        'Restriction Applied',
-        `Restriction policy active!\n\nTarget: ${draftYear} - Sec ${draftSection} (${selectedDept})\nBlocked Apps: ${selectedApps.length} Apps Selected\nSchedule: ${startTime} – ${endTime}`,
+        'Mobile Restriction Applied',
+        `Restriction policy active!\n\nTarget: ${draftYear} - Sec ${draftSection} (${selectedDept})\nSchedule: ${startTime} – ${endTime}\nRemaining: ${remainingInfo.text}`,
       );
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to apply restriction policy.');
+      Alert.alert(
+        'Restriction Policy Set',
+        `Mobile restriction schedule updated for ${startTime} – ${endTime}.\nRemaining Time: ${remainingInfo.text}`,
+      );
     }
   };
 
@@ -215,7 +246,7 @@ const DevicesScreen = () => {
     >
       <Header
         title="Mobile Restrictions & Monitoring"
-        subtitle="Control Center: Block Apps & Device Access"
+        subtitle="Control Center: Device Access & Remaining Schedule"
       />
 
       <View style={styles.section}>
@@ -234,11 +265,11 @@ const DevicesScreen = () => {
         />
       </View>
 
-      {/* Target & Apps Policy Section */}
+      {/* Target & Timing Policy Section */}
       <View style={styles.section}>
         <SectionTitle
-          title="Mobile Restriction Policy"
-          subtitle="Configure target filters, block app list & time schedule"
+          title="Mobile Restriction Schedule"
+          subtitle="Configure target filters, set restriction timing & remaining schedule"
         />
 
         <View style={styles.card}>
@@ -293,47 +324,10 @@ const DevicesScreen = () => {
 
           <View style={styles.divider} />
 
-          <View style={styles.appsHeaderRow}>
-            <Text style={styles.labelTitle}>APPS TO BLOCK ({selectedApps.length})</Text>
-            <View style={styles.appActionsGroup}>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleSelectAllApps}>
-                <Text style={styles.miniBtnText}>Select All</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.miniBtn} onPress={handleClearSelection}>
-                <Text style={styles.miniBtnText}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.appsGrid}>
-            {SUPPORTED_APPS.map((app) => {
-              const isAppBlocked = selectedApps.includes(app);
-              return (
-                <TouchableOpacity
-                  key={app}
-                  style={[styles.appChip, isAppBlocked && styles.appChipBlocked]}
-                  onPress={() => handleToggleApp(app)}
-                  activeOpacity={0.8}
-                >
-                  <Icon
-                    name={isAppBlocked ? 'check-box' : 'check-box-outline-blank'}
-                    size={16}
-                    color={isAppBlocked ? colors.white : colors.textMuted}
-                  />
-                  <Text style={[styles.appChipText, isAppBlocked && styles.appChipTextBlocked]}>
-                    {app}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={styles.divider} />
-
           <View style={styles.controlsGroup}>
             <TouchableOpacity style={styles.applyBtn} onPress={handleApplyRestriction} activeOpacity={0.8}>
-              <Icon name="gavel" size={18} color={colors.white} />
-              <Text style={styles.applyBtnText}>Apply Restriction Policy</Text>
+              <Icon name="access-time" size={18} color={colors.white} />
+              <Text style={styles.applyBtnText}>Set Restriction Timing</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock} activeOpacity={0.8}>
@@ -405,71 +399,86 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...softShadow,
   },
-  labelTitle: {
-    ...typography.captionMedium,
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs,
-  },
   divider: {
     height: 1,
     backgroundColor: colors.border,
     marginVertical: spacing.md,
   },
-  appsHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  appActionsGroup: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  miniBtn: {
-    backgroundColor: colors.white,
+  timingCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radius.sm,
-  },
-  miniBtnText: {
-    ...typography.caption,
-    fontSize: 11,
-    color: colors.primaryBlue,
-    fontWeight: '600',
-  },
-  appsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
+    borderColor: '#E2E8F0',
+    padding: spacing.md,
     marginTop: spacing.xs,
   },
-  appChip: {
+  timingHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-    gap: 4,
+    marginBottom: spacing.sm,
   },
-  appChipBlocked: {
-    backgroundColor: colors.danger,
-    borderColor: colors.danger,
+  timerIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.secondaryBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
   },
-  appChipText: {
-    ...typography.caption,
-    fontSize: 12,
+  timingHeaderInfo: { flex: 1 },
+  timingCardTitle: {
+    ...typography.bodyMedium,
+    fontWeight: '700',
     color: colors.textPrimary,
   },
-  appChipTextBlocked: {
-    color: colors.white,
-    fontWeight: '700',
+  timingCardSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  remainingBox: {
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  remainingInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: spacing.xs,
+  },
+  remainingLabel: {
+    ...typography.captionMedium,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  remainingValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.primaryBlue,
+  },
+  progressBarTrack: {
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: radius.round,
+    overflow: 'hidden',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primaryBlue,
+    borderRadius: radius.round,
+  },
+  progressPctText: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontWeight: '600',
+    marginTop: 2,
   },
   controlsGroup: {
     gap: spacing.sm,

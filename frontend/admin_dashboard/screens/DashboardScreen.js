@@ -109,7 +109,7 @@ const USAGE_SUMMARY_DATA = [
 
 const ANNOUNCEMENT_TARGETS = ['All Students', 'Department', 'Year', 'Section', 'Individual Student'];
 
-const DashboardScreen = () => {
+const DashboardScreen = ({ onNavigateNotifications }) => {
   const [stats, setStats] = useState(INITIAL_STATS);
   const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
   const [announcementModalVisible, setAnnouncementModalVisible] = useState(false);
@@ -201,7 +201,7 @@ const DashboardScreen = () => {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.notificationButton}
-              onPress={() => setAnnouncementModalVisible(true)}
+              onPress={() => (onNavigateNotifications ? onNavigateNotifications() : setAnnouncementModalVisible(true))}
               activeOpacity={0.8}
             >
               <Icon name="campaign" size={22} color={colors.primaryBlue} />
