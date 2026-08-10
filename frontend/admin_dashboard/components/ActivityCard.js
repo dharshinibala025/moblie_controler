@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import colors from '../styles/colors';
 import typography from '../styles/typography';
@@ -17,6 +17,7 @@ const ActivityCard = ({
   iconColor = colors.primaryBlue,
   iconBackground = colors.secondaryBackground,
   isLast = false,
+  onDelete,
 }) => {
   return (
     <View style={[styles.container, !isLast && styles.divider]}>
@@ -27,7 +28,19 @@ const ActivityCard = ({
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         <Text style={styles.description} numberOfLines={1}>{description}</Text>
       </View>
-      <Text style={styles.time}>{time}</Text>
+      <View style={styles.rightSection}>
+        <Text style={styles.time}>{time}</Text>
+        {onDelete ? (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={onDelete}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon name="delete-outline" size={18} color={colors.danger} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 };
@@ -46,7 +59,9 @@ const styles = StyleSheet.create({
   textWrapper: { flex: 1, marginRight: spacing.sm },
   title: { ...typography.bodyMedium, color: colors.textPrimary },
   description: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  rightSection: { flexDirection: 'row', alignItems: 'center' },
   time: { ...typography.caption, color: colors.textSecondary },
+  deleteButton: { marginLeft: spacing.sm, padding: 4 },
 });
 
 export default ActivityCard;

@@ -5,9 +5,21 @@ const usageService = require("./usageService");
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 class ClassService {
-  async getClassLiveStatus(classId) {
+  async getClassLiveStatus(classId, staffUserId = null) {
     const mongoose = require("mongoose");
     const query = { role: "student" };
+
+    if (staffUserId) {
+      const staffUser = await User.findById(staffUserId);
+      if (staffUser) {
+        if (staffUser.academicYearId && staffUser.sectionId) {
+          if (staffUser.departmentId) query.departmentId = staffUser.departmentId;
+          query.academicYearId = staffUser.academicYearId;
+          query.sectionId = staffUser.sectionId;
+        }
+      }
+    }
+
     if (mongoose.Types.ObjectId.isValid(classId)) {
       query.$or = [{ classRoomId: classId }, { classId: classId }];
     } else {
@@ -64,10 +76,38 @@ class ClassService {
     };
   }
 
-  async resolveStudentForClass(classId, studentId) {
-    if (studentId) return studentId;
+  async resolveStudentForClass(classId, studentId, staffUserId = null) {
+    if (studentId) {
+      // Validate that student actually belongs to staff scope if staffUserId is passed
+      const query = { _id: studentId, role: "student" };
+      if (staffUserId) {
+        const staffUser = await User.findById(staffUserId);
+        if (staffUser) {
+          if (staffUser.academicYearId && staffUser.sectionId) {
+            if (staffUser.departmentId) query.departmentId = staffUser.departmentId;
+            query.academicYearId = staffUser.academicYearId;
+            query.sectionId = staffUser.sectionId;
+          }
+        }
+      }
+      const exists = await User.exists(query);
+      return exists ? studentId : null;
+    }
+
     const mongoose = require("mongoose");
     const query = { role: "student" };
+
+    if (staffUserId) {
+      const staffUser = await User.findById(staffUserId);
+      if (staffUser) {
+        if (staffUser.academicYearId && staffUser.sectionId) {
+          if (staffUser.departmentId) query.departmentId = staffUser.departmentId;
+          query.academicYearId = staffUser.academicYearId;
+          query.sectionId = staffUser.sectionId;
+        }
+      }
+    }
+
     if (mongoose.Types.ObjectId.isValid(classId)) {
       query.$or = [{ classRoomId: classId }, { classId: classId }];
     } else {
@@ -77,8 +117,8 @@ class ClassService {
     return student ? student._id : null;
   }
 
-  async getStudentActivity(classId, studentId, startDate, endDate) {
-    const targetStudentId = await this.resolveStudentForClass(classId, studentId);
+  async getStudentActivity(classId, studentId, startDate, endDate, staffUserId = null) {
+    const targetStudentId = await this.resolveStudentForClass(classId, studentId, staffUserId);
     if (!targetStudentId) {
       return { activity: [], classId };
     }

@@ -22,34 +22,25 @@ class SpreadsheetService {
       throw new Error("No file uploaded. Please select an Excel file (.xlsx or .csv) from your device storage.");
     }
 
+    // Basic file validation to prevent SheetJS infinite loop / freeze on corrupt zip/excel files
+    const isXlsx = String(fileName || "").toLowerCase().endsWith(".xlsx");
+    if (isXlsx) {
+      if (fileBuffer.length < 100) {
+        throw new Error("Invalid or corrupted Excel file (file size is too small).");
+      }
+      if (!fileBuffer.includes(Buffer.from([0x50, 0x4b, 0x05, 0x06]))) {
+        throw new Error("Invalid or corrupted Excel file (missing ZIP End of Central Directory signature).");
+      }
+    }
+
     // Read uploaded file buffer in memory
     const workbook = xlsx.read(fileBuffer, { type: "buffer" });
     const sheetName = workbook.Sheets["Students"] ? "Students" : workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     let rawRows = xlsx.utils.sheet_to_json(sheet, { defval: "" });
 
-    // Fallback demo rows if blank or sample template is uploaded
     if (!rawRows || rawRows.length === 0) {
-      rawRows = [
-        {
-          "Register Number": "21CS001",
-          "Student Name": "Dharani V",
-          Email: "vvdharani57cse24_27@ksrce.ac.in",
-          Department: "CSE",
-          Year: "3rd Year",
-          Section: "A",
-          Phone: "9876543210",
-        },
-        {
-          "Register Number": "21CS002",
-          "Student Name": "Mobile Controller Admin",
-          Email: "mobilecontrol07@gmail.com",
-          Department: "CSE",
-          Year: "3rd Year",
-          Section: "A",
-          Phone: "9876543211",
-        },
-      ];
+      throw new Error("No student records found in the uploaded file. Please ensure the Excel sheet is not empty and contains the student data.");
     }
 
     let totalRecords = rawRows.length;
@@ -77,11 +68,6 @@ class SpreadsheetService {
       await BlockedAttempt.deleteMany({ studentId: { $in: oldStudentIds } });
       await Notification.deleteMany({ studentId: { $in: oldStudentIds } });
     }
-
-    const defaultDept = await Department.findOne({ code: "CSE" });
-    const defaultYear = await AcademicYear.findOne({ name: "1st Year" });
-    const defaultSec = await Section.findOne({ name: "A" });
-    const defaultClass = await ClassRoom.findOne({ code: "CSE-1-A" });
 
     for (let index = 0; index < rawRows.length; index++) {
       const row = rawRows[index];
@@ -152,12 +138,12 @@ class SpreadsheetService {
       ).trim();
 
       // Required row validation
-      if (!email || !studentId || !name) {
+      if (!email || !studentId || !name || !yearName || !secName) {
         failedCount++;
         errors.push({
           row: rowNum,
           identifier: studentId || email || `Row ${rowNum}`,
-          reason: "Missing required fields (Register Number, Student Name, or Email)",
+          reason: "Missing required fields (Reg No, Name, Domain Id, YEAR, or SEC)",
         });
         continue;
       }
@@ -185,7 +171,7 @@ class SpreadsheetService {
       const expiryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 Days Expiry
 
       // Resolve department / year / section
-      let deptObj = defaultDept;
+      let deptObj = null;
       if (deptName) {
         let found = await Department.findOne({
           $or: [{ name: new RegExp(deptName, "i") }, { code: new RegExp(deptName, "i") }],
@@ -198,9 +184,19 @@ class SpreadsheetService {
           });
         }
         deptObj = found;
+      } else {
+        let found = await Department.findOne({ code: "CSE" });
+        if (!found) {
+          found = await Department.create({
+            name: "Computer Science and Engineering",
+            code: "CSE",
+            institutionId: "KSRCE",
+          });
+        }
+        deptObj = found;
       }
 
-      let yearObj = defaultYear;
+      let yearObj = null;
       const targetYearName = yearName ? (yearName.toLowerCase().includes("year") ? yearName : `${yearName} Year`) : "";
       if (targetYearName) {
         let found = await AcademicYear.findOne({ name: new RegExp(targetYearName, "i") });
@@ -215,9 +211,12 @@ class SpreadsheetService {
         yearObj = found;
       }
 
-      let secObj = defaultSec;
+      let secObj = null;
       if (secName) {
-        let found = await Section.findOne({ name: new RegExp(secName, "i") });
+        let found = await Section.findOne({
+          name: secName.toUpperCase(),
+          academicYearId: yearObj ? yearObj._id : null,
+        });
         if (!found) {
           found = await Section.create({
             name: secName.toUpperCase(),
@@ -229,15 +228,20 @@ class SpreadsheetService {
         secObj = found;
       }
 
-      const classCode = deptObj && yearObj && secObj ? `${deptObj.code}-${yearObj.name.charAt(0)}-${secObj.name}` : "CSE-1-A";
+      const classCode = deptObj
+        ? `${deptObj.code}-${yearObj.name.charAt(0)}-${secObj.name}`
+        : `${yearObj.name.replace(/\s+Year/i, "")}-${secObj.name}`;
+
       let classroomObj = await ClassRoom.findOne({ code: classCode });
-      if (!classroomObj && deptObj && yearObj && secObj) {
+      if (!classroomObj && yearObj && secObj) {
         classroomObj = await ClassRoom.create({
-          name: `${deptObj.code} ${yearObj.name} - Section ${secObj.name}`,
+          name: deptObj
+            ? `${deptObj.code} ${yearObj.name} - Section ${secObj.name}`
+            : `${yearObj.name} - Section ${secObj.name}`,
           code: classCode,
-          departmentId: deptObj._id,
-          sectionId: secObj._id,
-          academicYearId: yearObj._id,
+          departmentId: deptObj ? deptObj._id : null,
+          sectionId: secObj ? secObj._id : null,
+          academicYearId: yearObj ? yearObj._id : null,
           institutionId: "KSRCE",
         });
       }
@@ -331,6 +335,9 @@ class SpreadsheetService {
       ).catch((err) => logger.warn(`Audit log notice: ${err.message}`));
     }
 
+    // Clean up unused structural entities to prevent showing orphaned mock data
+    await this._cleanupUnusedStructuralEntities();
+
     return {
       historyId: history ? history._id : null,
       totalRecords,
@@ -351,22 +358,24 @@ class SpreadsheetService {
       throw new Error("No file uploaded. Please select a staff Excel file (.xlsx or .csv) from your device storage.");
     }
 
+    // Basic file validation to prevent SheetJS infinite loop / freeze on corrupt zip/excel files
+    const isXlsx = String(fileName || "").toLowerCase().endsWith(".xlsx");
+    if (isXlsx) {
+      if (fileBuffer.length < 100) {
+        throw new Error("Invalid or corrupted Excel file (file size is too small).");
+      }
+      if (!fileBuffer.includes(Buffer.from([0x50, 0x4b, 0x05, 0x06]))) {
+        throw new Error("Invalid or corrupted Excel file (missing ZIP End of Central Directory signature).");
+      }
+    }
+
     const workbook = xlsx.read(fileBuffer, { type: "buffer" });
     const sheetName = workbook.Sheets["Staff"] ? "Staff" : workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     let rawRows = xlsx.utils.sheet_to_json(sheet, { defval: "" });
 
-    // Fallback demo rows if blank or sample template is uploaded
     if (!rawRows || rawRows.length === 0) {
-      rawRows = [
-        {
-          "Staff ID": "STF001",
-          Name: "Dr. K. S. Sharma",
-          Email: "vvdharani57cse24_27@ksrce.ac.in",
-          Department: "CSE",
-          Phone: "9876543212",
-        },
-      ];
+      throw new Error("No staff records found in the uploaded file. Please ensure the Excel sheet is not empty and contains the staff data.");
     }
 
     let totalRecords = rawRows.length;
@@ -388,11 +397,6 @@ class SpreadsheetService {
       await StaffAssignment.deleteMany({ staffId: { $in: oldStaffIds } });
       await Device.deleteMany({ userId: { $in: oldStaffIds } });
     }
-
-    const defaultDept = await Department.findOne({ code: "CSE" });
-    const defaultYear = await AcademicYear.findOne({ name: "1st Year" });
-    const defaultSec = await Section.findOne({ name: "A" });
-    const defaultClass = await ClassRoom.findOne({ code: "CSE-1-A" });
 
     for (let index = 0; index < rawRows.length; index++) {
       const row = rawRows[index];
@@ -452,12 +456,12 @@ class SpreadsheetService {
         ""
       ).trim();
 
-      if (!employeeId || !name || !email) {
+      if (!employeeId || !name || !email || !yearName || !secName) {
         failedCount++;
         errors.push({
           row: rowNum,
           identifier: employeeId || email || `Row ${rowNum}`,
-          reason: "Missing required fields (Staff ID, Name, or Email)",
+          reason: "Missing required fields (Staff ID, Name, Domain Email, Year, or Assigned Section)",
         });
         continue;
       }
@@ -476,7 +480,7 @@ class SpreadsheetService {
         continue;
       }
 
-      let deptObj = defaultDept;
+      let deptObj = null;
       if (deptName) {
         let found = await Department.findOne({
           $or: [{ name: new RegExp(deptName, "i") }, { code: new RegExp(deptName, "i") }],
@@ -489,9 +493,19 @@ class SpreadsheetService {
           });
         }
         deptObj = found;
+      } else {
+        let found = await Department.findOne({ code: "CSE" });
+        if (!found) {
+          found = await Department.create({
+            name: "Computer Science and Engineering",
+            code: "CSE",
+            institutionId: "KSRCE",
+          });
+        }
+        deptObj = found;
       }
 
-      let yearObj = defaultYear;
+      let yearObj = null;
       const targetYearName = yearName ? (yearName.toLowerCase().includes("year") ? yearName : `${yearName} Year`) : "";
       if (targetYearName) {
         let found = await AcademicYear.findOne({ name: new RegExp(targetYearName, "i") });
@@ -506,9 +520,12 @@ class SpreadsheetService {
         yearObj = found;
       }
 
-      let secObj = defaultSec;
+      let secObj = null;
       if (secName) {
-        let found = await Section.findOne({ name: new RegExp(secName, "i") });
+        let found = await Section.findOne({
+          name: secName.toUpperCase(),
+          academicYearId: yearObj ? yearObj._id : null,
+        });
         if (!found) {
           found = await Section.create({
             name: secName.toUpperCase(),
@@ -520,15 +537,20 @@ class SpreadsheetService {
         secObj = found;
       }
 
-      const classCode = deptObj && yearObj && secObj ? `${deptObj.code}-${yearObj.name.charAt(0)}-${secObj.name}` : "CSE-1-A";
+      const classCode = deptObj
+        ? `${deptObj.code}-${yearObj.name.charAt(0)}-${secObj.name}`
+        : `${yearObj.name.replace(/\s+Year/i, "")}-${secObj.name}`;
+
       let classroomObj = await ClassRoom.findOne({ code: classCode });
-      if (!classroomObj && deptObj && yearObj && secObj) {
+      if (!classroomObj && yearObj && secObj) {
         classroomObj = await ClassRoom.create({
-          name: `${deptObj.code} ${yearObj.name} - Section ${secObj.name}`,
+          name: deptObj
+            ? `${deptObj.code} ${yearObj.name} - Section ${secObj.name}`
+            : `${yearObj.name} - Section ${secObj.name}`,
           code: classCode,
-          departmentId: deptObj._id,
-          sectionId: secObj._id,
-          academicYearId: yearObj._id,
+          departmentId: deptObj ? deptObj._id : null,
+          sectionId: secObj ? secObj._id : null,
+          academicYearId: yearObj ? yearObj._id : null,
           institutionId: "KSRCE",
         });
       }
@@ -544,6 +566,8 @@ class SpreadsheetService {
         role: "staff",
         institutionId: "KSRCE",
         departmentId: deptObj ? deptObj._id : null,
+        academicYearId: yearObj ? yearObj._id : null,
+        sectionId: secObj ? secObj._id : null,
         classRoomId: classroomObj ? classroomObj._id : null,
         classId: classCode,
         mustChangePassword: true,
@@ -632,6 +656,9 @@ class SpreadsheetService {
       ).catch((err) => logger.warn(`Audit log notice: ${err.message}`));
     }
 
+    // Clean up unused structural entities to prevent showing orphaned mock data
+    await this._cleanupUnusedStructuralEntities();
+
     return {
       historyId: history ? history._id : null,
       totalRecords,
@@ -642,6 +669,63 @@ class SpreadsheetService {
       emailFailedCount,
       errors,
     };
+  }
+
+  /**
+   * Cleans up structural database entities not referenced by any user
+   */
+  async _cleanupUnusedStructuralEntities() {
+    try {
+      const User = require("../models/User");
+      const Department = require("../models/Department");
+      const AcademicYear = require("../models/AcademicYear");
+      const Section = require("../models/Section");
+      const ClassRoom = require("../models/ClassRoom");
+      const Rule = require("../models/Rule");
+      const logger = require("../utils/logger");
+
+      // 1. Get all unique ObjectIds and Codes in use by Users
+      const activeDeptIds = await User.find({}).distinct("departmentId");
+      const activeYearIds = await User.find({}).distinct("academicYearId");
+      const activeSectionIds = await User.find({}).distinct("sectionId");
+      const activeClassRoomIds = await User.find({}).distinct("classRoomId");
+      const activeClassIds = await User.find({}).distinct("classId");
+
+      // 2. Delete ClassRooms not referenced by any student or staff
+      const deletedClasses = await ClassRoom.deleteMany({
+        _id: { $nin: activeClassRoomIds }
+      });
+
+      // 3. Delete Sections not referenced
+      const deletedSections = await Section.deleteMany({
+        _id: { $nin: activeSectionIds }
+      });
+
+      // 4. Delete AcademicYears not referenced
+      const deletedYears = await AcademicYear.deleteMany({
+        _id: { $nin: activeYearIds }
+      });
+
+      // 5. Delete Departments not referenced
+      const deletedDepts = await Department.deleteMany({
+        _id: { $nin: activeDeptIds }
+      });
+
+      // 6. Delete Rules targeting classes that no longer exist or have no active students
+      const deletedRules = await Rule.deleteMany({
+        targetClassId: { $nin: activeClassIds }
+      });
+
+      logger.info(`Structural Cleanup Summary:
+- Classrooms deleted: ${deletedClasses.deletedCount}
+- Sections deleted: ${deletedSections.deletedCount}
+- Academic Years deleted: ${deletedYears.deletedCount}
+- Departments deleted: ${deletedDepts.deletedCount}
+- Rules deleted: ${deletedRules.deletedCount}`);
+    } catch (err) {
+      const logger = require("../utils/logger");
+      logger.error(`Structural cleanup failed: ${err.message}`);
+    }
   }
 }
 

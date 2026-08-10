@@ -142,6 +142,24 @@ const DashboardScreen = () => {
     setTargetDetail('');
   };
 
+  const handleDeleteActivity = (id) => {
+    Alert.alert(
+      'Delete Activity',
+      'Are you sure you want to remove this activity log?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setActivities((prev) => prev.filter((item) => item.id !== id));
+            await adminService.deleteActivity(id);
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView
       style={styles.flex}
@@ -212,19 +230,27 @@ const DashboardScreen = () => {
       <View style={styles.section}>
         <SectionTitle title="Recent Activity" />
         <DashboardCard noPadding>
-          {activities.map((activity, index) => (
-            <View key={activity.id} style={styles.activityPadding}>
-              <ActivityCard
-                icon={activity.icon}
-                title={activity.title}
-                description={activity.description}
-                time={activity.time}
-                iconColor={activity.iconColor}
-                iconBackground={activity.iconBackground}
-                isLast={index === activities.length - 1}
-              />
+          {activities.length > 0 ? (
+            activities.map((activity, index) => (
+              <View key={activity.id} style={styles.activityPadding}>
+                <ActivityCard
+                  icon={activity.icon}
+                  title={activity.title}
+                  description={activity.description}
+                  time={activity.time}
+                  iconColor={activity.iconColor}
+                  iconBackground={activity.iconBackground}
+                  isLast={index === activities.length - 1}
+                  onDelete={() => handleDeleteActivity(activity.id)}
+                />
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyActivityContainer}>
+              <Icon name="history" size={28} color={colors.textSecondary} />
+              <Text style={styles.emptyActivityText}>No recent activity logs</Text>
             </View>
-          ))}
+          )}
         </DashboardCard>
       </View>
 
@@ -492,6 +518,16 @@ const styles = StyleSheet.create({
   sendBtnText: {
     ...typography.button,
     color: colors.white,
+  },
+  emptyActivityContainer: {
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyActivityText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
   },
 });
 

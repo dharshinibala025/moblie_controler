@@ -249,11 +249,24 @@ const StaffScreen = () => {
           ) {
             return; // Silent return on user cancellation
           }
+          console.warn('Document Picker Error:', pickerErr);
+          Alert.alert(
+            'Picker Error',
+            'Failed to open document picker: ' + (pickerErr.message || 'Unknown native error')
+          );
+          return;
         }
       }
 
-      const payload = fileBase64 || 'UEsDBBQABgAIAAAAIQAAAAAAAAA=';
-      const res = await adminService.uploadStaffSpreadsheet(payload, fileName);
+      if (!fileBase64) {
+        Alert.alert(
+          'Upload Notice',
+          'No file selected. Please select a valid Excel file (.xlsx or .csv) from your device storage.'
+        );
+        return;
+      }
+
+      const res = await adminService.uploadStaffSpreadsheet(fileBase64, fileName);
       
       const firstError = res?.errors && res.errors.length > 0 ? res.errors[0].reason : null;
       const errorSuffix = firstError ? `\n\nNote: ${firstError}` : '';

@@ -8,7 +8,7 @@ import StaffHeader from '../components/StaffHeader';
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
 export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
-  const staffInfo = propStaffInfo || staffMockData.staff;
+  const staffInfo = propStaffInfo || { name: '', department: '' };
   const [currentTime, setCurrentTime] = useState('');
   const [liveStudents, setLiveStudents] = useState([]);
   const [totalStudents, setTotalStudents] = useState(0);
@@ -100,6 +100,26 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
   // Helper to format assigned class name (e.g. "III CSE - A" -> "3rd Year CSE - Section A")
   const formatClassDisplay = (assignedClass) => {
     if (!assignedClass) return 'No Class Assigned';
+
+    // Handle new format: e.g. "CSE-2-D"
+    if (assignedClass.includes('-') && !assignedClass.includes(' - ')) {
+      const parts = assignedClass.split('-');
+      if (parts.length === 3) {
+        const dept = parts[0];
+        const yearVal = parts[1];
+        const section = parts[2];
+
+        let yearText = `${yearVal}th Year`;
+        if (yearVal === '1') yearText = '1st Year';
+        else if (yearVal === '2') yearText = '2nd Year';
+        else if (yearVal === '3') yearText = '3rd Year';
+        else if (yearVal === '4') yearText = '4th Year';
+
+        return `${yearText} ${dept} - Section ${section}`;
+      }
+    }
+
+    // Handle old format: e.g. "III CSE - A"
     const parts = assignedClass.split(' - ');
     const classPart = parts[0]; // e.g. "III CSE"
     const section = parts[1] || ''; // e.g. "A"
@@ -120,7 +140,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
     // Extract department if present (e.g., "III CSE" -> "CSE")
     const deptPart = classPart.replace(/^[IVX\s]+/, '').trim(); // Remove Roman numerals
 
-    return `${yearText} ${deptPart} - Section ${section}`;
+    return `${yearText} ${deptPart}${section ? ` - Section ${section}` : ''}`;
   };
 
   const renderStudentItem = ({ item, index }) => {
@@ -170,70 +190,48 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
           </View>
         </View>
 
-        {/* Stats Grid (2x2 Card layout matching the uploaded image) */}
+        {/* 3 Executive Compact Stats Cards */}
         <View style={styles.statsGrid}>
           {/* Card 1: Total Students */}
           <View style={styles.statCard}>
             <View style={styles.statHeaderRow}>
               <View style={[styles.statIconContainer, { backgroundColor: '#EFF6FF' }]}>
-                <VectorIcon name="school" size={20} color={colors.primary} />
+                <VectorIcon name="school" size={14} color={colors.primary} />
               </View>
-              <View style={[styles.pillBadge, { backgroundColor: '#E0F2FE' }]}>
-                <Text style={[styles.pillBadgeText, { color: '#0369A1' }]}>100%</Text>
-              </View>
+              <Text style={[styles.badgeText, { color: '#0284C7' }]}>100%</Text>
             </View>
             <Text style={styles.statValue}>{totalStudents}</Text>
-            <Text style={styles.statLabel}>Total Students</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>Total</Text>
           </View>
 
           {/* Card 2: Unblocked Students */}
           <View style={styles.statCard}>
             <View style={styles.statHeaderRow}>
               <View style={[styles.statIconContainer, { backgroundColor: '#DCFCE7' }]}>
-                <VectorIcon name="cellphone" size={20} color="#16A34A" />
+                <VectorIcon name="cellphone" size={14} color="#16A34A" />
               </View>
-              <View style={[styles.pillBadge, { backgroundColor: '#DCFCE7' }]}>
-                <Text style={[styles.pillBadgeText, { color: '#15803D' }]}>
-                  {totalStudents ? Math.round((unblockedStudents / totalStudents) * 100) : 0}%
-                </Text>
-              </View>
+              <Text style={[styles.badgeText, { color: '#16A34A' }]}>
+                {totalStudents ? Math.round((unblockedStudents / totalStudents) * 100) : 0}%
+              </Text>
             </View>
             <Text style={styles.statValue}>{unblockedStudents}</Text>
-            <Text style={styles.statLabel}>Unblocked</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>Unblocked</Text>
           </View>
 
           {/* Card 3: Blocked Students */}
           <View style={styles.statCard}>
             <View style={styles.statHeaderRow}>
               <View style={[styles.statIconContainer, { backgroundColor: '#FEE2E2' }]}>
-                <VectorIcon name="cellphone-off" size={20} color="#EF4444" />
+                <VectorIcon name="cellphone-off" size={14} color="#EF4444" />
               </View>
               {blockedStudents > 0 ? (
-                <View style={[styles.pillBadge, { backgroundColor: '#FEE2E2' }]}>
-                  <Text style={[styles.pillBadgeText, { color: '#B91C1C' }]}>
-                    {totalStudents ? Math.round((blockedStudents / totalStudents) * 100) : 0}%
-                  </Text>
-                </View>
+                <Text style={[styles.badgeText, { color: '#EF4444' }]}>
+                  {totalStudents ? Math.round((blockedStudents / totalStudents) * 100) : 0}%
+                </Text>
               ) : null}
             </View>
             <Text style={styles.statValue}>{blockedStudents}</Text>
-            <Text style={styles.statLabel}>Blocked</Text>
-          </View>
-
-          {/* Card 4: Warnings count */}
-          <View style={styles.statCard}>
-            <View style={styles.statHeaderRow}>
-              <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                <VectorIcon name="alert-circle" size={20} color="#D97706" />
-              </View>
-              {warningCount > 0 ? (
-                <View style={[styles.pillBadge, { backgroundColor: '#FFF9DB' }]}>
-                  <Text style={[styles.pillBadgeText, { color: '#B45309' }]}>Alerts</Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={styles.statValue}>{warningCount}</Text>
-            <Text style={styles.statLabel}>Warning Count</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>Blocked</Text>
           </View>
         </View>
 
@@ -296,8 +294,8 @@ const styles = StyleSheet.create({
   },
   welcomeHeaderSection: {
     marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 20,
+    marginBottom: 20,
     paddingVertical: 4,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -313,22 +311,22 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   classNameText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#0F172A',
-    marginTop: 4,
+    marginTop: 8,
   },
   staffMetaText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
-    marginTop: 6,
+    marginTop: 10,
   },
   clockBannerText: {
     fontSize: 11,
     fontWeight: '600',
     color: colors.primary,
-    marginTop: 4,
+    marginTop: 8,
   },
   classIcon: {
     width: 44,
@@ -340,52 +338,49 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 8,
     marginBottom: 16,
+    width: '100%',
   },
   statCard: {
-    width: '44%',
-    flexGrow: 1,
+    width: '31.5%',
+    marginHorizontal: '0.8%',
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 8,
-    marginVertical: 6,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    overflow: 'hidden',
     ...shadows.soft,
   },
   statHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
   statIconContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pillBadge: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-  },
-  pillBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '700',
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 4,
+    marginBottom: 1,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
     color: '#64748B',
   },

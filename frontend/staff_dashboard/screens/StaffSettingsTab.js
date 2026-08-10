@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,20 +17,87 @@ import SettingsRow from '../components/SettingsRow';
 import staffMockData from '../data/staffMockData';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
+const STATUSBAR_OFFSET = 12;
 
-export const StaffSettingsTab = ({ onLogout }) => {
-  // Staff Profile State loaded from mock data
+export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
+  // Staff Profile State loaded dynamically
   const [staffProfile, setStaffProfile] = useState({
-    name: staffMockData.staff.name,
-    employeeId: staffMockData.staff.id,
-    department: staffMockData.staff.department,
-    email: staffMockData.staff.email,
-    phone: staffMockData.staff.mobile,
-    avatar: staffMockData.staff.avatar,
-    initials: staffMockData.staff.initials,
-    assignedClass: staffMockData.staff.assignedClass,
+    name: 'Loading...',
+    employeeId: '...',
+    department: 'Computer Science Engineering',
+    email: '...',
+    avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
+    initials: 'ST',
+    assignedClass: '...',
   });
+
+  const getInitials = (name) => {
+    if (!name) return 'ST';
+    return name
+      .split(' ')
+      .map((part) => part.charAt(0))
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  };
+
+  const formatClassId = (assignedClass) => {
+    if (!assignedClass) return 'No Class Assigned';
+
+    // Handle new format: e.g. "CSE-2-D"
+    if (assignedClass.includes('-') && !assignedClass.includes(' - ')) {
+      const parts = assignedClass.split('-');
+      if (parts.length === 3) {
+        const dept = parts[0];
+        const yearVal = parts[1];
+        const section = parts[2];
+
+        let yearText = `${yearVal}th Year`;
+        if (yearVal === '1') yearText = '1st Year';
+        else if (yearVal === '2') yearText = '2nd Year';
+        else if (yearVal === '3') yearText = '3rd Year';
+        else if (yearVal === '4') yearText = '4th Year';
+
+        return `${yearText} ${dept} - Section ${section}`;
+      }
+    }
+
+    // Handle old format: e.g. "III CSE - A"
+    const parts = assignedClass.split(' - ');
+    const classPart = parts[0]; // e.g. "III CSE"
+    const section = parts[1] || ''; // e.g. "A"
+
+    let yearText = '';
+    if (classPart.startsWith('III')) {
+      yearText = '3rd Year';
+    } else if (classPart.startsWith('II')) {
+      yearText = '2nd Year';
+    } else if (classPart.startsWith('IV')) {
+      yearText = '4th Year';
+    } else if (classPart.startsWith('I')) {
+      yearText = '1st Year';
+    } else {
+      yearText = classPart;
+    }
+
+    const deptPart = classPart.replace(/^[IVX\s]+/, '').trim(); // Remove Roman numerals
+
+    return `${yearText} ${deptPart}${section ? ` - Section ${section}` : ''}`;
+  };
+
+  useEffect(() => {
+    if (staffInfo) {
+      setStaffProfile({
+        name: staffInfo.name || 'Staff Member',
+        employeeId: staffInfo.employeeId || 'KSR-STF-1024',
+        department: 'Computer Science Engineering',
+        email: staffInfo.email || '',
+        avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
+        initials: getInitials(staffInfo.name),
+        assignedClass: formatClassId(staffInfo.classId),
+      });
+    }
+  }, [staffInfo]);
 
   // Edit Profile Modal State
   const [editProfileVisible, setEditProfileVisible] = useState(false);
@@ -56,7 +123,6 @@ export const StaffSettingsTab = ({ onLogout }) => {
     staffMockData.staff.id = profileForm.employeeId;
     staffMockData.staff.department = profileForm.department;
     staffMockData.staff.email = profileForm.email;
-    staffMockData.staff.mobile = profileForm.phone;
     staffMockData.staff.assignedClass = profileForm.assignedClass;
 
     setEditProfileVisible(false);
@@ -130,10 +196,6 @@ export const StaffSettingsTab = ({ onLogout }) => {
                 <Text style={styles.infoText}>{staffProfile.email}</Text>
               </View>
               <View style={styles.infoRow}>
-                <VectorIcon name="phone" size={16} color={colors.primary} />
-                <Text style={styles.infoText}>{staffProfile.phone}</Text>
-              </View>
-              <View style={styles.infoRow}>
                 <VectorIcon name="school" size={16} color={colors.primary} />
                 <Text style={styles.infoText}>Class Mentor: {staffProfile.assignedClass}</Text>
               </View>
@@ -148,7 +210,7 @@ export const StaffSettingsTab = ({ onLogout }) => {
             <SettingsRow
               icon="account"
               label="Edit Profile"
-              subtitle="Update name, email, phone number, or class assignment"
+              subtitle="Update name, email, or class assignment"
               onPress={() => {
                 setProfileForm({ ...staffProfile });
                 setEditProfileVisible(true);
@@ -218,14 +280,6 @@ export const StaffSettingsTab = ({ onLogout }) => {
                 value={profileForm.email}
                 keyboardType="email-address"
                 onChangeText={(t) => setProfileForm({ ...profileForm, email: t })}
-              />
-
-              <Text style={styles.inputLabel}>Phone Number</Text>
-              <TextInput
-                style={styles.textInput}
-                value={profileForm.phone}
-                keyboardType="phone-pad"
-                onChangeText={(t) => setProfileForm({ ...profileForm, phone: t })}
               />
 
               <Text style={styles.inputLabel}>Assigned Mentor Class</Text>

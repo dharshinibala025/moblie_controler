@@ -122,8 +122,8 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     return 'Good Evening';
   };
 
-  const studentName = data?.student?.name || 'Dharani V V';
-  const studentDept = data?.student?.fullDepartment || data?.student?.department || 'Computer Science and Engineering';
+  const studentName = data?.student?.name || '';
+  const studentDept = data?.student?.fullDepartment || data?.student?.department || '';
   const isProtectionComplete = permissions.accessibilityEnabled && permissions.overlayEnabled;
 
   return (

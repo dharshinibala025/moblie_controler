@@ -48,6 +48,15 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     }
 
                     val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    
+                    // FLAG_IS_GAME is 1 shl 22 (0x00400000)
+                    val flagIsGame = (appInfo.flags and 0x00400000) != 0
+                    val categoryIsGame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        appInfo.category == ApplicationInfo.CATEGORY_GAME
+                    } else {
+                        false
+                    }
+                    val isGame = flagIsGame || categoryIsGame
 
                     appMap.putString("appName", appName)
                     appMap.putString("packageName", packageName)
@@ -56,6 +65,7 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     appMap.putDouble("lastUpdateTime", lastUpdateTime.toDouble())
                     appMap.putBoolean("isSystemApp", isSystemApp)
                     appMap.putBoolean("isUserFacing", true)
+                    appMap.putBoolean("isGame", isGame)
 
                     resultArray.pushMap(appMap)
                 }

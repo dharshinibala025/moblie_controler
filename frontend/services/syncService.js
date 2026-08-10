@@ -58,6 +58,7 @@ class SyncService {
         appName: app.appName,
         versionName: app.versionName || '1.0.0',
         isSystemApp: !!app.isSystemApp,
+        isGame: !!app.isGame,
       }));
 
       // 4. Synchronize apps inventory with backend

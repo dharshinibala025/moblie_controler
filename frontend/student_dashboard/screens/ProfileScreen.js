@@ -17,12 +17,22 @@ import authService from '../../services/authService';
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 16;
 
 export const ProfileScreen = ({ student, onLogout }) => {
-  const studentName = student?.name || 'Dharani V V';
-  const registerNo = student?.registerNumber || '221CS000';
-  const deptName = student?.fullDepartment || student?.department || 'Computer Science and Engineering';
-  const email = student?.email || 'vvdharani57cse24_27@ksrce.ac.in';
-  const section = student?.section || 'A';
-  const initials = student?.initials || 'DV';
+  const getInitials = (name) => {
+    if (!name) return 'ST';
+    return name
+      .split(' ')
+      .map((part) => part.charAt(0))
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  };
+
+  const studentName = student?.name || '';
+  const registerNo = student?.registerNumber || '';
+  const deptName = student?.fullDepartment || student?.department || '';
+  const email = student?.email || '';
+  const section = student?.section || '';
+  const initials = student?.initials || getInitials(studentName);
   const avatarUrl = student?.avatar;
 
   const handleLogoutPress = () => {

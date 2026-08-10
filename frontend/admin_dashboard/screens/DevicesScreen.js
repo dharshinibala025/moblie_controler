@@ -27,18 +27,52 @@ import { getSectionOptions } from '../config/sectionsConfig';
 const SUPPORTED_APPS = [
   'Instagram',
   'WhatsApp',
-  'Facebook',
-  'Snapchat',
   'Telegram',
-  'Discord',
+  'Snapchat',
   'Twitter (X)',
-  'YouTube',
-  'Netflix',
-  'Prime Video',
-  'BGMI',
   'Free Fire',
+  'Facebook',
+  'YouTube',
   'PUBG',
+  'BGMI',
+  'Discord',
+  'Games',
+  'Threads',
+  'Hotstar',
+  'JioCinema',
+  'Netflix',
+  'Net Mirror',
+  'Sun NXT',
+  'Prime Video',
+  'Airtel Xstream',
+  'Zee5',
+  'Google Play Store',
 ];
+
+const APP_PACKAGE_MAPPING = {
+  'Instagram': 'com.instagram.android',
+  'WhatsApp': 'com.whatsapp',
+  'Telegram': 'org.telegram.messenger',
+  'Snapchat': 'com.snapchat.android',
+  'Twitter (X)': 'com.twitter.android',
+  'Free Fire': 'com.dts.freefireth',
+  'Facebook': 'com.facebook.katana',
+  'YouTube': 'com.google.android.youtube',
+  'PUBG': 'com.tencent.ig',
+  'BGMI': 'com.pubg.imobile',
+  'Discord': 'com.discord',
+  'Games': 'Games', // Handled by backend dynamically to resolve all student scanned games
+  'Threads': 'com.instagram.barcelona',
+  'Hotstar': 'in.startv.hotstar',
+  'JioCinema': 'com.jio.media.ondemand',
+  'Netflix': 'com.netflix.mediaclient',
+  'Net Mirror': 'com.netmirror',
+  'Sun NXT': 'com.sun.nxt',
+  'Prime Video': 'com.amazon.avod.thirdpartyclient',
+  'Airtel Xstream': 'com.airtel.tv',
+  'Zee5': 'com.graymatrix.did',
+  'Google Play Store': 'com.android.vending',
+};
 
 const DevicesScreen = () => {
   const [devices, setDevices] = useState([]);
@@ -49,7 +83,7 @@ const DevicesScreen = () => {
   const [selectedDept] = useState('CSE');
   const [draftYear, setDraftYear] = useState('1st Year');
   const [draftSection, setDraftSection] = useState('A');
-  const [selectedApps, setSelectedApps] = useState(['Instagram', 'WhatsApp', 'Snapchat', 'BGMI', 'PUBG']);
+  const [selectedApps, setSelectedApps] = useState([...SUPPORTED_APPS]);
 
   // Schedule
   const [startTime, setStartTime] = useState('09:00 AM');
@@ -150,7 +184,7 @@ const DevicesScreen = () => {
     const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
 
     const policyData = {
-      blockedApps: selectedApps,
+      blockedApps: selectedApps.map(app => APP_PACKAGE_MAPPING[app] || app.toLowerCase()),
       scheduleStart: formatTimeForBackend(startTime),
       scheduleEnd: formatTimeForBackend(endTime),
       activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],

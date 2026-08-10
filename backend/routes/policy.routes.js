@@ -77,9 +77,80 @@ router.get("/latest", async (req, res, next) => {
       status = "active";
       for (const rule of currentlyEnforcedRules) {
         for (const pkg of rule.blockedApps) {
+          if (pkg === "Games") {
+            const ScannedApp = require("../models/ScannedApp");
+            const games = await ScannedApp.find({
+              studentId: student._id,
+              category: "games",
+              removedAt: null
+            });
+            for (const game of games) {
+              if (!seen.has(game.packageName)) {
+                seen.add(game.packageName);
+                blockedPackages.push(game.packageName);
+              }
+            }
+          } else {
+            if (!seen.has(pkg)) {
+              seen.add(pkg);
+              blockedPackages.push(pkg);
+            }
+          }
+        }
+      }
+    } else if (activeRules.length === 0) {
+      // Automatic default block policy (if no custom rules exist at all)
+      const mockDefaultRule = {
+        scheduleStart: "09:00",
+        scheduleEnd: "16:00",
+        activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      };
+      if (isRuleActiveNow(mockDefaultRule, new Date())) {
+        status = "active";
+        scheduleStart = "09:00";
+        scheduleEnd = "16:00";
+        reason = "Institutional default restriction policy";
+        
+        // Auto-block the listed packages
+        const defaults = [
+          "com.instagram.android",
+          "com.whatsapp",
+          "org.telegram.messenger",
+          "com.snapchat.android",
+          "com.twitter.android",
+          "com.facebook.katana",
+          "com.google.android.youtube",
+          "com.instagram.barcelona", // Threads
+          "in.startv.hotstar",       // Hotstar
+          "com.jio.media.ondemand",  // JioCinema
+          "com.netflix.mediaclient",
+          "com.netmirror",
+          "com.sun.nxt",
+          "com.amazon.avod.thirdpartyclient", // Prime Video
+          "com.airtel.tv",           // Airtel Xstream
+          "com.graymatrix.did",      // Zee5
+          "com.graymatrix.did",      // Zee5
+          "com.android.vending"      // Google Play Store
+        ];
+
+        for (const pkg of defaults) {
           if (!seen.has(pkg)) {
             seen.add(pkg);
             blockedPackages.push(pkg);
+          }
+        }
+
+        // Auto-block all scanned games
+        const ScannedApp = require("../models/ScannedApp");
+        const games = await ScannedApp.find({
+          studentId: student._id,
+          category: "games",
+          removedAt: null
+        });
+        for (const game of games) {
+          if (!seen.has(game.packageName)) {
+            seen.add(game.packageName);
+            blockedPackages.push(game.packageName);
           }
         }
       }

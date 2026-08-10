@@ -51,10 +51,11 @@ exports.processScan = async (studentId, deviceId, apps) => {
   for (const app of apps) {
     if (!catalogMap.has(app.packageName)) {
       const isSocial = catalogService.isSocialMediaPackage(app.packageName, app.appName);
+      const category = app.isGame ? "games" : isSocial ? "social" : "uncategorized";
       missingApps.push({
         packageName: app.packageName,
         appName: app.appName,
-        category: isSocial ? "social" : "uncategorized",
+        category,
         isSocialMedia: isSocial,
         active: true,
       });
@@ -106,12 +107,16 @@ exports.processScan = async (studentId, deviceId, apps) => {
   // 7. Upsert and restore all scanned applications
   for (const app of apps) {
     const catalogMatch = catalogMap.get(app.packageName);
+    let category = catalogMatch ? catalogMatch.category : "utilities";
+    if (app.isGame) {
+      category = "games";
+    }
     await ScannedApp.findOneAndUpdate(
       { studentId, deviceId, packageName: app.packageName },
       {
         $set: {
           appName: app.appName,
-          category: catalogMatch ? catalogMatch.category : "utilities",
+          category,
           versionName: app.versionName || "1.0.0",
           isSystemApp: app.isSystemApp || false,
           isUserFacing: true,
