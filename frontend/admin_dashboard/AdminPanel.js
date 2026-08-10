@@ -8,6 +8,7 @@ import StudentsScreen from './screens/StudentsScreen';
 import StaffScreen from './screens/StaffScreen';
 import DevicesScreen from './screens/DevicesScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
 
 import colors from './styles/colors';
 import syncService from '../services/syncService';
@@ -49,9 +50,11 @@ const AdminPanel = ({ onLogout }) => {
         return <DevicesScreen />;
       case 'settings':
         return <SettingsScreen onLogout={onLogout} />;
+      case 'notifications':
+        return <NotificationsScreen onBack={() => setActiveTab('dashboard')} />;
       case 'dashboard':
       default:
-        return <DashboardScreen />;
+        return <DashboardScreen onNavigateNotifications={() => setActiveTab('notifications')} />;
     }
   };
 

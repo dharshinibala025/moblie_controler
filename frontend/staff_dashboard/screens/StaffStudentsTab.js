@@ -527,8 +527,7 @@ const styles = StyleSheet.create({
     paddingTop: STATUSBAR_OFFSET,
     paddingBottom: 14,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomWidth: 0,
     marginBottom: 12,
   },
   titleText: {

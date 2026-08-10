@@ -604,11 +604,15 @@ const styles = StyleSheet.create({
   searchFilterArea: {
     backgroundColor: colors.background,
     paddingBottom: spacing.xs,
+    borderTopWidth: 0,
+    borderBottomWidth: 0,
   },
   filterSection: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.xs,
     paddingBottom: spacing.md,
+    borderTopWidth: 0,
+    borderBottomWidth: 0,
   },
   filterRow: {
     flexDirection: 'row',

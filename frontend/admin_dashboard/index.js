@@ -23,6 +23,7 @@ import StudentsScreen from './screens/StudentsScreen';
 import StaffScreen from './screens/StaffScreen';
 import DevicesScreen from './screens/DevicesScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
 
 export {
   AdminPanel,
@@ -31,6 +32,7 @@ export {
   StaffScreen,
   DevicesScreen,
   SettingsScreen,
+  NotificationsScreen,
 };
 
 export default AdminPanel;

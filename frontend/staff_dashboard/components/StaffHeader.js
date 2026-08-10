@@ -62,8 +62,7 @@ const styles = StyleSheet.create({
     paddingTop: STATUSBAR_OFFSET,
     paddingBottom: 12,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomWidth: 0,
   },
   headerLeftGroup: {
     flexDirection: 'row',
