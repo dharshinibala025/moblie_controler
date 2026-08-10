@@ -962,19 +962,6 @@ router.get("/dashboard/overview", async (req, res, next) => {
       });
     }
 
-    for (const audit of recentAudits) {
-      const actorName = audit.actorId ? audit.actorId.name : "Admin";
-      recentActivities.push({
-        id: `aud-${audit._id}`,
-        icon: "how-to-reg",
-        title: audit.action.replace(/\./g, " ").toUpperCase(),
-        description: `Performed by ${actorName}`,
-        time: audit.createdAt ? `${Math.max(1, Math.round((Date.now() - new Date(audit.createdAt).getTime()) / 60000))}m ago` : "Recently",
-        iconColor: "#2563EB",
-        iconBackground: "#EFF6FF",
-      });
-    }
-
     res.json({
       stats: [
         {
