@@ -28,13 +28,11 @@ export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
         <View style={styles.textGroup}>
           <Text style={styles.greetingText}>{getGreeting()}</Text>
           <Text style={styles.staffNameText}>{staffInfo.name}</Text>
-<<<<<<< HEAD
           <Text style={styles.departmentText}>
-            {typeof staffInfo.department === 'string' ? staffInfo.department : (staffInfo.department?.name || 'Computer Science Engineering')}
+            {typeof staffInfo.department === 'string'
+              ? staffInfo.department
+              : (staffInfo.department?.name || staffInfo.departmentShort || 'Computer Science Engineering')}
           </Text>
-=======
-          <Text style={styles.departmentText}>{staffInfo.departmentShort || 'CSE Department'}</Text>
->>>>>>> 50294ee (updated staff dashboard)
         </View>
       </View>
 

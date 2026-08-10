@@ -29,68 +29,65 @@ const INITIAL_STATS = [
     id: 'total-students',
     icon: 'school',
     label: 'Total Students',
-    value: '0',
+    value: '16',
     iconColor: colors.primaryBlue,
     iconBackground: colors.secondaryBackground,
-    trend: '0%',
+    trend: '+12%',
     trendPositive: true,
   },
   {
     id: 'total-staff',
     icon: 'groups',
     label: 'Total Staff',
-    value: '0',
+    value: '5',
     iconColor: colors.skyBlue,
     iconBackground: colors.secondaryBackground,
-    trend: '0%',
+    trend: '100%',
     trendPositive: true,
   },
   {
     id: 'connected-phones',
     icon: 'smartphone',
     label: 'Connected Phones',
-    value: '0',
+    value: '12',
     iconColor: colors.success,
     iconBackground: colors.successSoft,
-    trend: '0%',
+    trend: '+8%',
     trendPositive: true,
   },
   {
     id: 'blocked-phones',
     icon: 'phonelink-erase',
     label: 'Blocked Phones',
-    value: '0',
+    value: '4',
     iconColor: colors.danger,
     iconBackground: colors.dangerSoft,
-    trend: '0%',
+    trend: '-5%',
     trendPositive: false,
   },
 ];
 
-<<<<<<< HEAD
-const INITIAL_ACTIVITIES = [];
-=======
 const INITIAL_ACTIVITIES = [
   {
-    id: 'activity-1',
+    id: 'act1',
     icon: 'person-add',
     title: 'New student registered',
-    description: 'Dharani V V joined CSE - 1st Year',
+    description: 'Dharani V V joined CSE - 1st Year Section A',
     time: '2m ago',
     iconColor: colors.primaryBlue,
     iconBackground: colors.secondaryBackground,
   },
   {
-    id: 'activity-2',
+    id: 'act2',
     icon: 'phonelink-erase',
     title: 'Device blocked',
-    description: 'Unauthorized app detected on Device #482',
+    description: 'Unauthorized app detected on DEV-4820 (Bhavna Ramesh)',
     time: '18m ago',
     iconColor: colors.danger,
     iconBackground: colors.dangerSoft,
   },
   {
-    id: 'activity-3',
+    id: 'act3',
     icon: 'campaign',
     title: 'Announcement sent',
     description: 'Exam Mobile Usage Policy broadcasted to All Students',
@@ -99,7 +96,6 @@ const INITIAL_ACTIVITIES = [
     iconBackground: colors.secondaryBackground,
   },
 ];
->>>>>>> 50294ee (updated staff dashboard)
 
 const USAGE_SUMMARY_DATA = [
   { label: 'Mon', value: 0 },

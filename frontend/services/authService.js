@@ -223,15 +223,6 @@ class AuthService {
    * On success, saves the real session and returns the user.
    */
   async changePasswordWithTempToken(tempToken, newPassword) {
-<<<<<<< HEAD
-    const data = await apiFetch('/auth/change-password', {
-      method: 'POST',
-      body: JSON.stringify({ tempToken, newPassword }),
-    });
-
-    // Persist the real session after password change
-    if (data && data.accessToken) {
-=======
     try {
       const response = await fetch(`${BASE_URL}/auth/change-password`, {
         method: 'POST',
@@ -268,7 +259,6 @@ class AuthService {
         email: 'user@ksrce.ac.in',
         role: 'student',
       };
->>>>>>> 50294ee (updated staff dashboard)
       await Promise.all([
         saveTokens('mock-access-token-new', 'mock-refresh-token-new'),
         saveUser(mockUser),

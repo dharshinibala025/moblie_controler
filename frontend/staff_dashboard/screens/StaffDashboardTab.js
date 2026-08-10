@@ -159,11 +159,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
             <Text style={styles.welcomeLabel}>CLASS MENTOR CONSOLE</Text>
             <Text style={styles.classNameText}>{formatClassDisplay(mentorClass)}</Text>
             <Text style={styles.staffMetaText}>
-<<<<<<< HEAD
               Mentor: {staffInfo.name}  •  Dept: {typeof staffInfo.department === 'string' ? staffInfo.department : (staffInfo.department?.name || 'Computer Science Engineering')}
-=======
-              Department of CSE • Class Advisor Console
->>>>>>> 50294ee (updated staff dashboard)
             </Text>
             {currentTime ? (
               <Text style={styles.clockBannerText}>{currentTime}</Text>
