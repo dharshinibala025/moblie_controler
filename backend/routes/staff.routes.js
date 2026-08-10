@@ -312,6 +312,7 @@ router.get("/notifications", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
     const User = require("../models/User");
+    const ClassRoom = require("../models/ClassRoom");
 
     const staffUser = await User.findById(req.user.userId || req.user.id || req.user._id);
     let dbNotifications = [];
@@ -326,25 +327,37 @@ router.get("/notifications", async (req, res, next) => {
       }).sort({ createdAt: -1 }).limit(50);
     }
 
-    // Include compliance alerts for staff's assigned classroom
-    const classIdToQuery = staffUser?.classId;
+    // Determine staff classrooms to query live status & compliance alerts
+    let classroomsToQuery = [];
+    if (staffUser?.academicYearId && staffUser?.sectionId) {
+      classroomsToQuery = await ClassRoom.find({
+        academicYearId: staffUser.academicYearId,
+        sectionId: staffUser.sectionId,
+      });
+    }
+    if (classroomsToQuery.length === 0 && staffUser?.classId) {
+      classroomsToQuery = [{ _id: staffUser.classId, name: `Classroom ${staffUser.classId}` }];
+    }
+
     let complianceAlerts = [];
-    if (classIdToQuery) {
+    for (const cr of classroomsToQuery) {
       try {
-        const liveStatus = await classService.getClassLiveStatus(classIdToQuery, req.user.userId);
+        const liveStatus = await classService.getClassLiveStatus(cr._id.toString(), req.user.userId);
         if (liveStatus && liveStatus.alerts) {
-          complianceAlerts = liveStatus.alerts.map((alt, idx) => ({
-            id: `compliance-alert-${idx}-${Date.now()}`,
-            type: "Device Warning",
-            title: "Compliance Alert",
-            message: alt.message,
-            target: staffUser.classId || "My Class",
-            time: "Just now",
-            isRead: false,
-            icon: "warning",
-            iconColor: "#EF4444",
-            iconBg: "#FEE2E2",
-          }));
+          liveStatus.alerts.forEach((alt, idx) => {
+            complianceAlerts.push({
+              id: `comp-alert-${cr._id}-${idx}`,
+              type: "Device Warning",
+              title: "Compliance Alert",
+              message: alt.message,
+              target: cr.name || "My Class",
+              time: "Just now",
+              isRead: false,
+              icon: "warning",
+              iconColor: "#EF4444",
+              iconBg: "#FEE2E2",
+            });
+          });
         }
       } catch (e) {
         // ignore
