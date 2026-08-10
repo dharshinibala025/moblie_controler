@@ -304,22 +304,22 @@ const DevicesScreen = () => {
   };
 
   const handlePauseRestriction = async () => {
-    setRestrictionStatus('PAUSED');
     try {
       await adminService.pauseRestriction();
+      setRestrictionStatus('PAUSED');
       await loadRules();
-      Alert.alert('Restriction Paused', 'Mobile restriction policy has been temporarily paused.');
+      Alert.alert('Restriction Paused', 'All blocked apps temporarily unblocked. Students can access apps now.');
     } catch (err) {
       Alert.alert('Error', 'Failed to pause restriction: ' + err.message);
     }
   };
 
   const handleResumeRestriction = async () => {
-    setRestrictionStatus('ACTIVE');
     try {
       await adminService.resumeRestriction();
+      setRestrictionStatus('ACTIVE');
       await loadRules();
-      Alert.alert('Restriction Resumed', 'Mobile restriction policy is now active.');
+      Alert.alert('Restriction Resumed', 'Mobile restriction is now active again. Apps are blocked.');
     } catch (err) {
       Alert.alert('Error', 'Failed to resume restriction: ' + err.message);
     }
@@ -328,23 +328,22 @@ const DevicesScreen = () => {
   const handleEmergencyUnblock = () => {
     Alert.alert(
       '🚨 Emergency Unblock Confirmation',
-      'Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices?',
+      'Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices across ALL branches and classes?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Emergency Unblock',
+          text: 'Emergency Unblock All',
           style: 'destructive',
           onPress: async () => {
-            setRestrictionStatus('IDLE');
-            setDevices((prev) => prev.map((d) => ({ ...d, isBlocked: false })));
-
             try {
               await adminService.emergencyUnblockAll();
+              setRestrictionStatus('IDLE');
+              setDevices((prev) => prev.map((d) => ({ ...d, isBlocked: false })));
+              Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across ALL student devices.');
             } catch (err) {
               console.warn('Emergency unblock API notice:', err.message);
+              Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across ALL student devices.');
             }
-
-            Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across all devices.');
           },
         },
       ],

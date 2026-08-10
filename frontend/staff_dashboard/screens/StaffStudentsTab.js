@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import staffMockData from '../data/staffMockData';
+
 
 const STATUSBAR_OFFSET = 12;
 
@@ -92,14 +92,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
     return () => clearInterval(interval);
   }, [staffInfo]);
 
-  const mentorClass = staffInfo.assignedClass || staffInfo.classId || '3rd Year - A';
-
-  const defaultMockStudents = React.useMemo(() => {
-    const { getStudentsForClass } = require('../data/staffMockData');
-    return getStudentsForClass(mentorClass);
-  }, [mentorClass]);
-
-  const studentsToUse = liveStudents.length > 0 ? liveStudents : defaultMockStudents;
+  const mentorClass = staffInfo.assignedClass || staffInfo.classId || '';
 
   // Helper to format assigned class name (e.g. "III CSE - A" -> "3rd Year CSE - Section A")
   const formatClassDisplay = (assignedClass) => {
@@ -147,7 +140,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
   };
 
   // Filter students based on search and status filter
-  const filteredStudents = studentsToUse.filter((student) => {
+  const filteredStudents = liveStudents.filter((student) => {
     const name = String(student.name || '').toLowerCase();
     const rollNo = String(student.rollNo || '').toLowerCase();
     const query = searchQuery.toLowerCase();

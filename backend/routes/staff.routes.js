@@ -208,4 +208,67 @@ router.post("/classes/:id/rules/:ruleId/command", verifyClassScope, async (req, 
   }
 });
 
+// POST: Pause restriction for a class (unblock all apps for that class)
+router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, next) => {
+  try {
+    const Rule = require("../models/Rule");
+    const activeRules = await Rule.find({ targetClassId: req.params.id, status: "active" });
+
+    for (const rule of activeRules) {
+      await ruleService.sendCommand(rule._id, "pause", req.user.userId, req.user.institutionId);
+    }
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "rule.pause",
+      { type: "class", id: req.params.id },
+      { reason: "Staff paused class restriction" },
+      req.user.institutionId
+    );
+
+    res.json({
+      success: true,
+      override: "paused",
+      classId: req.params.id,
+      affectedRules: activeRules.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST: Resume restriction for a class (re-block apps for that class)
+router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, next) => {
+  try {
+    const Rule = require("../models/Rule");
+    const pausedRules = await Rule.find({ targetClassId: req.params.id, status: "paused" });
+
+    for (const rule of pausedRules) {
+      await ruleService.sendCommand(rule._id, "start", req.user.userId, req.user.institutionId);
+    }
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "rule.start",
+      { type: "class", id: req.params.id },
+      { reason: "Staff resumed class restriction" },
+      req.user.institutionId
+    );
+
+    res.json({
+      success: true,
+      override: "resumed",
+      classId: req.params.id,
+      affectedRules: pausedRules.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
+

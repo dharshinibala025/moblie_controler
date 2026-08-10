@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, FlatList, Platform, StatusBar } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import staffMockData from '../data/staffMockData';
 import StaffHeader from '../components/StaffHeader';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
@@ -94,21 +93,14 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
     };
   }, [staffInfo]);
 
-  const mentorClass = staffInfo.assignedClass || staffInfo.classId || '3rd Year - A';
+  const mentorClass = staffInfo.assignedClass || staffInfo.classId || '';
 
-  const defaultMockStudents = React.useMemo(() => {
-    const { getStudentsForClass } = require('../data/staffMockData');
-    return getStudentsForClass(mentorClass);
-  }, [mentorClass]);
-
-  const studentsToUse = liveStudents.length > 0 ? liveStudents : defaultMockStudents;
-
-  const displayTotal = totalStudents || studentsToUse.length;
-  const displayBlocked = blockedStudents || studentsToUse.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length;
+  const displayTotal = totalStudents || liveStudents.length;
+  const displayBlocked = blockedStudents || liveStudents.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length;
   const displayUnblocked = unblockedStudents || (displayTotal - displayBlocked);
 
   // Sort students alphabetically by name
-  const sortedStudents = [...studentsToUse].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const sortedStudents = [...liveStudents].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   // Helper to format assigned class name (e.g. "III CSE - A" -> "CSE - Section 3rd Year A")
   const formatClassDisplay = (assignedClass) => {

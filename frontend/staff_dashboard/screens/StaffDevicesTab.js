@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import staffMockData from '../data/staffMockData';
+import adminService from '../../services/adminService';
 
 const STATUSBAR_OFFSET = 12;
 
@@ -214,15 +214,14 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
   const handlePauseRestriction = async () => {
     const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
-    if (!classIdToQuery || !activeRule) return;
+    if (!classIdToQuery) return;
 
     setLoading(true);
     try {
       const staffService = require('../../services/staffService').default;
-      const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'pause');
-      setActiveRule(ruleResult);
+      await staffService.pauseClassRestriction(classIdToQuery);
       setRestrictionStatus('PAUSED');
-      Alert.alert('Restriction Paused', 'Mobile restriction policy has been temporarily paused for your class.');
+      Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused. Students can access apps now.');
     } catch (err) {
       Alert.alert('Pause Failed', err.message || 'An error occurred.');
     } finally {
@@ -232,15 +231,14 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
   const handleResumeRestriction = async () => {
     const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
-    if (!classIdToQuery || !activeRule) return;
+    if (!classIdToQuery) return;
 
     setLoading(true);
     try {
       const staffService = require('../../services/staffService').default;
-      const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'start');
-      setActiveRule(ruleResult);
+      await staffService.resumeClassRestriction(classIdToQuery);
       setRestrictionStatus('ACTIVE');
-      Alert.alert('Restriction Resumed', 'Mobile restriction policy is now active for your class.');
+      Alert.alert('Restriction Resumed', 'Mobile restriction is active again. Apps are now blocked.');
     } catch (err) {
       Alert.alert('Resume Failed', err.message || 'An error occurred.');
     } finally {
@@ -269,25 +267,20 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const handleEmergencyUnblock = () => {
     Alert.alert(
       '🚨 Emergency Unblock Confirmation',
-      `Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices assigned to your class (${formatClassDisplay(mentorClass)})?`,
+      'Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices across ALL branches and classes?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Emergency Unblock',
+          text: 'Emergency Unblock All',
           style: 'destructive',
           onPress: async () => {
-            const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
-            if (!classIdToQuery || !activeRule) return;
-
             setLoading(true);
             try {
-              const staffService = require('../../services/staffService').default;
-              const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'stop');
-              setActiveRule(ruleResult);
+              await adminService.emergencyUnblockAll();
               setRestrictionStatus('IDLE');
               Alert.alert(
                 'Emergency Unblock Executed',
-                `All mobile restrictions lifted immediately for ${formatClassDisplay(mentorClass)}.`,
+                'All mobile restrictions lifted immediately across ALL student devices.',
               );
             } catch (err) {
               Alert.alert('Unblock Failed', err.message || 'An error occurred.');
