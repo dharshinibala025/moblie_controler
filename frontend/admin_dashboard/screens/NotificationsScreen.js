@@ -44,7 +44,13 @@ const NotificationsScreen = ({ onBack }) => {
       const data = await adminService.getAdminNotifications();
       setNotifications(data || []);
     } catch (err) {
-      console.warn('Failed to load notifications:', err);
+      try {
+        const staffService = require('../../services/staffService').default;
+        const staffData = await staffService.fetchStaffNotifications();
+        setNotifications(staffData || []);
+      } catch (staffErr) {
+        console.warn('Failed to load staff notifications:', staffErr);
+      }
     }
   };
 

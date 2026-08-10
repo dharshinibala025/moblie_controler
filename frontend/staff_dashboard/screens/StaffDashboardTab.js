@@ -195,7 +195,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
 
   return (
     <View style={styles.container}>
-      <StaffHeader staffInfo={staffInfo} onNavigateTab={onNavigateTab} />
+      <StaffHeader staffInfo={staffInfo} alertCount={classAlerts.length} onNavigateTab={onNavigateTab} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Mentor Title (Flat layout, no card background) */}
@@ -215,12 +215,17 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
           </View>
         </View>
 
-        {/* Dynamic Class Alerts & Warnings Banner */}
+        {/* Dynamic Class Alerts & Warnings Banner (Tapping opens Notification Center) */}
         {classAlerts.length > 0 ? (
-          <View style={styles.alertsBannerContainer}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => onNavigateTab && onNavigateTab('notifications')}
+            style={styles.alertsBannerContainer}
+          >
             <View style={styles.alertsBannerHeader}>
               <VectorIcon name="alert-circle" size={16} color="#EF4444" />
               <Text style={styles.alertsBannerTitle}>COMPLIANCE ALERTS ({classAlerts.length})</Text>
+              <Text style={{ fontSize: 10, color: '#EF4444', fontWeight: '700', marginLeft: 'auto' }}>View All →</Text>
             </View>
             <ScrollView style={styles.alertsScroll} nestedScrollEnabled={true}>
               {classAlerts.map((alert, idx) => (
@@ -232,7 +237,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
                 </View>
               ))}
             </ScrollView>
-          </View>
+          </TouchableOpacity>
         ) : null}
 
         {/* 3 Executive Compact Stats Cards */}

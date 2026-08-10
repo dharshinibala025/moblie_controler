@@ -307,5 +307,111 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
   }
 });
 
+// GET: Fetch staff notifications (compliance alerts, system alerts, broadcasts)
+router.get("/notifications", async (req, res, next) => {
+  try {
+    const Notification = require("../models/Notification");
+    const User = require("../models/User");
+
+    const staffUser = await User.findById(req.user.userId || req.user.id || req.user._id);
+    let dbNotifications = [];
+
+    if (staffUser) {
+      dbNotifications = await Notification.find({
+        $or: [
+          { recipientRole: "staff" },
+          { recipientRole: "all" },
+          { studentId: req.user.userId },
+        ],
+      }).sort({ createdAt: -1 }).limit(50);
+    }
+
+    // Include compliance alerts for staff's assigned classroom
+    const classIdToQuery = staffUser?.classId;
+    let complianceAlerts = [];
+    if (classIdToQuery) {
+      try {
+        const liveStatus = await classService.getClassLiveStatus(classIdToQuery, req.user.userId);
+        if (liveStatus && liveStatus.alerts) {
+          complianceAlerts = liveStatus.alerts.map((alt, idx) => ({
+            id: `compliance-alert-${idx}-${Date.now()}`,
+            type: "Device Warning",
+            title: "Compliance Alert",
+            message: alt.message,
+            target: staffUser.classId || "My Class",
+            time: "Just now",
+            isRead: false,
+            icon: "warning",
+            iconColor: "#EF4444",
+            iconBg: "#FEE2E2",
+          }));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const formattedDb = dbNotifications.map((n) => {
+      let icon = "campaign";
+      let iconColor = "#2563EB";
+      let iconBg = "#EFF6FF";
+
+      if (n.type === "restriction") {
+        icon = "phonelink-erase";
+        iconColor = "#EF4444";
+        iconBg = "#FEE2E2";
+      } else if (n.type === "system") {
+        icon = "dns";
+        iconColor = "#16A34A";
+        iconBg = "#DCFCE7";
+      }
+
+      const diffMs = Date.now() - new Date(n.createdAt).getTime();
+      const diffMins = Math.max(1, Math.round(diffMs / 60000));
+      const timeStr = diffMins < 60 ? `${diffMins}m ago` : `${Math.round(diffMins / 60)}h ago`;
+
+      return {
+        id: n._id.toString(),
+        type: n.type === "restriction" ? "Device Warning" : n.type === "system" ? "System Alert" : "Broadcast",
+        title: n.title,
+        message: n.message,
+        target: n.metadata?.target || "All",
+        time: timeStr,
+        deliveredCount: n.metadata?.deliveredCount || 0,
+        readCount: n.metadata?.readCount || 0,
+        status: n.type === "restriction" ? "Action Required" : "Delivered",
+        isRead: n.read,
+        icon,
+        iconColor,
+        iconBg,
+      };
+    });
+
+    res.json([...complianceAlerts, ...formattedDb]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/notifications/:id", async (req, res, next) => {
+  try {
+    const Notification = require("../models/Notification");
+    await Notification.deleteOne({ _id: req.params.id });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/notifications/mark-read", async (req, res, next) => {
+  try {
+    const Notification = require("../models/Notification");
+    await Notification.updateMany({ recipientRole: "staff" }, { $set: { read: true } });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
 

@@ -113,6 +113,10 @@ export const emergencyUnblockAll = async () => {
   });
 };
 
+export const fetchStaffNotifications = async () => {
+  return fetchWithRefresh('/staff/notifications');
+};
+
 export default {
   fetchMyClasses,
   fetchClassLiveStatus,
@@ -124,5 +128,6 @@ export default {
   pauseClassRestriction,
   resumeClassRestriction,
   emergencyUnblockAll,
+  fetchStaffNotifications,
 };
 
