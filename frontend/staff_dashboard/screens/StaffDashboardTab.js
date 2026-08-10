@@ -215,31 +215,6 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
           </View>
         </View>
 
-        {/* Dynamic Class Alerts & Warnings Banner (Tapping opens Notification Center) */}
-        {classAlerts.length > 0 ? (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => onNavigateTab && onNavigateTab('notifications')}
-            style={styles.alertsBannerContainer}
-          >
-            <View style={styles.alertsBannerHeader}>
-              <VectorIcon name="alert-circle" size={16} color="#EF4444" />
-              <Text style={styles.alertsBannerTitle}>COMPLIANCE ALERTS ({classAlerts.length})</Text>
-              <Text style={{ fontSize: 10, color: '#EF4444', fontWeight: '700', marginLeft: 'auto' }}>View All →</Text>
-            </View>
-            <ScrollView style={styles.alertsScroll} nestedScrollEnabled={true}>
-              {classAlerts.map((alert, idx) => (
-                <View key={idx} style={styles.alertRow}>
-                  <Text style={styles.alertDot}>•</Text>
-                  <Text style={styles.alertMessageText} numberOfLines={2}>
-                    {alert.message}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-          </TouchableOpacity>
-        ) : null}
-
         {/* 3 Executive Compact Stats Cards */}
         <View style={styles.statsGrid}>
           {/* Card 1: Total Students */}
