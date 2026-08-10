@@ -938,6 +938,38 @@ router.get("/dashboard/overview", async (req, res, next) => {
 
     const recentActivities = [];
 
+    // Prepend compliance warnings for students without login or with disabled permissions
+    const allStudents = await User.find({ role: "student" }).select("name email studentId");
+    const allDevices = await Device.find();
+    const deviceMap = new Map(allDevices.map((d) => [d.userId.toString(), d]));
+
+    for (const student of allStudents) {
+      const dev = deviceMap.get(student._id.toString());
+      if (!dev) {
+        recentActivities.push({
+          id: `warn-login-${student._id}`,
+          icon: "person-off",
+          title: "Student Not Logged In",
+          description: `${student.name} (${student.studentId || student.email}) has not registered a device yet`,
+          time: "Warning",
+          iconColor: "#F59E0B",
+          iconBackground: "#FEF3C7",
+        });
+      } else if (!dev.deviceInfo || dev.deviceInfo.accessibilityEnabled === false || dev.deviceInfo.overlayEnabled === false) {
+        recentActivities.push({
+          id: `crit-perm-${student._id}`,
+          icon: "report-problem",
+          title: "Permissions Disabled",
+          description: `${student.name} disabled ${
+            dev.deviceInfo?.accessibilityEnabled === false ? "Accessibility" : "Overlay"
+          } permissions`,
+          time: "Non-Compliant",
+          iconColor: "#EF4444",
+          iconBackground: "#FEE2E2",
+        });
+      }
+    }
+
     for (const attempt of recentAttempts) {
       const studentName = attempt.studentId ? attempt.studentId.name : "Student";
       recentActivities.push({

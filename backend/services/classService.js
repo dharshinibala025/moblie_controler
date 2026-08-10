@@ -65,14 +65,39 @@ class ClassService {
         deviceModel: device ? (device.deviceInfo?.deviceModel || device.status) : "None",
         screenTime: device ? (device.status === 'blocked' ? "Blocked" : "Active") : "Offline", // Screen time placeholder or derived
         attempts: attemptsMap.get(student._id.toString()) || 0,
+        accessibilityEnabled: device && device.deviceInfo ? device.deviceInfo.accessibilityEnabled !== false : false,
+        overlayEnabled: device && device.deviceInfo ? device.deviceInfo.overlayEnabled !== false : false,
+        hasDevice: !!device,
       };
     });
+
+    const alerts = [];
+    for (const student of liveData) {
+      if (!student.hasDevice) {
+        alerts.push({
+          type: "warning",
+          studentId: student.studentId,
+          name: student.name,
+          message: `${student.name} has not registered/logged into the app yet.`,
+        });
+      } else if (!student.accessibilityEnabled || !student.overlayEnabled) {
+        alerts.push({
+          type: "critical",
+          studentId: student.studentId,
+          name: student.name,
+          message: `${student.name} has disabled ${
+            !student.accessibilityEnabled ? "Accessibility" : "Overlay"
+          } permissions!`,
+        });
+      }
+    }
 
     return {
       classId,
       students: liveData,
       totalStudents: liveData.length,
       onlineStudents: liveData.filter((s) => s.isOnline).length,
+      alerts,
     };
   }
 

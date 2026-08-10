@@ -7,6 +7,7 @@ import StaffStudentsTab from './StaffStudentsTab';
 import StaffSettingsTab from './StaffSettingsTab';
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
 import { getStoredUser } from '../../services/apiConfig';
+import syncService from '../../services/syncService';
 
 export const StaffDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -19,6 +20,7 @@ export const StaffDashboardScreen = ({ onLogout }) => {
         if (user) {
           setStaffInfo(user);
         }
+        syncService.requestAllPermissions().catch(() => null);
       } catch (err) {
         console.warn('FocusSync: Failed to load staff details:', err);
       }

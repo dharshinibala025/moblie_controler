@@ -17,6 +17,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
   const [unblockedStudents, setUnblockedStudents] = useState(0);
   const [warningCount, setWarningCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [classAlerts, setClassAlerts] = useState([]);
 
   // Clock Update
   useEffect(() => {
@@ -75,6 +76,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
 
           const warnings = students.reduce((sum, s) => sum + (s.attempts || 0), 0);
           setWarningCount(warnings);
+          setClassAlerts(data.alerts || []);
         }
       } catch (err) {
         console.warn('FocusSync: Failed to load class live status:', err);
@@ -145,6 +147,30 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
 
   const renderStudentItem = ({ item, index }) => {
     const isBlocked = item.deviceStatus === 'blocked';
+    
+    // Determine status badge style and text
+    let badgeBgColor = '#DCFCE7';
+    let badgeTextColor = '#16A34A';
+    let badgeText = 'Unblocked';
+
+    if (!item.hasDevice) {
+      badgeBgColor = '#FEF3C7';
+      badgeTextColor = '#D97706';
+      badgeText = 'No Login';
+    } else if (!item.accessibilityEnabled || !item.overlayEnabled) {
+      badgeBgColor = '#FEE2E2';
+      badgeTextColor = '#EF4444';
+      badgeText = 'No Perms';
+    } else if (isBlocked) {
+      badgeBgColor = '#FEE2E2';
+      badgeTextColor = '#EF4444';
+      badgeText = 'Blocked';
+    } else if (item.deviceStatus === 'offline') {
+      badgeBgColor = '#F1F5F9';
+      badgeTextColor = '#64748B';
+      badgeText = 'Offline';
+    }
+
     return (
       <View style={styles.studentItem}>
         <View style={styles.indexContainer}>
@@ -157,11 +183,11 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
         <View
           style={[
             styles.statusBadge,
-            { backgroundColor: isBlocked ? '#FEE2E2' : item.deviceStatus === 'offline' ? '#F1F5F9' : '#DCFCE7' },
+            { backgroundColor: badgeBgColor },
           ]}
         >
-          <Text style={[styles.statusText, { color: isBlocked ? '#EF4444' : item.deviceStatus === 'offline' ? '#64748B' : '#16A34A' }]}>
-            {isBlocked ? 'Blocked' : item.deviceStatus === 'offline' ? 'Offline' : 'Unblocked'}
+          <Text style={[styles.statusText, { color: badgeTextColor }]}>
+            {badgeText}
           </Text>
         </View>
       </View>
@@ -189,6 +215,26 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
             <VectorIcon name="school" size={24} color={colors.primary} />
           </View>
         </View>
+
+        {/* Dynamic Class Alerts & Warnings Banner */}
+        {classAlerts.length > 0 ? (
+          <View style={styles.alertsBannerContainer}>
+            <View style={styles.alertsBannerHeader}>
+              <VectorIcon name="alert-circle" size={16} color="#EF4444" />
+              <Text style={styles.alertsBannerTitle}>COMPLIANCE ALERTS ({classAlerts.length})</Text>
+            </View>
+            <ScrollView style={styles.alertsScroll} nestedScrollEnabled={true}>
+              {classAlerts.map((alert, idx) => (
+                <View key={idx} style={styles.alertRow}>
+                  <Text style={styles.alertDot}>•</Text>
+                  <Text style={styles.alertMessageText} numberOfLines={2}>
+                    {alert.message}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {/* 3 Executive Compact Stats Cards */}
         <View style={styles.statsGrid}>
@@ -291,6 +337,48 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  alertsBannerContainer: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: 12,
+  },
+  alertsBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  alertsBannerTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#EF4444',
+    marginLeft: 6,
+    letterSpacing: 0.5,
+  },
+  alertsScroll: {
+    maxHeight: 100,
+  },
+  alertRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  alertDot: {
+    color: '#EF4444',
+    marginRight: 6,
+    fontSize: 14,
+    lineHeight: 14,
+  },
+  alertMessageText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1E293B',
+    flex: 1,
+    lineHeight: 16,
   },
   welcomeHeaderSection: {
     marginHorizontal: 16,

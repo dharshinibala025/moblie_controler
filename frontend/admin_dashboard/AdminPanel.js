@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,6 +10,7 @@ import DevicesScreen from './screens/DevicesScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
 import colors from './styles/colors';
+import syncService from '../services/syncService';
 
 /**
  * AdminPanel
@@ -33,6 +34,10 @@ const TABS = [
 
 const AdminPanel = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  useEffect(() => {
+    syncService.requestAllPermissions().catch(() => null);
+  }, []);
 
   const renderActiveScreen = () => {
     switch (activeTab) {
