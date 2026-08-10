@@ -5,9 +5,9 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NativeModules } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 
-// Dynamically resolve development machine IP when running on a physical device
+// Dynamically resolve development machine IP when running on a physical device or emulator
 const getDevServerIp = () => {
   try {
     const scriptURL = NativeModules.SourceCode?.scriptURL;
@@ -15,7 +15,9 @@ const getDevServerIp = () => {
       const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
       if (match && match[1]) {
         const ip = match[1];
-        // Return detected IP on port 5000
+        if (ip === 'localhost' || ip === '127.0.0.1') {
+          return Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+        }
         return `http://${ip}:5000`;
       }
     }
@@ -27,10 +29,11 @@ const getDevServerIp = () => {
 
 const devServerIp = getDevServerIp();
 
-// Base URL — dynamic Metro host IP first, then LAN IP fallback (10.62.114.113:5000) or localhost (ADB reverse)
+// Base URL — 10.0.2.2 for Android Studio Emulator, devServerIp if Metro provided, fallback to 10.62.114.113 / 10.0.2.2
 export const BASE_URL =
   devServerIp ||
-  'http://10.62.114.113:5000';
+  (Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000');
+
 
 
 
