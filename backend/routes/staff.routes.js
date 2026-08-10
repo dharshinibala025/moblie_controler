@@ -273,5 +273,39 @@ router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, n
   }
 });
 
+// POST: Emergency Unblock All (accessible by staff)
+router.post("/emergency-unblock-all", async (req, res, next) => {
+  try {
+    const Rule = require("../models/Rule");
+    const Device = require("../models/Device");
+    const auditService = require("../services/auditService");
+    const { emitToClass } = require("../config/socket");
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+
+    setEmergencyUnblock(true);
+
+    await Rule.updateMany({}, { $set: { status: "paused" } });
+    await Device.updateMany({}, { $set: { status: "active" } });
+
+    emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "emergency_unblock_all",
+      { scope: "GLOBAL" },
+      { status: "ALL_DEVICES_UNBLOCKED_BY_STAFF" },
+      req.user.institutionId
+    );
+
+    res.json({
+      success: true,
+      message: "EMERGENCY UNBLOCK EXECUTED: All mobile restrictions lifted immediately across all devices.",
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
 
