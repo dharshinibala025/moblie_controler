@@ -130,15 +130,15 @@ router.get("/latest", async (req, res, next) => {
       status = "inactive";
       reason = "Emergency unblock active (restrictions temporarily lifted)";
     } else if (currentlyEnforcedRules.length > 0) {
-      // Inside active unblock timing window (access allowed)
-      blockedPackages = [];
-      status = "inactive";
-      reason = "Inside permitted unblock timing window";
-    } else {
-      // Outside unblock timing window / no rules exist -> block automatically
+      // Inside restricted timing window (access blocked)
       blockedPackages = await getAutoBlockPackages(student._id);
       status = "active";
-      reason = "Outside permitted unblock timing window (social media and games restricted)";
+      reason = "Inside restricted timing window (social media and games blocked)";
+    } else {
+      // Outside restricted timing window / no rules exist -> unblock all
+      blockedPackages = [];
+      status = "inactive";
+      reason = "Outside restricted timing window (social media and games unblocked)";
     }
 
     const policyVersionBefore = device.lastKnownCommand?.policyVersion || 0;

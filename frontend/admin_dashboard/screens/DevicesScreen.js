@@ -24,6 +24,30 @@ import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 import { getSectionOptions } from '../config/sectionsConfig';
 
+const parseTo24Hour = (timeStr) => {
+  if (!timeStr) return '09:00';
+  const clean = timeStr.trim().toUpperCase();
+  const match = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+  if (!match) return '09:00';
+  let [_, hoursStr, minutesStr, ampm] = match;
+  let hours = parseInt(hoursStr, 10);
+  if (ampm === 'PM' && hours < 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  return `${hours.toString().padStart(2, '0')}:${minutesStr}`;
+};
+
+const formatTo12Hour = (timeStr) => {
+  if (!timeStr) return '09:00 AM';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return '09:00 AM';
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+};
+
 const DevicesScreen = () => {
   const [devices, setDevices] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,9 +83,34 @@ const DevicesScreen = () => {
     setDevices(list || []);
   };
 
+  const loadRules = async () => {
+    try {
+      const yearChar = draftYear.charAt(0);
+      const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
+      const rules = await adminService.getRules();
+      const classRule = (rules || []).find((r) => r.targetClassId === targetClassId);
+      if (classRule) {
+        setStartTime(formatTo12Hour(classRule.scheduleStart));
+        setEndTime(formatTo12Hour(classRule.scheduleEnd));
+        if (classRule.status === 'active') {
+          setRestrictionStatus('ACTIVE');
+        } else if (classRule.status === 'paused') {
+          setRestrictionStatus('PAUSED');
+        } else {
+          setRestrictionStatus('IDLE');
+        }
+      } else {
+        setRestrictionStatus('IDLE');
+      }
+    } catch (err) {
+      console.warn('Failed to load rules for class:', err.message);
+    }
+  };
+
   useEffect(() => {
     loadDevices();
-  }, []);
+    loadRules();
+  }, [selectedDept, draftYear, draftSection]);
 
   const filteredDevices = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -238,11 +287,15 @@ const DevicesScreen = () => {
     try {
       await adminService.applyRestrictionPolicy(policyData);
       setRestrictionStatus('ACTIVE');
+      await loadRules();
+      await loadDevices();
       Alert.alert(
         'Mobile Restriction Applied',
         `Restriction policy active!\n\nTarget: ${draftYear} - Sec ${draftSection} (${selectedDept})\nSchedule: ${startTime} – ${endTime}\nRemaining: ${remainingInfo.text}`,
       );
     } catch (err) {
+      await loadRules();
+      await loadDevices();
       Alert.alert(
         'Restriction Policy Set',
         `Mobile restriction schedule updated for ${startTime} – ${endTime}.\nRemaining Time: ${remainingInfo.text}`,
@@ -250,14 +303,26 @@ const DevicesScreen = () => {
     }
   };
 
-  const handlePauseRestriction = () => {
+  const handlePauseRestriction = async () => {
     setRestrictionStatus('PAUSED');
-    Alert.alert('Restriction Paused', 'Mobile restriction policy has been temporarily paused.');
+    try {
+      await adminService.pauseRestriction();
+      await loadRules();
+      Alert.alert('Restriction Paused', 'Mobile restriction policy has been temporarily paused.');
+    } catch (err) {
+      Alert.alert('Error', 'Failed to pause restriction: ' + err.message);
+    }
   };
 
-  const handleResumeRestriction = () => {
+  const handleResumeRestriction = async () => {
     setRestrictionStatus('ACTIVE');
-    Alert.alert('Restriction Resumed', 'Mobile restriction policy is now active.');
+    try {
+      await adminService.resumeRestriction();
+      await loadRules();
+      Alert.alert('Restriction Resumed', 'Mobile restriction policy is now active.');
+    } catch (err) {
+      Alert.alert('Error', 'Failed to resume restriction: ' + err.message);
+    }
   };
 
   const handleEmergencyUnblock = () => {

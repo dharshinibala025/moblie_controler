@@ -495,6 +495,32 @@ class AdminService {
     }
   }
 
+  async getRules(filters = {}) {
+    try {
+      const query = [];
+      if (filters.targetClassId) query.push(`targetClassId=${filters.targetClassId}`);
+      if (filters.status) query.push(`status=${filters.status}`);
+      const queryString = query.length > 0 ? `?${query.join('&')}` : '';
+      const res = await apiFetch(`/admin/rules${queryString}`);
+      return res && Array.isArray(res) ? res : [];
+    } catch (error) {
+      console.warn('Admin rules fetch fallback:', error.message);
+      return [];
+    }
+  }
+
+  async pauseRestriction() {
+    return await apiFetch('/admin/override/pause', {
+      method: 'POST',
+    });
+  }
+
+  async resumeRestriction() {
+    return await apiFetch('/admin/override/resume', {
+      method: 'POST',
+    });
+  }
+
   async getAdminNotifications() {
     try {
       const res = await apiFetch('/admin/notifications');
