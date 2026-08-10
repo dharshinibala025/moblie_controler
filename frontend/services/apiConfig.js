@@ -15,6 +15,7 @@ const getDevServerIp = () => {
       const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
       if (match && match[1]) {
         const ip = match[1];
+        // Return detected IP on port 5000
         return `http://${ip}:5000`;
       }
     }
@@ -26,12 +27,11 @@ const getDevServerIp = () => {
 
 const devServerIp = getDevServerIp();
 
-// ⚠️ IMPORTANT: Update this IP if your machine's network changes.
-// Base URL — dynamic IP first, then your machine's LAN IP for physical devices,
-// 10.0.2.2 for Android emulator, localhost for iOS simulator.
+// Base URL — dynamic Metro host IP first, then LAN IP fallback (10.62.114.113:5000) or localhost (ADB reverse)
 export const BASE_URL =
   devServerIp ||
-  'http://10.89.28.113:5000'; // your machine's LAN IP — physical device connects here
+  'http://10.62.114.113:5000';
+
 
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
