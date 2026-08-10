@@ -5,7 +5,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, NativeModules } from 'react-native';
+import { NativeModules } from 'react-native';
 
 // Dynamically resolve development machine IP when running on a physical device
 const getDevServerIp = () => {
@@ -26,8 +26,13 @@ const getDevServerIp = () => {
 
 const devServerIp = getDevServerIp();
 
-// Base URL — physical device uses dynamic IP, emulator uses 10.0.2.2 on Android, localhost on iOS
-export const BASE_URL = devServerIp || (Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000');
+// ⚠️ IMPORTANT: Update this IP if your machine's network changes.
+// Base URL — dynamic IP first, then your machine's LAN IP for physical devices,
+// 10.0.2.2 for Android emulator, localhost for iOS simulator.
+export const BASE_URL =
+  devServerIp ||
+  'http://10.89.28.113:5000'; // your machine's LAN IP — physical device connects here
+
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 export const STORAGE_KEYS = {

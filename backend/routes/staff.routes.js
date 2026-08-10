@@ -123,12 +123,15 @@ router.get("/classes/:id/rules", verifyClassScope, async (req, res, next) => {
 });
 
 // POST: Create a rule for a class
-router.post("/classes/:id/rules", verifyClassScope, validate("createRule"), async (req, res, next) => {
+router.post("/classes/:id/rules", verifyClassScope, (req, res, next) => {
+  // Inject targetClassId from URL so validate("createRule") sees it
+  req.body.targetClassId = req.params.id;
+  next();
+}, validate("createRule"), async (req, res, next) => {
   try {
     const { setEmergencyUnblock } = require("../utils/emergencyHelper");
     setEmergencyUnblock(false);
 
-    req.body.targetClassId = req.params.id;
     if (req.user.institutionId) {
       req.body.institutionId = req.user.institutionId;
     }
@@ -264,6 +267,40 @@ router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, n
       classId: req.params.id,
       affectedRules: pausedRules.length,
       timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST: Emergency Unblock All (accessible by staff)
+router.post("/emergency-unblock-all", async (req, res, next) => {
+  try {
+    const Rule = require("../models/Rule");
+    const Device = require("../models/Device");
+    const auditService = require("../services/auditService");
+    const { emitToClass } = require("../config/socket");
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+
+    setEmergencyUnblock(true);
+
+    await Rule.updateMany({}, { $set: { status: "paused" } });
+    await Device.updateMany({}, { $set: { status: "active" } });
+
+    emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "emergency_unblock_all",
+      { scope: "GLOBAL" },
+      { status: "ALL_DEVICES_UNBLOCKED_BY_STAFF" },
+      req.user.institutionId
+    );
+
+    res.json({
+      success: true,
+      message: "EMERGENCY UNBLOCK EXECUTED: All mobile restrictions lifted immediately across all devices.",
     });
   } catch (err) {
     next(err);

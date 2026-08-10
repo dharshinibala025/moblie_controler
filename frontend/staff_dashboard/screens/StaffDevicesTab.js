@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import adminService from '../../services/adminService';
+import staffService from '../../services/staffService';
 
 const STATUSBAR_OFFSET = 12;
 
@@ -276,7 +276,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
           onPress: async () => {
             setLoading(true);
             try {
-              await adminService.emergencyUnblockAll();
+              await staffService.emergencyUnblockAll();
               setRestrictionStatus('IDLE');
               Alert.alert(
                 'Emergency Unblock Executed',
