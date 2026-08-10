@@ -109,6 +109,17 @@ class AdminService {
       body: JSON.stringify(policyData),
     });
   }
+
+  async deleteActivity(activityId) {
+    try {
+      return await apiFetch(`/admin/activity/${activityId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.warn('Delete activity API fallback:', error.message);
+      return null;
+    }
+  }
 }
 
 export default new AdminService();

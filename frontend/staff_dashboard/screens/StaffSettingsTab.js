@@ -17,7 +17,7 @@ import SettingsRow from '../components/SettingsRow';
 import staffMockData from '../data/staffMockData';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
+const STATUSBAR_OFFSET = 12;
 
 export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
   // Staff Profile State loaded dynamically

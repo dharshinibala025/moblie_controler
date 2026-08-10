@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, Platform, StatusBar } 
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import staffMockData from '../data/staffMockData';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 12;
+const STATUSBAR_OFFSET = 12;
 
 export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
   const staffInfo = propStaffInfo || staffMockData.staff;

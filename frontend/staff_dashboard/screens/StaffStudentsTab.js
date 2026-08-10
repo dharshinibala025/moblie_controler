@@ -15,7 +15,7 @@ import { colors, shadows, borderRadius } from '../../student_dashboard/styles/th
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import staffMockData from '../data/staffMockData';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
+const STATUSBAR_OFFSET = 12;
 
 export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
   const staffInfo = propStaffInfo || staffMockData.staff;

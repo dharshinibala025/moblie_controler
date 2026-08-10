@@ -14,7 +14,7 @@ import { colors, shadows, borderRadius } from '../../student_dashboard/styles/th
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import staffMockData from '../data/staffMockData';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
+const STATUSBAR_OFFSET = 12;
 
 const SUPPORTED_APPS = [
   'Instagram',
@@ -23,12 +23,11 @@ const SUPPORTED_APPS = [
   'Snapchat',
   'Telegram',
   'Discord',
-  'Twitter (X)',
+  'Twitter',
   'YouTube',
   'Netflix',
   'Prime Video',
   'BGMI',
-  'Free Fire',
   'PUBG',
 ];
 
@@ -362,7 +361,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <Text style={styles.fieldLabel}>Department</Text>
               <View style={styles.lockedBadge}>
                 <VectorIcon name="school" size={14} color="#475569" />
-                <Text style={styles.lockedBadgeText}>{staffInfo.department}</Text>
+                <Text style={styles.lockedBadgeText}>CSE</Text>
               </View>
             </View>
 
@@ -627,27 +626,32 @@ const styles = StyleSheet.create({
   appsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    justifyContent: 'flex-start',
+    marginHorizontal: -4,
   },
   appChip: {
+    width: '31.3%',
+    marginHorizontal: '1%',
+    marginVertical: 4,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#F8FAFC',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   appChipBlocked: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   appChipText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#475569',
+    marginLeft: 4,
   },
   appChipTextBlocked: {
     color: '#FFFFFF',
