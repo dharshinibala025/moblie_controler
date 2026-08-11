@@ -5,7 +5,17 @@ const notificationSchema = new mongoose.Schema(
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false,
+    },
+    recipientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+    recipientRole: {
+      type: String,
+      enum: ["student", "staff", "admin", "all"],
+      default: "student",
     },
     title: {
       type: String,
@@ -17,7 +27,7 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["restriction", "schedule", "system", "general"],
+      enum: ["restriction", "schedule", "system", "general", "broadcast"],
       default: "general",
     },
     read: {
@@ -33,6 +43,7 @@ const notificationSchema = new mongoose.Schema(
 );
 
 notificationSchema.index({ studentId: 1, createdAt: -1 });
-notificationSchema.index({ studentId: 1, read: 1 });
+notificationSchema.index({ recipientId: 1, createdAt: -1 });
+notificationSchema.index({ recipientRole: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Notification", notificationSchema);

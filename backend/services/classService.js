@@ -39,6 +39,15 @@ class ClassService {
     );
 
     const BlockedAttempt = require("../models/BlockedAttempt");
+    const Session = require("../models/Session");
+
+    // Fetch active sessions for students
+    const activeSessions = await Session.find({
+      userId: { $in: studentIds },
+      status: "active",
+      expiresAt: { $gt: new Date() },
+    });
+    const activeUserSet = new Set(activeSessions.map((sess) => sess.userId.toString()));
 
     // Fetch attempts count for each student in a single aggregation query
     const attemptsMap = new Map();
@@ -52,18 +61,21 @@ class ClassService {
 
     const liveData = students.map((student) => {
       const device = deviceMap.get(student._id.toString());
+      const isBlocked = device ? device.status === "blocked" : false;
+      const isLoggedIn = activeUserSet.has(student._id.toString());
+
+      const computedDeviceStatus = isBlocked ? "blocked" : isLoggedIn ? "Logged In" : "No Login";
+
       return {
         studentId: student._id,
         name: student.name,
         email: student.email,
         rollNo: student.studentId || "",
-        isOnline: device && device.lastSyncAt
-          ? (Date.now() - new Date(device.lastSyncAt).getTime()) < ONLINE_THRESHOLD_MS
-          : false,
+        isOnline: isLoggedIn || (device && device.lastSyncAt ? (Date.now() - new Date(device.lastSyncAt).getTime()) < ONLINE_THRESHOLD_MS : false),
         lastSyncAt: device ? device.lastSyncAt : null,
-        deviceStatus: device ? device.status : "unknown",
+        deviceStatus: computedDeviceStatus,
         deviceModel: device ? (device.deviceInfo?.deviceModel || device.status) : "None",
-        screenTime: device ? (device.status === 'blocked' ? "Blocked" : "Active") : "Offline", // Screen time placeholder or derived
+        screenTime: isBlocked ? "Blocked" : isLoggedIn ? "Active" : "Offline",
         attempts: attemptsMap.get(student._id.toString()) || 0,
         accessibilityEnabled: device && device.deviceInfo ? device.deviceInfo.accessibilityEnabled !== false : false,
         overlayEnabled: device && device.deviceInfo ? device.deviceInfo.overlayEnabled !== false : false,

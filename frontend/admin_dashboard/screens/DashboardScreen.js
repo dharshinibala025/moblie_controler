@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -18,6 +19,7 @@ import DashboardCard from '../components/DashboardCard';
 import ActivityCard from '../components/ActivityCard';
 import PlaceholderChart from '../components/PlaceholderChart';
 import FilterChipGroup from '../components/FilterChipGroup';
+import PermissionModal from '../../components/PermissionModal';
 import adminService from '../../services/adminService';
 
 import colors from '../styles/colors';
@@ -89,6 +91,8 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementMessage, setAnnouncementMessage] = useState('');
   const [targetDetail, setTargetDetail] = useState('');
+  const [permModalVisible, setPermModalVisible] = useState(false);
+  const [permStep, setPermStep] = useState('notification');
 
   useEffect(() => {
     let isMounted = true;
@@ -108,6 +112,47 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
       clearInterval(interval);
     };
   }, []);
+
+  // Check Admin Notification Permission on Mount (Once only)
+  useEffect(() => {
+    const checkAdminNotif = async () => {
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const alreadyPrompted = await AsyncStorage.getItem('@focussync:adminPermissionPrompted');
+        if (alreadyPrompted === 'true') return;
+
+        if (Platform.OS === 'android' && Platform.Version >= 33) {
+          const { PermissionsAndroid } = require('react-native');
+          const hasNotif = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+          if (!hasNotif) {
+            setPermStep('notification');
+            setPermModalVisible(true);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    checkAdminNotif();
+  }, []);
+
+  const handleAdminNotifPermission = async () => {
+    if (Platform.OS === 'android' && Platform.Version >= 33) {
+      try {
+        const { PermissionsAndroid } = require('react-native');
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      } catch (e) {
+        // ignore
+      }
+    }
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.setItem('@focussync:adminPermissionPrompted', 'true');
+    } catch (e) {
+      // ignore
+    }
+    setPermModalVisible(false);
+  };
 
   const handleSendAnnouncement = async () => {
     if (!announcementTitle || !announcementMessage) {
@@ -333,6 +378,16 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Permission Modal Dialog */}
+      <PermissionModal
+        visible={permModalVisible}
+        type="notification"
+        onPrimary={handleAdminNotifPermission}
+        onSecondary={() => setPermModalVisible(false)}
+        onTertiary={() => setPermModalVisible(false)}
+        onDismiss={() => setPermModalVisible(false)}
+      />
     </ScrollView>
   );
 };

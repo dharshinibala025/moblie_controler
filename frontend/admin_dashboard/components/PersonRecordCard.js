@@ -20,17 +20,19 @@ const PersonRecordCard = ({
   department,
   year,
   section,
-  deviceStatus = 'Connected',
+  deviceStatus = 'No Login',
   isBlocked = false,
   onView,
   onEdit,
   onDelete,
   onToggleBlock,
 }) => {
-  const isConnected = deviceStatus === 'Connected';
+  const isBlockedStatus = isBlocked || deviceStatus === 'Blocked' || deviceStatus === 'blocked';
+  const isLoggedIn = !isBlockedStatus && (deviceStatus === 'Logged In' || deviceStatus === 'Connected' || deviceStatus === 'active');
+  const displayStatus = isBlockedStatus ? 'Blocked' : isLoggedIn ? 'Logged In' : 'No Login';
 
   return (
-    <View style={[styles.card, isBlocked && styles.blockedCard]}>
+    <View style={[styles.card, isBlockedStatus && styles.blockedCard]}>
       {/* Top Header Row: Avatar, Info, Status Badge */}
       <View style={styles.topRow}>
         <View style={[styles.avatar, { backgroundColor: colors.secondaryBackground }]}>
@@ -50,22 +52,39 @@ const PersonRecordCard = ({
         <View
           style={[
             styles.statusBadge,
-            isConnected ? styles.statusConnected : styles.statusDisconnected,
+            isBlockedStatus
+              ? styles.statusDisconnected
+              : isLoggedIn
+              ? styles.statusConnected
+              : styles.statusDisconnected,
+            isBlockedStatus && { backgroundColor: '#FEE2E2', borderColor: '#FECACA' },
           ]}
         >
           <View
             style={[
               styles.statusDot,
-              { backgroundColor: isConnected ? colors.success : colors.textMuted },
+              {
+                backgroundColor: isBlockedStatus
+                  ? colors.danger
+                  : isLoggedIn
+                  ? colors.success
+                  : colors.textMuted,
+              },
             ]}
           />
           <Text
             style={[
               styles.statusText,
-              { color: isConnected ? colors.success : colors.textSecondary },
+              {
+                color: isBlockedStatus
+                  ? colors.danger
+                  : isLoggedIn
+                  ? colors.success
+                  : colors.textSecondary,
+              },
             ]}
           >
-            {deviceStatus}
+            {displayStatus}
           </Text>
         </View>
       </View>
