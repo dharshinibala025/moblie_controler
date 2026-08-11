@@ -7,32 +7,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, NativeModules } from 'react-native';
 
-// Dynamically resolve development machine IP when running on a physical device or emulator
-const getDevServerIp = () => {
-  try {
-    const scriptURL = NativeModules.SourceCode?.scriptURL;
-    if (scriptURL) {
-      const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
-      if (match && match[1]) {
-        const ip = match[1];
-        if (ip === 'localhost' || ip === '127.0.0.1') {
-          return Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
-        }
-        return `http://${ip}:5000`;
-      }
-    }
-  } catch (e) {
-    // ignore error
-  }
-  return null;
-};
-
-const devServerIp = getDevServerIp();
-
-// Base URL — 10.0.2.2 for Android Studio Emulator, devServerIp if Metro provided, fallback to 10.62.114.113 / 10.0.2.2
-export const BASE_URL =
-  devServerIp ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000');
+// ─── Cloud Production URL (Render) ───────────────────────────────────────────
+// This is the primary URL used by the production release APK.
+// For local development with emulator, change this to 'http://10.0.2.2:5000'
+export const BASE_URL = 'https://moblie-controler.onrender.com';
 
 
 
