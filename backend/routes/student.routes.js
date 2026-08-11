@@ -258,7 +258,14 @@ router.get("/apps", async (req, res, next) => {
 router.get("/notifications", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
-    const notifications = await Notification.find({ studentId: req.user.userId })
+    const notifications = await Notification.find({
+      $or: [
+        { studentId: req.user.userId },
+        { recipientId: req.user.userId },
+        { recipientRole: "student" },
+        { recipientRole: "all" },
+      ],
+    })
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -272,7 +279,12 @@ router.get("/notifications/unread-count", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
     const unreadCount = await Notification.countDocuments({
-      studentId: req.user.userId,
+      $or: [
+        { studentId: req.user.userId },
+        { recipientId: req.user.userId },
+        { recipientRole: "student" },
+        { recipientRole: "all" },
+      ],
       read: false,
     });
 
@@ -367,6 +379,86 @@ router.post("/blocked-attempt", async (req, res, next) => {
     emitToClass("ALL", "notification:new", { timestamp: new Date() });
 
     res.status(201).json({ success: true, attemptId: attempt._id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/app-unblocked", async (req, res, next) => {
+  try {
+    const { packageName, appName } = req.body;
+    const User = require("../models/User");
+    const StaffAssignment = require("../models/StaffAssignment");
+    const Notification = require("../models/Notification");
+    const { emitToClass } = require("../config/socket");
+
+    const student = await User.findById(req.user.userId);
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    const device = await deviceService.getDeviceByUser(req.user.userId);
+    const modelName = device?.deviceInfo?.deviceModel || device?.deviceInfo?.model || "Student Device";
+    const displayName = student.name;
+    const resolvedAppName = appName || packageName || "Restricted Application";
+
+    // Fetch Admin users
+    const admins = await User.find({ role: "admin" }).select("_id");
+    const adminIds = admins.map((a) => a._id);
+
+    // Fetch assigned Staff users for this class
+    const assignments = await StaffAssignment.find({ classId: student.classId, isActive: true });
+    const staffIds = assignments.map((a) => a.staffId);
+
+    const recipientIds = [...new Set([...adminIds, ...staffIds])];
+
+    const notificationsToCreate = [];
+
+    // Notifications for Admins
+    adminIds.forEach((adminId) => {
+      notificationsToCreate.push({
+        recipientId: adminId,
+        recipientRole: "admin",
+        studentId: student._id,
+        title: "Blocked Application Unblocked",
+        message: `Student ${displayName} (${student.studentId || 'ID'}) unblocked/accessed application (${resolvedAppName}) on device (${modelName}).`,
+        type: "restriction",
+        metadata: {
+          studentId: student._id,
+          packageName,
+          appName: resolvedAppName,
+          unblockedAt: new Date(),
+          target: student.classId || "General",
+        },
+      });
+    });
+
+    // Notifications for Staff
+    staffIds.forEach((staffId) => {
+      notificationsToCreate.push({
+        recipientId: staffId,
+        recipientRole: "staff",
+        studentId: student._id,
+        title: "Blocked Application Unblocked",
+        message: `Student ${displayName} (${student.studentId || 'ID'}) unblocked/accessed application (${resolvedAppName}) on device (${modelName}).`,
+        type: "restriction",
+        metadata: {
+          studentId: student._id,
+          packageName,
+          appName: resolvedAppName,
+          unblockedAt: new Date(),
+          target: student.classId || "General",
+        },
+      });
+    });
+
+    if (notificationsToCreate.length > 0) {
+      await Notification.insertMany(notificationsToCreate);
+    }
+
+    emitToClass("ALL", "notification:new", { timestamp: new Date() });
+
+    res.status(201).json({ success: true, message: "Unblock notification dispatched to Admin and Staff." });
   } catch (err) {
     next(err);
   }

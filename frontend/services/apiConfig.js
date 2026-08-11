@@ -118,10 +118,9 @@ export const apiFetch = async (path, options = {}) => {
   const candidateBases = Array.from(
     new Set([
       ...(cachedWorkingBaseUrl ? [cachedWorkingBaseUrl] : []),
-      'http://localhost:5000',
-      'http://127.0.0.1:5000',
       BASE_URL,
-      'http://10.0.2.2:5000',
+      Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000',
+      'http://127.0.0.1:5000',
     ]),
   );
 

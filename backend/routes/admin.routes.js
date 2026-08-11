@@ -945,21 +945,46 @@ router.get("/dashboard/overview", async (req, res, next) => {
     const recentAudits = await AuditLog.find()
       .populate("actorId", "name role")
       .sort({ createdAt: -1 })
-      .limit(4);
+      .limit(15);
 
+    const Session = require("../models/Session");
     const recentActivities = [];
+    const seenActions = new Set();
+
+    const formatActionTitle = (action) => {
+      if (action.includes("bulk_upload") || action.includes("excel") || action.includes("spreadsheet")) {
+        return "Spreadsheet Uploaded";
+      }
+      if (action.includes("staff.create")) return "Staff Member Added";
+      if (action.includes("student.create")) return "Student Registered";
+      if (action.includes("device.block")) return "Device Restricted";
+      if (action.includes("device.unblock")) return "Device Unblocked";
+      if (action.includes("rule.create")) return "Restriction Policy Created";
+      if (action.includes("rule.pause")) return "Restriction Policy Paused";
+      if (action.includes("rule.start")) return "Restriction Policy Resumed";
+      return action.replace(/\./g, " ").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    };
 
     for (const audit of recentAudits) {
+      const formattedTitle = formatActionTitle(audit.action);
+      // Group repetitive spreadsheet upload actions into a single neat entry
+      if (formattedTitle === "Spreadsheet Uploaded") {
+        if (seenActions.has("Spreadsheet Uploaded")) continue;
+        seenActions.add("Spreadsheet Uploaded");
+      }
+
       const actorName = audit.actorId ? audit.actorId.name : "Admin";
       recentActivities.push({
         id: `aud-${audit._id}`,
-        icon: "how-to-reg",
-        title: audit.action.replace(/\./g, " ").toUpperCase(),
+        icon: formattedTitle === "Spreadsheet Uploaded" ? "description" : "how-to-reg",
+        title: formattedTitle,
         description: `Performed by ${actorName}`,
         time: audit.createdAt ? `${Math.max(1, Math.round((Date.now() - new Date(audit.createdAt).getTime()) / 60000))}m ago` : "Recently",
-        iconColor: "#2563EB",
+        iconColor: formattedTitle === "Spreadsheet Uploaded" ? "#0284C7" : "#2563EB",
         iconBackground: "#EFF6FF",
       });
+
+      if (recentActivities.length >= 5) break;
     }
 
     res.json({
@@ -1005,7 +1030,17 @@ router.get("/dashboard/overview", async (req, res, next) => {
           trendPositive: false,
         },
       ],
-      recentActivities: recentActivities.slice(0, 6),
+      recentActivities: recentActivities.length > 0 ? recentActivities : [
+        {
+          id: "default-1",
+          icon: "how-to-reg",
+          title: "System Active",
+          description: "All enforcement services running normally",
+          time: "Just now",
+          iconColor: "#2563EB",
+          iconBackground: "#EFF6FF",
+        },
+      ],
       usageSummary: {
         sessionsThisWeek: 354,
         periodText: "This week",
@@ -1018,6 +1053,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
 
 router.get("/students", async (req, res, next) => {
   try {
+    const Session = require("../models/Session");
     const students = await User.find({ role: "student" })
       .populate("departmentId", "code name")
       .populate("academicYearId", "name")
@@ -1028,10 +1064,18 @@ router.get("/students", async (req, res, next) => {
     const devices = await Device.find({ userId: { $in: studentIds } });
     const deviceMap = new Map(devices.map((d) => [d.userId.toString(), d]));
 
+    const activeSessions = await Session.find({
+      userId: { $in: studentIds },
+      status: "active",
+      expiresAt: { $gt: new Date() },
+    });
+    const activeUserSet = new Set(activeSessions.map((sess) => sess.userId.toString()));
+
     const formatted = students.map((s) => {
       const dev = deviceMap.get(s._id.toString());
       const isBlocked = dev ? dev.status === "blocked" : false;
-      const deviceStatus = dev ? (dev.status === "blocked" ? "Blocked" : "Connected") : "Not Connected";
+      const isLoggedIn = activeUserSet.has(s._id.toString());
+      const deviceStatus = isBlocked ? "Blocked" : isLoggedIn ? "Logged In" : "No Login";
 
       return {
         id: s._id.toString(),
@@ -1423,7 +1467,13 @@ router.post("/staff/upload", async (req, res, next) => {
 router.get("/notifications", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
-    const notifications = await Notification.find({ studentId: req.user.userId }).sort({ createdAt: -1 });
+    const notifications = await Notification.find({
+      $or: [
+        { recipientRole: "admin" },
+        { recipientRole: "all" },
+        { recipientId: req.user.userId },
+      ],
+    }).sort({ createdAt: -1 }).limit(50);
     
     const formatted = notifications.map((n) => {
       let icon = "campaign";
