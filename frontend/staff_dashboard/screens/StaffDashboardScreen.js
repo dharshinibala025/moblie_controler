@@ -1,81 +1,66 @@
-import React, { useState, useRef } from 'react';
-import { View, StyleSheet, Animated, StatusBar, SafeAreaView } from 'react-native';
-import StaffHomeScreen from './StaffHomeScreen';
-import StaffNotificationsScreen from './StaffNotificationsScreen';
-import StaffProfileScreen from './StaffProfileScreen';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import StaffDashboardTab from './StaffDashboardTab';
+import StaffDevicesTab from './StaffDevicesTab';
+import StaffStudentsTab from './StaffStudentsTab';
+import StaffSettingsTab from './StaffSettingsTab';
+import NotificationsScreen from '../../admin_dashboard/screens/NotificationsScreen';
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
+import { getStoredUser } from '../../services/apiConfig';
+import syncService from '../../services/syncService';
 
 export const StaffDashboardScreen = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState('home'); // 'home' | 'notifications' | 'profile'
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [staffInfo, setStaffInfo] = useState(null);
 
-  const handleTabChange = (newTab) => {
-    if (newTab === activeTab) return;
-
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    setActiveTab(newTab);
-  };
+  useEffect(() => {
+    const loadStaffInfo = async () => {
+      try {
+        const user = await getStoredUser();
+        if (user) {
+          setStaffInfo(user);
+        }
+        syncService.requestAllPermissions().catch(() => null);
+      } catch (err) {
+        console.warn('FocusSync: Failed to load staff details:', err);
+      }
+    };
+    loadStaffInfo();
+  }, []);
 
   const renderActiveScreen = () => {
     switch (activeTab) {
-      case 'home':
-        return (
-          <StaffHomeScreen
-            onNavigateTab={handleTabChange}
-          />
-        );
+      case 'dashboard':
+        return <StaffDashboardTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
+      case 'devices':
+        return <StaffDevicesTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
+      case 'students':
+        return <StaffStudentsTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
       case 'notifications':
-        return <StaffNotificationsScreen />;
-      case 'profile':
-        return (
-          <StaffProfileScreen
-            onLogout={onLogout}
-          />
-        );
+        return <NotificationsScreen onBack={() => setActiveTab('dashboard')} />;
+      case 'settings':
+        return <StaffSettingsTab staffInfo={staffInfo} onLogout={onLogout} />;
       default:
-        return (
-          <StaffHomeScreen
-            onNavigateTab={handleTabChange}
-          />
-        );
+        return <StaffDashboardTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      <View style={styles.container}>
-        <Animated.View style={[styles.screenContainer, { opacity: fadeAnim }]}>
-          {renderActiveScreen()}
-        </Animated.View>
-
-        <StaffBottomNavBar activeTab={activeTab} onSelectTab={handleTabChange} />
+      <View style={styles.screenContainer}>
+        {renderActiveScreen()}
       </View>
+      <StaffBottomNavBar activeTab={activeTab} onSelectTab={setActiveTab} />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
   },
   screenContainer: {
     flex: 1,

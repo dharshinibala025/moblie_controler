@@ -6,12 +6,41 @@ import LoginScreen from './frontend/login/screens/LoginScreen';
 import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswordScreen';
 import StudentDashboardScreen from './frontend/student_dashboard/screens/StudentDashboardScreen';
 import StaffDashboardScreen from './frontend/staff_dashboard/screens/StaffDashboardScreen';
+import AdminPanel from './frontend/admin_dashboard/AdminPanel';
 
-type Screen = 'welcome' | 'login' | 'set_password' | 'dashboard' | 'staff_dashboard';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
-  const [userRole, setUserRole] = useState<'student' | 'staff' | 'admin'>('student');
+  const [currentScreen, setCurrentScreen] = useState('welcome');
+  const [userRole, setUserRole] = useState('student');
+  const [tempToken, setTempToken] = useState('');
+
+  const handleLogout = () => {
+    setUserRole('student');
+    setCurrentScreen('login');
+  };
+
+  const handleLoginSuccess = (user: any) => {
+    if (user?.mustChangePassword) {
+      setTempToken(user?.accessToken || user?.tempToken || '');
+      setCurrentScreen('set_password');
+      return;
+    }
+    const role = typeof user === 'string' ? user : (user?.role || 'student');
+    setUserRole(role);
+    setCurrentScreen('dashboard');
+  };
+
+  const renderDashboard = () => {
+    switch (userRole) {
+      case 'staff':
+        return <StaffDashboardScreen onLogout={handleLogout} />;
+      case 'admin':
+        return <AdminPanel onLogout={handleLogout} />;
+      case 'student':
+      default:
+        return <StudentDashboardScreen onLogout={handleLogout} />;
+    }
+  };
 
   return (
     <SafeAreaProvider>
@@ -26,31 +55,16 @@ function App() {
         {currentScreen === 'login' && (
           <LoginScreen
             onBack={() => setCurrentScreen('welcome')}
-            onLoginSuccess={(data: any) => {
-              if (data && data.role) {
-                setUserRole(data.role);
-              }
-              setCurrentScreen('set_password');
-            }}
+            onLoginSuccess={handleLoginSuccess}
           />
         )}
         {currentScreen === 'set_password' && (
           <SetNewPasswordScreen
-            onPasswordUpdated={() => {
-              if (userRole === 'staff') {
-                setCurrentScreen('staff_dashboard');
-              } else {
-                setCurrentScreen('dashboard');
-              }
-            }}
+            tempToken={tempToken}
+            onPasswordUpdated={() => setCurrentScreen('login')}
           />
         )}
-        {currentScreen === 'dashboard' && (
-          <StudentDashboardScreen onLogout={() => setCurrentScreen('login')} />
-        )}
-        {currentScreen === 'staff_dashboard' && (
-          <StaffDashboardScreen onLogout={() => setCurrentScreen('login')} />
-        )}
+        {currentScreen === 'dashboard' && renderDashboard()}
       </View>
     </SafeAreaProvider>
   );

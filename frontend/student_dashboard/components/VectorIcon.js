@@ -107,6 +107,11 @@ const MCI_NAME_MAP = {
   'card-account-details-outline': 'card-account-details-outline',
   'student-id': 'card-account-details-outline',
   'location-on': 'map-marker',
+  'account-outline': 'account-outline',
+  'email-outline': 'email-outline',
+  'school-outline': 'school-outline',
+  'account-group-outline': 'account-group-outline',
+  'check-decagram': 'check-decagram',
 };
 
 /**

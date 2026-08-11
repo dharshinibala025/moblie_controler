@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Image,
   FlatList,
   Modal,
   Platform,
@@ -14,15 +13,18 @@ import {
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import staffMockData from '../data/staffMockData';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
-export const StaffHomeScreen = ({ onNavigateTab }) => {
+const STATUSBAR_OFFSET = 12;
+
+export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
+  const staffInfo = propStaffInfo || { name: '', department: '' };
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'blocked' | 'offline'
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentTime, setCurrentTime] = useState('');
+  const [liveStudents, setLiveStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Clock Update
   useEffect(() => {
@@ -57,39 +59,95 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const staffInfo = staffMockData.staff;
+  useEffect(() => {
+    const fetchLiveStatus = async (showLoading = true) => {
+      const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+      if (!classIdToQuery) return;
+      if (showLoading) setLoading(true);
+      try {
+        const staffService = require('../../services/staffService').default;
+        const data = await staffService.fetchClassLiveStatus(classIdToQuery);
+        if (data && data.students) {
+          const mapped = data.students.map((student) => ({
+            id: student.studentId || student._id,
+            name: student.name,
+            rollNo: student.rollNo,
+            email: student.email,
+            status: student.deviceStatus === 'blocked' ? 'blocked' : student.deviceStatus === 'offline' ? 'offline' : 'active',
+            device: student.deviceModel || 'Android Device',
+            screenTime: student.screenTime || 'Active',
+            attempts: student.attempts || 0,
+          }));
+          setLiveStudents(mapped);
+        }
+      } catch (e) {
+        console.warn('FocusSync: Failed to fetch student supervision data:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Map mentor class (e.g., 'III CSE - A') to internal mock section key (e.g., '3rd Year - A')
-  const classMapping = {
-    'III CSE - A': '3rd Year - A',
-    'III CSE - B': '3rd Year - B',
-    'III CSE - C': '3rd Year - C',
-    'II CSE - A': '2nd Year - A',
-    'II CSE - B': '2nd Year - B',
-    'II CSE - C': '2nd Year - C',
-    'IV CSE - A': 'Final Year - A',
-    'IV CSE - B': 'Final Year - B',
-    'IV CSE - C': 'Final Year - C',
+    fetchLiveStatus(true);
+    const interval = setInterval(() => fetchLiveStatus(false), 10000);
+    return () => clearInterval(interval);
+  }, [staffInfo]);
+
+  const mentorClass = staffInfo.assignedClass || staffInfo.classId || '';
+
+  // Helper to format assigned class name (e.g. "III CSE - A" -> "3rd Year CSE - Section A")
+  const formatClassDisplay = (assignedClass) => {
+    if (!assignedClass) return 'No Class Assigned';
+
+    // Handle new format: e.g. "CSE-2-D"
+    if (assignedClass.includes('-') && !assignedClass.includes(' - ')) {
+      const parts = assignedClass.split('-');
+      if (parts.length === 3) {
+        const dept = parts[0];
+        const yearVal = parts[1];
+        const section = parts[2];
+
+        let yearText = `${yearVal}th Year`;
+        if (yearVal === '1') yearText = '1st Year';
+        else if (yearVal === '2') yearText = '2nd Year';
+        else if (yearVal === '3') yearText = '3rd Year';
+        else if (yearVal === '4') yearText = '4th Year';
+
+        return `${yearText} ${dept} - Section ${section}`;
+      }
+    }
+
+    // Handle old format: e.g. "III CSE - A"
+    const parts = assignedClass.split(' - ');
+    const classPart = parts[0]; // e.g. "III CSE"
+    const section = parts[1] || ''; // e.g. "A"
+
+    let yearText = '';
+    if (classPart.startsWith('III')) {
+      yearText = '3rd Year';
+    } else if (classPart.startsWith('II')) {
+      yearText = '2nd Year';
+    } else if (classPart.startsWith('IV')) {
+      yearText = '4th Year';
+    } else if (classPart.startsWith('I')) {
+      yearText = '1st Year';
+    } else {
+      yearText = classPart;
+    }
+
+    const deptPart = classPart.replace(/^[IVX\s]+/, '').trim(); // Remove Roman numerals
+
+    return `${yearText} ${deptPart}${section ? ` - Section ${section}` : ''}`;
   };
 
-  const mentorClass = staffInfo.assignedClass; // Obtained dynamically from logged-in staff info
-  const targetSectionKey = mentorClass ? (classMapping[mentorClass] || mentorClass) : null;
-  const sectionStudents = targetSectionKey ? (staffMockData.sections[targetSectionKey] || []) : [];
-
-  // Dynamically calculate stats for the mentor's class
-  const totalStudents = sectionStudents.length;
-  const activeStudents = sectionStudents.filter((s) => s.status === 'active').length;
-  const blockedStudents = sectionStudents.filter((s) => s.status === 'blocked').length;
-  const warningCount = sectionStudents.reduce((sum, s) => sum + (s.attempts || 0), 0);
-
   // Filter students based on search and status filter
-  const filteredStudents = sectionStudents.filter((student) => {
-    const matchesSearch =
-      student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.rollNo.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredStudents = liveStudents.filter((student) => {
+    const name = String(student.name || '').toLowerCase();
+    const rollNo = String(student.rollNo || '').toLowerCase();
+    const query = searchQuery.toLowerCase();
 
+    const matchesSearch = !query || name.includes(query) || rollNo.includes(query);
     const matchesStatus =
-      statusFilter === 'all' || student.status === statusFilter;
+      statusFilter === 'all' || student.status === statusFilter || student.deviceStatus === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
@@ -98,15 +156,15 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
     switch (status) {
       case 'active':
         return {
-          bg: colors.activeLight || '#DCFCE7',
-          text: colors.active || '#16A34A',
+          bg: '#DCFCE7',
+          text: '#16A34A',
           border: '#BBF7D0',
           icon: 'check-circle-outline',
         };
       case 'blocked':
         return {
-          bg: colors.blockedLight || '#FEE2E2',
-          text: colors.blocked || '#DC2626',
+          bg: '#FEE2E2',
+          text: '#DC2626',
           border: '#FECACA',
           icon: 'cellphone-off',
         };
@@ -128,7 +186,7 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => setSelectedStudent(item)}
-        style={styles.studentCard}
+        style={styles.studentRow}
       >
         <View style={styles.studentHeader}>
           <View style={styles.studentInfoCol}>
@@ -165,7 +223,7 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
 
         {item.status === 'blocked' && item.attempts > 0 && (
           <View style={styles.attemptsWarningRow}>
-            <VectorIcon name="alert-circle" size={14} color={colors.blocked} />
+            <VectorIcon name="alert-circle" size={14} color="#DC2626" />
             <Text style={styles.attemptsWarningText}>
               {item.attempts} attempts to open restricted apps today
             </Text>
@@ -177,93 +235,15 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
 
   return (
     <View style={styles.container}>
-      {/* Dynamic Top Bar */}
-      <View style={styles.topBar}>
-        <View>
-          <Text style={styles.clockText}>{currentTime || 'Mon, Jul 27, 2026 | 05:30:12 AM'}</Text>
-        </View>
-        <View style={styles.topBarActions}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => onNavigateTab('notifications')}
-          >
-            <VectorIcon name="bell" size={22} color="#475569" />
-            <View style={styles.bellDot} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileIndicator}
-            onPress={() => onNavigateTab('profile')}
-          >
-            <Image source={{ uri: staffInfo.avatar }} style={styles.profileIndicatorImage} />
-            <Text style={styles.profileIndicatorText}>Staff</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Page Header (White background, flat text) */}
+      <View style={styles.subHeader}>
+        <Text style={styles.titleText}>Student Supervision</Text>
+        <Text style={styles.subtitleText}>
+          Real-time status updates and app access attempts for your class ({formatClassDisplay(mentorClass)}).
+        </Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Welcome Dashboard Banner Card */}
-        <View style={styles.welcomeBanner}>
-          <View style={styles.welcomeInfo}>
-            <Text style={styles.welcomeLabel}>WELCOME BACK,</Text>
-            <Text style={styles.staffNameText}>{staffInfo.name}</Text>
-            <View style={styles.mentorClassBadge}>
-              <VectorIcon name="school" size={14} color={colors.primaryDark} />
-              <Text style={styles.mentorClassBadgeText}>
-                Class Mentor - {mentorClass || 'Not Assigned'}
-              </Text>
-            </View>
-            <Text style={styles.staffMetaText}>
-              ID: {staffInfo.id}  •  Dept: {staffInfo.department}
-            </Text>
-          </View>
-          <View style={styles.datePill}>
-            <VectorIcon name="calendar" size={14} color={colors.primary} />
-            <Text style={styles.datePillText}>Monday, July 27, 2026</Text>
-          </View>
-        </View>
-
-        {/* Stats Grid */}
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { borderLeftColor: colors.primary }]}>
-            <View style={styles.statIconContainer}>
-              <VectorIcon name="school" size={20} color={colors.primary} />
-            </View>
-            <View>
-              <Text style={styles.statValue}>{totalStudents}</Text>
-              <Text style={styles.statLabel}>Total Students</Text>
-            </View>
-          </View>
-
-          <View style={[styles.statCard, { borderLeftColor: colors.active }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: colors.activeLight }]}>
-              <VectorIcon name="cellphone" size={20} color={colors.active} />
-            </View>
-            <View>
-              <Text style={styles.statValue}>{activeStudents}</Text>
-              <Text style={styles.statLabel}>Active Students</Text>
-            </View>
-          </View>
-
-          <View style={[styles.statCard, { borderLeftColor: colors.blocked }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: colors.blockedLight }]}>
-              <VectorIcon name="cellphone-off" size={20} color={colors.blocked} />
-            </View>
-            <View>
-              <Text style={styles.statValue}>{blockedStudents}</Text>
-              <Text style={styles.statLabel}>Blocked Students</Text>
-            </View>
-          </View>
-
-          <View style={[styles.statCard, { borderLeftColor: '#F59E0B' }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
-              <VectorIcon name="alert-circle" size={20} color="#F59E0B" />
-            </View>
-            <View>
-              <Text style={styles.statValue}>{warningCount}</Text>
-              <Text style={styles.statLabel}>Warning Count</Text>
-            </View>
-          </View>
-        </View>
 
         {/* Student Mobile Status list */}
         <View style={styles.listContainer}>
@@ -276,13 +256,11 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
             )}
           </View>
 
-          {sectionStudents.length === 0 ? (
+          {liveStudents.length === 0 ? (
             <View style={styles.emptyContainer}>
               <VectorIcon name="cellphone-off" size={48} color="#94A3B8" />
               <Text style={styles.emptyTitleText}>No Assigned Students</Text>
-              <Text style={styles.emptySubtitleText}>
-                No students are assigned to your class.
-              </Text>
+              <Text style={styles.emptySubtitleText}>No students are assigned to your class.</Text>
             </View>
           ) : (
             <>
@@ -310,7 +288,7 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
                   style={[styles.filterBadge, statusFilter === 'all' && styles.filterBadgeActive]}
                 >
                   <Text style={[styles.filterBadgeText, statusFilter === 'all' && styles.filterBadgeTextActive]}>
-                    My Class Students ({sectionStudents.length})
+                    All ({liveStudents.length})
                   </Text>
                 </TouchableOpacity>
 
@@ -318,16 +296,16 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
                   onPress={() => setStatusFilter('active')}
                   style={[
                     styles.filterBadge,
-                    statusFilter === 'active' && [styles.filterBadgeActive, { backgroundColor: colors.activeLight, borderColor: '#BBF7D0' }],
+                    statusFilter === 'active' && [styles.filterBadgeActive, { backgroundColor: '#DCFCE7', borderColor: '#BBF7D0' }],
                   ]}
                 >
                   <Text
                     style={[
                       styles.filterBadgeText,
-                      statusFilter === 'active' && { color: colors.active, fontWeight: '700' },
+                      statusFilter === 'active' && { color: '#16A34A', fontWeight: '700' },
                     ]}
                   >
-                    Active ({sectionStudents.filter(s => s.status === 'active').length})
+                    Active ({liveStudents.filter((s) => s.status === 'active' || s.deviceStatus === 'active').length})
                   </Text>
                 </TouchableOpacity>
 
@@ -335,16 +313,16 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
                   onPress={() => setStatusFilter('blocked')}
                   style={[
                     styles.filterBadge,
-                    statusFilter === 'blocked' && [styles.filterBadgeActive, { backgroundColor: colors.blockedLight, borderColor: '#FECACA' }],
+                    statusFilter === 'blocked' && [styles.filterBadgeActive, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }],
                   ]}
                 >
                   <Text
                     style={[
                       styles.filterBadgeText,
-                      statusFilter === 'blocked' && { color: colors.blocked, fontWeight: '700' },
+                      statusFilter === 'blocked' && { color: '#DC2626', fontWeight: '700' },
                     ]}
                   >
-                    Blocked ({sectionStudents.filter(s => s.status === 'blocked').length})
+                    Blocked ({liveStudents.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length})
                   </Text>
                 </TouchableOpacity>
 
@@ -361,7 +339,7 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
                       statusFilter === 'offline' && { color: '#475569', fontWeight: '700' },
                     ]}
                   >
-                    Offline ({sectionStudents.filter(s => s.status === 'offline').length})
+                    Offline ({liveStudents.filter((s) => s.status === 'offline' || s.deviceStatus === 'offline').length})
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -381,7 +359,7 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
                   renderItem={renderStudentItem}
                   keyExtractor={(item) => item.id}
                   scrollEnabled={false}
-                  ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+                  ItemSeparatorComponent={() => <View style={styles.separatorLine} />}
                 />
               )}
             </>
@@ -414,7 +392,7 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
                 <View style={styles.modalIdentityRow}>
                   <View style={styles.modalAvatarPlaceholder}>
                     <Text style={styles.modalAvatarText}>
-                      {selectedStudent.name.split(' ').map(n => n[0]).join('')}
+                      {selectedStudent.name.split(' ').map((n) => n[0]).join('')}
                     </Text>
                   </View>
                   <View>
@@ -460,7 +438,7 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
                     <Text
                       style={[
                         styles.modalDetailVal,
-                        selectedStudent.attempts > 0 && { color: colors.blocked, fontWeight: '700' },
+                        selectedStudent.attempts > 0 && { color: '#DC2626', fontWeight: '700' },
                       ]}
                     >
                       {selectedStudent.attempts} blocks today
@@ -480,22 +458,22 @@ export const StaffHomeScreen = ({ onNavigateTab }) => {
                   <View style={styles.appBreakdownItem}>
                     <VectorIcon name="instagram" size={16} color="#64748B" />
                     <Text style={styles.appName}>Social Media (Instagram, Facebook)</Text>
-                    <Text style={[styles.appStatusLabel, { color: colors.blocked }]}>Blocked</Text>
+                    <Text style={[styles.appStatusLabel, { color: '#DC2626' }]}>Blocked</Text>
                   </View>
                   <View style={styles.appBreakdownItem}>
                     <VectorIcon name="whatsapp" size={16} color="#64748B" />
                     <Text style={styles.appName}>Messaging (WhatsApp, Telegram)</Text>
-                    <Text style={[styles.appStatusLabel, { color: colors.blocked }]}>Blocked</Text>
+                    <Text style={[styles.appStatusLabel, { color: '#DC2626' }]}>Blocked</Text>
                   </View>
                   <View style={styles.appBreakdownItem}>
                     <VectorIcon name="gamepad" size={16} color="#64748B" />
                     <Text style={styles.appName}>Gaming Apps (Free Fire, PUBG)</Text>
-                    <Text style={[styles.appStatusLabel, { color: colors.blocked }]}>Blocked</Text>
+                    <Text style={[styles.appStatusLabel, { color: '#DC2626' }]}>Blocked</Text>
                   </View>
                   <View style={styles.appBreakdownItem}>
                     <VectorIcon name="book" size={16} color="#64748B" />
                     <Text style={styles.appName}>Educational & College Apps</Text>
-                    <Text style={[styles.appStatusLabel, { color: colors.active }]}>Allowed</Text>
+                    <Text style={[styles.appStatusLabel, { color: '#16A34A' }]}>Allowed</Text>
                   </View>
                 </View>
               </View>
@@ -538,156 +516,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#94A3B8',
   },
-  topBarActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#1E293B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  bellDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#1E293B',
-  },
-  profileIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E293B',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 20,
-    gap: 6,
-  },
-  profileIndicatorImage: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#475569',
-  },
-  profileIndicatorText: {
-    fontSize: 11,
-    fontWeight: '700',
+  topBarTitle: {
+    fontSize: 12,
+    fontWeight: '800',
     color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  welcomeBanner: {
+  subHeader: {
+    paddingHorizontal: 20,
+    paddingTop: STATUSBAR_OFFSET,
+    paddingBottom: 14,
     backgroundColor: '#FFFFFF',
-    margin: 16,
-    borderRadius: borderRadius.card,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    ...shadows.card,
+    borderBottomWidth: 0,
+    marginBottom: 12,
   },
-  welcomeInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  welcomeLabel: {
-    fontSize: 10,
+  titleText: {
+    fontSize: 20,
     fontWeight: '800',
+    color: '#0F172A',
+  },
+  subtitleText: {
+    fontSize: 12,
+    fontWeight: '500',
     color: '#64748B',
-    letterSpacing: 1,
-  },
-  staffNameText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginTop: 2,
-  },
-  mentorClassBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    gap: 5,
-  },
-  mentorClassBadgeText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primaryDark,
-  },
-  staffMetaText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginTop: 6,
-  },
-  datePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    gap: 4,
-  },
-  datePillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primaryDark,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 8,
-    marginBottom: 16,
-  },
-  statCard: {
-    width: '45%',
-    flexGrow: 1,
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 8,
-    marginVertical: 6,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderLeftWidth: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...shadows.soft,
-  },
-  statIconContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginTop: 1,
+    lineHeight: 18,
+    marginTop: 4,
   },
   listContainer: {
     backgroundColor: '#FFFFFF',
@@ -696,7 +550,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    ...shadows.card,
   },
   listHeaderRow: {
     flexDirection: 'row',
@@ -707,12 +560,12 @@ const styles = StyleSheet.create({
   listTitleText: {
     fontSize: 16,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: '#0F172A',
   },
   listCountText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.textMuted,
+    color: '#94A3B8',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -729,7 +582,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '600',
-    color: colors.textPrimary,
+    color: '#0F172A',
     marginLeft: 8,
     paddingVertical: 0,
   },
@@ -760,32 +613,13 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '700',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 16,
-  },
-  emptyTitleText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#475569',
-    marginTop: 10,
-  },
-  emptySubtitleText: {
-    fontSize: 12,
-    color: '#94A3B8',
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  studentCard: {
+  studentRow: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    borderRadius: 12,
-    padding: 12,
-    ...shadows.soft,
+    paddingVertical: 12,
+  },
+  separatorLine: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
   },
   studentHeader: {
     flexDirection: 'row',
@@ -799,12 +633,12 @@ const styles = StyleSheet.create({
   studentNameText: {
     fontSize: 14,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: '#0F172A',
   },
   studentRollText: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.textMuted,
+    color: '#94A3B8',
     marginTop: 1,
   },
   statusBadge: {
@@ -852,7 +686,7 @@ const styles = StyleSheet.create({
   attemptsWarningText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#E11D48',
+    color: '#EF4444',
   },
   modalOverlay: {
     flex: 1,
@@ -880,7 +714,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: '#0F172A',
   },
   modalCloseButton: {
     padding: 4,
@@ -910,12 +744,12 @@ const styles = StyleSheet.create({
   modalStudentName: {
     fontSize: 15,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: '#0F172A',
   },
   modalStudentRoll: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.textMuted,
+    color: '#94A3B8',
   },
   modalDetailCard: {
     backgroundColor: '#F8FAFC',
@@ -939,7 +773,7 @@ const styles = StyleSheet.create({
   modalDetailVal: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: '#0F172A',
   },
   modalStatusPill: {
     paddingVertical: 3,
@@ -970,7 +804,7 @@ const styles = StyleSheet.create({
   appStatusTitle: {
     fontSize: 12,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: '#0F172A',
     marginBottom: 8,
   },
   appBreakdownList: {
@@ -1009,6 +843,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 16,
+  },
+  emptyTitleText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#475569',
+    marginTop: 10,
+  },
+  emptySubtitleText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 18,
+  },
 });
 
-export default StaffHomeScreen;
+export default StaffStudentsTab;

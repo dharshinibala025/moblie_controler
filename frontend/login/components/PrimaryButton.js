@@ -4,17 +4,22 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
-  View,
 } from 'react-native';
-import colors from '../styles/colors';
-import typography from '../styles/typography';
 
+/**
+ * Enterprise Primary Button
+ * - Full width
+ * - Height: 56px
+ * - Border Radius: 14px
+ * - Solid Primary Blue #2563EB (No gradient)
+ * - Smooth press spring animation
+ */
 export const PrimaryButton = ({ title, onPress, loading = false, disabled = false }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
-      toValue: 0.96,
+      toValue: 0.97,
       useNativeDriver: true,
       speed: 30,
       bounciness: 4,
@@ -38,7 +43,7 @@ export const PrimaryButton = ({ title, onPress, loading = false, disabled = fals
       ]}
     >
       <TouchableOpacity
-        activeOpacity={0.9}
+        activeOpacity={0.88}
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -48,11 +53,7 @@ export const PrimaryButton = ({ title, onPress, loading = false, disabled = fals
           disabled && styles.buttonDisabled,
         ]}
       >
-        {/* Layered Gradient Background Accent */}
-        <View style={styles.gradientOverlay} />
-        <View style={styles.gradientShine} />
-
-        <Text style={typography.buttonText}>
+        <Text style={styles.buttonText}>
           {loading ? 'Signing In...' : title}
         </Text>
       </TouchableOpacity>
@@ -67,37 +68,18 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 56,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
+    borderRadius: 14,
+    backgroundColor: '#2563EB', // Primary Blue
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
   },
-  gradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.secondary,
-    opacity: 0.25,
-  },
-  gradientShine: {
-    position: 'absolute',
-    top: -20,
-    right: -20,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#FFFFFF',
-    opacity: 0.15,
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   buttonDisabled: {
-    backgroundColor: colors.textMuted,
-    shadowOpacity: 0,
-    elevation: 0,
+    backgroundColor: '#94A3B8',
   },
 });
 

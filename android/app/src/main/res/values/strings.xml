@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Mobile_Controller</string>
+    <string name="accessibility_service_description">Smart Classroom Restriction Enforcement Service</string>
 </resources>
