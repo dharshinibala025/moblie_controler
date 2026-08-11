@@ -15,31 +15,9 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    // Automatically configure ADB port forwarding for USB-connected physical Android devices on boot
-    const { exec } = require("child_process");
-    exec("adb reverse tcp:5000 tcp:5000", (err) => {
-      if (err) {
-        logger.info("ADB reverse notice: Physical device not connected or ADB not found.");
-      } else {
-        logger.info("Successfully configured ADB port reverse: tcp:5000 -> tcp:5000");
-      }
-    });
-
-    await connectDB();
-
-    initializeFirebase();
-
-    await institutionService.ensureAdminExists();
-
     const httpServer = http.createServer(app);
 
     initializeSocket(httpServer);
-
-    setupDeviceGateway();
-
-    startScheduler();
-
-    emailQueueWorker.start(10000);
 
     httpServer.on("error", (err) => {
       if (err.code === "EADDRINUSE") {
@@ -49,13 +27,33 @@ const startServer = async () => {
       }
     });
 
-    httpServer.listen(PORT, "0.0.0.0", () => {
+    httpServer.listen(PORT, "0.0.0.0", async () => {
       logger.info(`Server running on http://0.0.0.0:${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
+
+      try {
+        await connectDB();
+        initializeFirebase();
+        await institutionService.ensureAdminExists();
+        setupDeviceGateway();
+        startScheduler();
+        emailQueueWorker.start(10000);
+      } catch (err) {
+        logger.error(`Background service init notice: ${err.message}`);
+      }
+    });
+
+    // Automatically configure ADB port forwarding for USB-connected physical Android devices on boot
+    const { exec } = require("child_process");
+    exec("adb reverse tcp:5000 tcp:5000", (err) => {
+      if (err) {
+        logger.info("ADB reverse notice: Physical device not connected or ADB not found.");
+      } else {
+        logger.info("Successfully configured ADB port reverse: tcp:5000 -> tcp:5000");
+      }
     });
   } catch (err) {
     logger.error(`Failed to start server: ${err.message}`);
-    process.exit(1);
   }
 };
 
