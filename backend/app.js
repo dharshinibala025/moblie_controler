@@ -52,34 +52,6 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// ─── TEMP: Admin unlock & password reset (remove after use) ──────────────────
-app.post("/internal/reset-admin", async (req, res) => {
-  const { secret, newPassword, targetEmail, targetRole } = req.body;
-  if (secret !== "FOCUSSYNC_RESET_8842") {
-    return res.status(403).json({ error: "Forbidden" });
-  }
-  try {
-    const User = require("./models/User");
-    let query = targetEmail
-      ? { email: targetEmail }
-      : { email: "admin@ksrce.ac.in", role: "admin" };
-
-    const user = await User.findOne(query);
-    if (!user) return res.status(404).json({ error: "User not found", query });
-    user.password = newPassword || "Admin@KSRCE2026";
-    user.failedLoginAttempts = 0;
-    user.lockedUntil = null;
-    user.mustChangePassword = false;
-    user.hasSetPassword = true;
-    user.hasAcceptedTerms = true;
-    await user.save();
-    res.json({ success: true, message: `Password reset for ${user.email} (${user.role}). New password: ${newPassword || "Admin@KSRCE2026"}` });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-// ─── END TEMP ─────────────────────────────────────────────────────────────────
-
 app.use("/auth", authRoutes);
 app.use("/admin", userLimiter, adminRoutes);
 app.use("/staff", userLimiter, staffRoutes);
