@@ -34,6 +34,20 @@ app.use(morgan("combined", {
 
 app.use(generalLimiter);
 
+const path = require("path");
+
+app.use("/download", express.static(path.join(__dirname, "public/download")));
+
+app.get("/", (req, res) => {
+  res.json({
+    status: "online",
+    message: "Smart Classroom Mobile Usage Control System API Server is running.",
+    healthCheck: "/health",
+    apkDownload: "/download/app-release.apk",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
