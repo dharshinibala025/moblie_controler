@@ -76,7 +76,7 @@ export const apiFetch = async (path, options = {}) => {
     ...(options.headers || {}),
   };
 
-  const timeoutMs = options.timeout || 30000;
+  const timeoutMs = options.timeout || 45000;
 
   const fetchWithTimeout = (url, opts, limitMs) => {
     return new Promise((resolve, reject) => {
@@ -97,19 +97,14 @@ export const apiFetch = async (path, options = {}) => {
     new Set([
       ...(cachedWorkingBaseUrl ? [cachedWorkingBaseUrl] : []),
       BASE_URL,
-      Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000',
-      'http://127.0.0.1:5000',
     ]),
   );
 
   let response = null;
   let lastError = null;
 
-  const isLargePayload = options.body && options.body.length > 50000;
   for (let i = 0; i < candidateBases.length; i++) {
     const candidateBase = candidateBases[i];
-    // Use fast 3000ms timeout unless it is a large payload upload
-    const perAttemptTimeout = isLargePayload ? timeoutMs : Math.min(timeoutMs, 3000);
 
     try {
       response = await fetchWithTimeout(
@@ -118,7 +113,7 @@ export const apiFetch = async (path, options = {}) => {
           ...options,
           headers,
         },
-        perAttemptTimeout,
+        timeoutMs,
       );
 
       if (response && response.status !== 503) {
@@ -135,7 +130,7 @@ export const apiFetch = async (path, options = {}) => {
 
   if (!response) {
     const err = new Error(
-      'Server Connection Failed. Please ensure the backend server is running on port 5000.',
+      'Cloud Server Connection Failed. Please check your internet connection or try again in a few seconds while the server wakes up.',
     );
     err.status = 503;
     throw err;
