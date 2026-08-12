@@ -32,85 +32,108 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const [progress, setProgress] = useState(0.5);
   const [permissions, setPermissions] = useState({ accessibilityEnabled: false, overlayEnabled: false });
 
-  // Custom Permission Modal State — pops up on first prompt only
+  // Custom Permission Modal State — one-by-one, no double popups
   const [permModalVisible, setPermModalVisible] = useState(false);
-  const [permStep, setPermStep] = useState('notification'); // 'notification' | 'accessibility' | 'overlay'
+  const [permStep, setPermStep] = useState('accessibility'); // 'accessibility' | 'overlay'
+  // Guard: prevent re-showing permission flow when returning from Settings
+  const permFlowRunning = useRef(false);
+  const permFlowDone = useRef(false);
 
   const markPermissionPrompted = async () => {
     try {
       await AsyncStorage.setItem('@focussync:permissionPrompted', 'true');
+      permFlowDone.current = true;
+    } catch (e) { /* ignore */ }
+  };
+
+  const runPermissionFlow = async () => {
+    if (permFlowRunning.current || permFlowDone.current) return;
+    permFlowRunning.current = true;
+    try {
+      const alreadyDone = await AsyncStorage.getItem('@focussync:permissionPrompted');
+      if (alreadyDone === 'true') {
+        permFlowDone.current = true;
+        permFlowRunning.current = false;
+        return;
+      }
+
+      // STEP 1: Notification — fire native Android OS popup directly (NO custom modal)
+      // This prevents the double-popup bug where both our modal and system dialog appear.
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        try {
+          const { PermissionsAndroid } = require('react-native');
+          const hasNotif = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+          if (!hasNotif) {
+            // Show only the single native Android popup — no custom modal
+            await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+            // Wait 600ms for the native dialog to fully close before next step
+            await new Promise(resolve => setTimeout(resolve, 600));
+          }
+        } catch (e) {
+          console.warn('POST_NOTIFICATIONS request notice:', e.message);
+        }
+      }
+
+      // STEP 2: Accessibility — show custom modal (no native popup exists for this)
+      const res = await syncService.checkPermissions();
+      setPermissions(res);
+      if (!res.accessibilityEnabled) {
+        setPermStep('accessibility');
+        setPermModalVisible(true);
+        permFlowRunning.current = false;
+        return;
+      }
+
+      // STEP 3: Overlay — show custom modal (no native popup exists for this)
+      if (!res.overlayEnabled) {
+        setPermStep('overlay');
+        setPermModalVisible(true);
+        permFlowRunning.current = false;
+        return;
+      }
+
+      // All granted — mark done
+      await markPermissionPrompted();
     } catch (e) {
-      // ignore
+      console.warn('Permission flow notice:', e.message);
     }
+    permFlowRunning.current = false;
   };
 
   const loadPermissions = async () => {
     try {
       const res = await syncService.checkPermissions();
       setPermissions(res);
-
-      const alreadyPrompted = await AsyncStorage.getItem('@focussync:permissionPrompted');
-      if (alreadyPrompted === 'true') {
-        setPermModalVisible(false);
-        return;
-      }
-
-      // Check if any permission needs prompting
-      if (Platform.OS === 'android' && Platform.Version >= 33) {
-        const { PermissionsAndroid } = require('react-native');
-        const hasNotif = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-        if (!hasNotif) {
-          setPermStep('notification');
-          setPermModalVisible(true);
-          return;
-        }
-      }
-
-      if (!res.accessibilityEnabled) {
-        setPermStep('accessibility');
-        setPermModalVisible(true);
-      } else if (!res.overlayEnabled) {
-        setPermStep('overlay');
-        setPermModalVisible(true);
-      } else {
-        setPermModalVisible(false);
-        markPermissionPrompted();
-      }
     } catch (e) {
       console.warn('Permission check notice:', e.message);
     }
   };
 
   const handlePrimaryPermissionAction = async () => {
-    if (permStep === 'notification') {
-      if (Platform.OS === 'android' && Platform.Version >= 33) {
-        try {
-          const { PermissionsAndroid } = require('react-native');
-          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-        } catch (e) {
-          console.warn('POST_NOTIFICATIONS error:', e);
-        }
-      }
-      if (!permissions.accessibilityEnabled) {
-        setPermStep('accessibility');
-      } else if (!permissions.overlayEnabled) {
-        setPermStep('overlay');
-      } else {
-        setPermModalVisible(false);
-        markPermissionPrompted();
-      }
-    } else if (permStep === 'accessibility') {
+    setPermModalVisible(false);
+    await new Promise(resolve => setTimeout(resolve, 400));
+    if (permStep === 'accessibility') {
       syncService.openAccessibilitySettings();
-      if (!permissions.overlayEnabled) {
-        setPermStep('overlay');
-      } else {
-        setPermModalVisible(false);
-        markPermissionPrompted();
-      }
+      // AppState will re-check when user returns from Settings
     } else if (permStep === 'overlay') {
       syncService.openOverlaySettings();
-      setPermModalVisible(false);
-      markPermissionPrompted();
+      await markPermissionPrompted();
+    }
+  };
+
+  const handleSecondaryPermissionAction = async () => {
+    setPermModalVisible(false);
+    if (permStep === 'accessibility') {
+      // Skipped accessibility — still check overlay
+      const res = await syncService.checkPermissions();
+      setPermissions(res);
+      if (!res.overlayEnabled) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setPermStep('overlay');
+        setPermModalVisible(true);
+      }
+    } else {
+      await markPermissionPrompted();
     }
   };
 
@@ -118,10 +141,32 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    loadPermissions();
-    const subscription = AppState.addEventListener('change', (nextState) => {
+    // Run the one-by-one permission flow once on first launch
+    runPermissionFlow();
+
+    const subscription = AppState.addEventListener('change', async (nextState) => {
       if (nextState === 'active') {
-        loadPermissions();
+        // Reload permission status silently (update shield badge)
+        const res = await syncService.checkPermissions().catch(() => null);
+        if (res) setPermissions(res);
+
+        // If user returned from Settings and a permission step was in progress,
+        // check if it was granted and advance to next step (one-by-one, no re-trigger)
+        if (!permFlowDone.current && !permFlowRunning.current) {
+          if (permStep === 'accessibility' && res?.accessibilityEnabled) {
+            setPermModalVisible(false);
+            if (!res.overlayEnabled) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+              setPermStep('overlay');
+              setPermModalVisible(true);
+            } else {
+              await markPermissionPrompted();
+            }
+          } else if (permStep === 'overlay' && res?.overlayEnabled) {
+            setPermModalVisible(false);
+            await markPermissionPrompted();
+          }
+        }
       }
     });
 
@@ -262,14 +307,14 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         </Animated.View>
       </ScrollView>
 
-      {/* Custom Permission Dialog Popup (Matching Screenshots) */}
+      {/* Custom Permission Dialog — one-by-one, only for Accessibility & Overlay */}
       <PermissionModal
         visible={permModalVisible}
         type={permStep}
         onPrimary={handlePrimaryPermissionAction}
-        onSecondary={() => setPermModalVisible(false)}
-        onTertiary={() => setPermModalVisible(false)}
-        onDismiss={() => setPermModalVisible(false)}
+        onSecondary={handleSecondaryPermissionAction}
+        onTertiary={() => { setPermModalVisible(false); markPermissionPrompted(); }}
+        onDismiss={handleSecondaryPermissionAction}
       />
     </View>
   );
