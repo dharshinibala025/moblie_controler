@@ -14,21 +14,16 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 // Import Reusable Modular Components
 import LiveRestrictionClock from '../components/LiveRestrictionClock';
 import ScheduleInfo from '../components/ScheduleInfo';
+import PermissionModal from '../../components/PermissionModal';
 import syncService from '../../services/syncService';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 12;
 
-/**
- * Perfectly Centered Student Dashboard Home Screen
- * - Header: Logo + Greeting & Student Name + Profile Icon
- * - Protection Card: Enable Accessibility Service & Display Over Apps Buttons
- * - Centerpiece: Live Restriction Clock vertically & horizontally centered on page
- * - Restriction Schedule info row (09:00 AM – 04:00 PM)
- * - 100% Flat Enterprise Layout on #F8FAFC
- */
 export const HomeScreen = ({ data, onOpenProfile }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -37,12 +32,85 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const [progress, setProgress] = useState(0.5);
   const [permissions, setPermissions] = useState({ accessibilityEnabled: false, overlayEnabled: false });
 
+  // Custom Permission Modal State — pops up on first prompt only
+  const [permModalVisible, setPermModalVisible] = useState(false);
+  const [permStep, setPermStep] = useState('notification'); // 'notification' | 'accessibility' | 'overlay'
+
+  const markPermissionPrompted = async () => {
+    try {
+      await AsyncStorage.setItem('@focussync:permissionPrompted', 'true');
+    } catch (e) {
+      // ignore
+    }
+  };
+
   const loadPermissions = async () => {
     try {
       const res = await syncService.checkPermissions();
       setPermissions(res);
+
+      const alreadyPrompted = await AsyncStorage.getItem('@focussync:permissionPrompted');
+      if (alreadyPrompted === 'true') {
+        setPermModalVisible(false);
+        return;
+      }
+
+      // Check if any permission needs prompting
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        const { PermissionsAndroid } = require('react-native');
+        const hasNotif = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        if (!hasNotif) {
+          setPermStep('notification');
+          setPermModalVisible(true);
+          return;
+        }
+      }
+
+      if (!res.accessibilityEnabled) {
+        setPermStep('accessibility');
+        setPermModalVisible(true);
+      } else if (!res.overlayEnabled) {
+        setPermStep('overlay');
+        setPermModalVisible(true);
+      } else {
+        setPermModalVisible(false);
+        markPermissionPrompted();
+      }
     } catch (e) {
       console.warn('Permission check notice:', e.message);
+    }
+  };
+
+  const handlePrimaryPermissionAction = async () => {
+    if (permStep === 'notification') {
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        try {
+          const { PermissionsAndroid } = require('react-native');
+          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        } catch (e) {
+          console.warn('POST_NOTIFICATIONS error:', e);
+        }
+      }
+      if (!permissions.accessibilityEnabled) {
+        setPermStep('accessibility');
+      } else if (!permissions.overlayEnabled) {
+        setPermStep('overlay');
+      } else {
+        setPermModalVisible(false);
+        markPermissionPrompted();
+      }
+    } else if (permStep === 'accessibility') {
+      syncService.openAccessibilitySettings();
+      if (!permissions.overlayEnabled) {
+        setPermStep('overlay');
+      } else {
+        setPermModalVisible(false);
+        markPermissionPrompted();
+      }
+    } else if (permStep === 'overlay') {
+      syncService.openOverlaySettings();
+      setPermModalVisible(false);
+      markPermissionPrompted();
     }
   };
 
@@ -171,55 +239,15 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         }
       >
         <Animated.View style={[styles.mainBodyWrapper, { opacity: fadeAnim }]}>
-          {/* Protection & Enforcement Status Card */}
-          <View style={[styles.protectionCard, !isProtectionComplete && styles.protectionWarningCard]}>
-            <View style={styles.protectionHeader}>
-              <MaterialCommunityIcons
-                name={isProtectionComplete ? "shield-check" : "shield-alert"}
-                size={24}
-                color={isProtectionComplete ? "#16A34A" : "#DC2626"}
-              />
-              <Text style={styles.protectionTitle}>
-                {isProtectionComplete ? "App Blocking Protection Active" : "Action Required: Enable App Blocking"}
+          {/* Protection Active Indicator Banner */}
+          {isProtectionComplete ? (
+            <View style={styles.protectionActiveBadge}>
+              <MaterialCommunityIcons name="shield-check" size={20} color="#16A34A" />
+              <Text style={styles.protectionActiveBadgeText}>
+                App Blocking Protection Active & Enforced
               </Text>
             </View>
-
-            {!permissions.accessibilityEnabled && (
-              <View style={styles.permissionRow}>
-                <View style={styles.permTextGroup}>
-                  <Text style={styles.permName}>Accessibility Service</Text>
-                  <Text style={styles.permDesc}>Required to detect & restrict app launches</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.enableButton}
-                  onPress={() => syncService.openAccessibilitySettings()}
-                >
-                  <Text style={styles.enableButtonText}>Enable</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {!permissions.overlayEnabled && (
-              <View style={styles.permissionRow}>
-                <View style={styles.permTextGroup}>
-                  <Text style={styles.permName}>Display Over Apps</Text>
-                  <Text style={styles.permDesc}>Required to display restriction screen</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.enableButton}
-                  onPress={() => syncService.openOverlaySettings()}
-                >
-                  <Text style={styles.enableButtonText}>Enable</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {isProtectionComplete && (
-              <Text style={styles.protectionActiveText}>
-                All background enforcement services are enabled and monitoring active policy rules.
-              </Text>
-            )}
-          </View>
+          ) : null}
 
           {/* 2. Live Restriction Clock Centerpiece */}
           <LiveRestrictionClock
@@ -233,6 +261,16 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
           <ScheduleInfo scheduleText="09:00 AM – 04:00 PM" />
         </Animated.View>
       </ScrollView>
+
+      {/* Custom Permission Dialog Popup (Matching Screenshots) */}
+      <PermissionModal
+        visible={permModalVisible}
+        type={permStep}
+        onPrimary={handlePrimaryPermissionAction}
+        onSecondary={() => setPermModalVisible(false)}
+        onTertiary={() => setPermModalVisible(false)}
+        onDismiss={() => setPermModalVisible(false)}
+      />
     </View>
   );
 };
@@ -308,37 +346,43 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Protection Status Card
-  protectionCard: {
-    width: '100%',
-    backgroundColor: '#F0FDF4',
-    borderRadius: 16,
-    padding: 16,
-    marginVertical: 12,
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
-  },
-  protectionWarningCard: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-  },
-  protectionHeader: {
+  // Protection Status Badges
+  protectionActiveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginVertical: 10,
+    gap: 8,
+    width: '100%',
   },
-  protectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    flex: 1,
-  },
-  protectionActiveText: {
+  protectionActiveBadgeText: {
     fontSize: 12,
+    fontWeight: '700',
     color: '#16A34A',
-    fontWeight: '600',
-    marginTop: 4,
+  },
+  protectionWarningBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginVertical: 10,
+    gap: 8,
+    width: '100%',
+  },
+  protectionWarningBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#DC2626',
+    flex: 1,
   },
   permissionRow: {
     flexDirection: 'row',

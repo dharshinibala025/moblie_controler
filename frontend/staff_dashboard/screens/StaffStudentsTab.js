@@ -68,16 +68,22 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
         const staffService = require('../../services/staffService').default;
         const data = await staffService.fetchClassLiveStatus(classIdToQuery);
         if (data && data.students) {
-          const mapped = data.students.map((student) => ({
-            id: student.studentId || student._id,
-            name: student.name,
-            rollNo: student.rollNo,
-            email: student.email,
-            status: student.deviceStatus === 'blocked' ? 'blocked' : student.deviceStatus === 'offline' ? 'offline' : 'active',
-            device: student.deviceModel || 'Android Device',
-            screenTime: student.screenTime || 'Active',
-            attempts: student.attempts || 0,
-          }));
+          const mapped = data.students.map((student) => {
+            const rawStatus = String(student.deviceStatus || '').toLowerCase();
+            const isBlocked = rawStatus === 'blocked';
+            const isLoggedIn = !isBlocked && (rawStatus === 'logged in' || rawStatus === 'active' || student.isOnline === true);
+
+            return {
+              id: student.studentId || student._id,
+              name: student.name,
+              rollNo: student.rollNo,
+              email: student.email,
+              status: isBlocked ? 'blocked' : isLoggedIn ? 'active' : 'offline',
+              device: student.deviceModel || 'Android Device',
+              screenTime: student.screenTime || 'Active',
+              attempts: student.attempts || 0,
+            };
+          });
           setLiveStudents(mapped);
         }
       } catch (e) {
@@ -147,7 +153,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
 
     const matchesSearch = !query || name.includes(query) || rollNo.includes(query);
     const matchesStatus =
-      statusFilter === 'all' || student.status === statusFilter || student.deviceStatus === statusFilter;
+      statusFilter === 'all' || student.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
@@ -160,6 +166,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
           text: '#16A34A',
           border: '#BBF7D0',
           icon: 'check-circle-outline',
+          label: 'LOGGED IN',
         };
       case 'blocked':
         return {
@@ -167,6 +174,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
           text: '#DC2626',
           border: '#FECACA',
           icon: 'cellphone-off',
+          label: 'BLOCKED',
         };
       case 'offline':
       default:
@@ -175,6 +183,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
           text: '#64748B',
           border: '#E2E8F0',
           icon: 'power-off',
+          label: 'NO LOGIN',
         };
     }
   };
@@ -202,7 +211,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
           >
             <VectorIcon name={statusStyle.icon} size={14} color={statusStyle.text} />
             <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
-              {item.status.toUpperCase()}
+              {statusStyle.label}
             </Text>
           </View>
         </View>

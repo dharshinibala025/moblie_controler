@@ -5,7 +5,7 @@ import staffMockData from '../data/staffMockData';
 
 const STATUSBAR_OFFSET = 12;
 
-export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
+export const StaffHeader = ({ staffInfo: propStaffInfo, alertCount = 0, onNavigateTab }) => {
   const staffInfo = propStaffInfo || { name: '', department: '' };
 
   const getGreeting = () => {
@@ -48,6 +48,13 @@ export const StaffHeader = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
               size={22}
               color="#2563EB"
             />
+            {alertCount > 0 && (
+              <View style={styles.badgeDot}>
+                <Text style={styles.badgeText}>
+                  {alertCount > 9 ? '9+' : alertCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             activeOpacity={0.8}
@@ -128,6 +135,26 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 20,
     backgroundColor: '#EFF6FF',
+    position: 'relative',
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
   },
   avatarButton: {
     padding: 2,

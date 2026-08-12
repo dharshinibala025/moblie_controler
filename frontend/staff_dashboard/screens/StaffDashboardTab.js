@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, FlatList, Platform, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, Platform, StatusBar } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import StaffHeader from '../components/StaffHeader';
+import PermissionModal from '../../components/PermissionModal';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
@@ -17,6 +18,49 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
   const [warningCount, setWarningCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [classAlerts, setClassAlerts] = useState([]);
+  const [permModalVisible, setPermModalVisible] = useState(false);
+  const [permStep, setPermStep] = useState('notification');
+
+  // Check Staff Notification Permission on Mount (Once only)
+  useEffect(() => {
+    const checkStaffNotif = async () => {
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const alreadyPrompted = await AsyncStorage.getItem('@focussync:staffPermissionPrompted');
+        if (alreadyPrompted === 'true') return;
+
+        if (Platform.OS === 'android' && Platform.Version >= 33) {
+          const { PermissionsAndroid } = require('react-native');
+          const hasNotif = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+          if (!hasNotif) {
+            setPermStep('notification');
+            setPermModalVisible(true);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    checkStaffNotif();
+  }, []);
+
+  const handleStaffNotifPermission = async () => {
+    if (Platform.OS === 'android' && Platform.Version >= 33) {
+      try {
+        const { PermissionsAndroid } = require('react-native');
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      } catch (e) {
+        // ignore
+      }
+    }
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.setItem('@focussync:staffPermissionPrompted', 'true');
+    } catch (e) {
+      // ignore
+    }
+    setPermModalVisible(false);
+  };
 
   // Clock Update
   useEffect(() => {
@@ -195,7 +239,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
 
   return (
     <View style={styles.container}>
-      <StaffHeader staffInfo={staffInfo} onNavigateTab={onNavigateTab} />
+      <StaffHeader staffInfo={staffInfo} alertCount={classAlerts.length} onNavigateTab={onNavigateTab} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Mentor Title (Flat layout, no card background) */}
@@ -214,26 +258,6 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
             <VectorIcon name="school" size={24} color={colors.primary} />
           </View>
         </View>
-
-        {/* Dynamic Class Alerts & Warnings Banner */}
-        {classAlerts.length > 0 ? (
-          <View style={styles.alertsBannerContainer}>
-            <View style={styles.alertsBannerHeader}>
-              <VectorIcon name="alert-circle" size={16} color="#EF4444" />
-              <Text style={styles.alertsBannerTitle}>COMPLIANCE ALERTS ({classAlerts.length})</Text>
-            </View>
-            <ScrollView style={styles.alertsScroll} nestedScrollEnabled={true}>
-              {classAlerts.map((alert, idx) => (
-                <View key={idx} style={styles.alertRow}>
-                  <Text style={styles.alertDot}>•</Text>
-                  <Text style={styles.alertMessageText} numberOfLines={2}>
-                    {alert.message}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
 
         {/* 3 Executive Compact Stats Cards */}
         <View style={styles.statsGrid}>
@@ -298,11 +322,20 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
               keyExtractor={(item) => item.studentId || item.email}
               scrollEnabled={false}
               ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
-              style={styles.flatList}
             />
           )}
         </View>
       </ScrollView>
+
+      {/* Permission Modal Dialog */}
+      <PermissionModal
+        visible={permModalVisible}
+        type="notification"
+        onPrimary={handleStaffNotifPermission}
+        onSecondary={() => setPermModalVisible(false)}
+        onTertiary={() => setPermModalVisible(false)}
+        onDismiss={() => setPermModalVisible(false)}
+      />
     </View>
   );
 };

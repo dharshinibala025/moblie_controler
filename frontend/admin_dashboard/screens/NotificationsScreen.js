@@ -41,10 +41,21 @@ const NotificationsScreen = ({ onBack }) => {
 
   const loadNotifications = async () => {
     try {
+      const staffService = require('../../services/staffService').default;
+      const staffData = await staffService.fetchStaffNotifications();
+      if (staffData && Array.isArray(staffData) && staffData.length > 0) {
+        setNotifications(staffData);
+        return;
+      }
+    } catch (staffErr) {
+      // ignore if staff route fails (e.g. for admin user)
+    }
+
+    try {
       const data = await adminService.getAdminNotifications();
       setNotifications(data || []);
     } catch (err) {
-      console.warn('Failed to load notifications:', err);
+      console.warn('Failed to load admin notifications:', err);
     }
   };
 
