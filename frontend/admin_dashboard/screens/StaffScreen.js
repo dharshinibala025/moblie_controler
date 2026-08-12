@@ -69,7 +69,7 @@ const StaffScreen = () => {
 
   useEffect(() => {
     loadStaff();
-    const interval = setInterval(loadStaff, 5000);
+    const interval = setInterval(loadStaff, 30000);
     return () => clearInterval(interval);
   }, []);
 
