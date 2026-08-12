@@ -399,10 +399,13 @@ class AdminService {
   }
 
   async uploadStudentSpreadsheet(fileBase64, fileName = 'students.xlsx') {
+    try {
+      await apiFetch('/health', { method: 'GET', timeout: 5000 }).catch(() => {});
+    } catch (_) {}
     return await apiFetch('/admin/students/upload', {
       method: 'POST',
       body: JSON.stringify({ fileBase64, fileName }),
-      timeout: 60000,
+      timeout: 120000,
     });
   }
 
@@ -417,10 +420,13 @@ class AdminService {
   }
 
   async uploadStaffSpreadsheet(fileBase64, fileName = 'staff.xlsx') {
+    try {
+      await apiFetch('/health', { method: 'GET', timeout: 5000 }).catch(() => {});
+    } catch (_) {}
     return await apiFetch('/admin/staff/upload', {
       method: 'POST',
       body: JSON.stringify({ fileBase64, fileName }),
-      timeout: 60000,
+      timeout: 120000,
     });
   }
 
