@@ -38,6 +38,13 @@ const startServer = async () => {
         setupDeviceGateway();
         startScheduler();
         emailQueueWorker.start(10000);
+
+        // Keep-alive self-ping interval every 14 minutes to prevent Render free-tier from sleeping
+        setInterval(() => {
+          http.get("http://127.0.0.1:" + PORT + "/health", (res) => {
+            logger.info(`Keep-alive self-ping status: ${res.statusCode}`);
+          }).on("error", () => {});
+        }, 14 * 60 * 1000);
       } catch (err) {
         logger.error(`Background service init notice: ${err.message}`);
       }

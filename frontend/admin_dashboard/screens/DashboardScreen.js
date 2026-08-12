@@ -106,7 +106,7 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
       }
     };
     fetchOverview();
-    const interval = setInterval(fetchOverview, 5000);
+    const interval = setInterval(fetchOverview, 30000);
     return () => {
       isMounted = false;
       clearInterval(interval);

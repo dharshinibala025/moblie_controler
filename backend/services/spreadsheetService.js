@@ -58,16 +58,46 @@ class SpreadsheetService {
     const UsageLog = require("../models/UsageLog");
     const BlockedAttempt = require("../models/BlockedAttempt");
     const Notification = require("../models/Notification");
-    const oldStudentList = await User.find({ role: "student" });
+    const oldStudentList = await User.find({ role: "student" }).select("_id email studentId");
     const oldStudentIds = oldStudentList.map((s) => s._id);
     if (oldStudentIds.length > 0) {
-      await User.deleteMany({ _id: { $in: oldStudentIds } });
-      await Device.deleteMany({ userId: { $in: oldStudentIds } });
-      await ScannedApp.deleteMany({ studentId: { $in: oldStudentIds } });
-      await UsageLog.deleteMany({ studentId: { $in: oldStudentIds } });
-      await BlockedAttempt.deleteMany({ studentId: { $in: oldStudentIds } });
-      await Notification.deleteMany({ studentId: { $in: oldStudentIds } });
+      await Promise.all([
+        User.deleteMany({ _id: { $in: oldStudentIds } }),
+        Device.deleteMany({ userId: { $in: oldStudentIds } }),
+        ScannedApp.deleteMany({ studentId: { $in: oldStudentIds } }),
+        UsageLog.deleteMany({ studentId: { $in: oldStudentIds } }),
+        BlockedAttempt.deleteMany({ studentId: { $in: oldStudentIds } }),
+        Notification.deleteMany({ studentId: { $in: oldStudentIds } }),
+      ]);
     }
+
+    // Pre-fetch all existing departments, years, sections, classrooms into memory maps
+    const allDepts = await Department.find({ institutionId: "KSRCE" });
+    const deptMap = new Map();
+    allDepts.forEach((d) => {
+      deptMap.set(d.code.toUpperCase(), d);
+      deptMap.set(d.name.toLowerCase(), d);
+    });
+
+    const allYears = await AcademicYear.find({ institutionId: "KSRCE" });
+    const yearMap = new Map();
+    allYears.forEach((y) => yearMap.set(y.name.toLowerCase(), y));
+
+    const allSections = await Section.find({ institutionId: "KSRCE" });
+    const sectionMap = new Map();
+    allSections.forEach((s) => sectionMap.set(`${s.name.toUpperCase()}_${s.academicYearId || ''}`, s));
+
+    const allClassrooms = await ClassRoom.find({ institutionId: "KSRCE" });
+    const classroomMap = new Map();
+    allClassrooms.forEach((c) => classroomMap.set(c.code, c));
+
+    // Pre-fetch existing non-student user emails/IDs to prevent collisions
+    const existingUsers = await User.find({}, "email studentId");
+    const existingEmailsSet = new Set(existingUsers.map((u) => u.email));
+    const existingIdsSet = new Set(existingUsers.map((u) => u.studentId).filter(Boolean));
+
+    const usersToInsert = [];
+    const saltRounds = process.env.NODE_ENV === "test" ? 1 : 10;
 
     for (let index = 0; index < rawRows.length; index++) {
       const row = rawRows[index];
@@ -149,11 +179,7 @@ class SpreadsheetService {
       }
 
       // Duplicate check: Ignore existing student accounts
-      const existingUser = await User.findOne({
-        $or: [{ email }, { studentId }],
-      });
-
-      if (existingUser) {
+      if (existingEmailsSet.has(email) || existingIdsSet.has(studentId)) {
         duplicateCount++;
         errors.push({
           row: rowNum,
@@ -163,76 +189,54 @@ class SpreadsheetService {
         continue;
       }
 
-      // Generate unique temporary password e.g. STU-XA72Q
-      // NOTE: Do NOT pre-hash — Mongoose pre("save") hook will hash it automatically.
-      // Pre-hashing causes double-hash which makes bcrypt.compare always fail (Invalid credentials).
+      existingEmailsSet.add(email);
+      existingIdsSet.add(studentId);
+
       const randomSuffix = crypto.randomBytes(3).toString("hex").toUpperCase().slice(0, 5);
       const tempPassword = `STU-${randomSuffix}`;
       const expiryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 Days Expiry
 
-      // Resolve department / year / section
-      let deptObj = null;
-      if (deptName) {
-        let found = await Department.findOne({
-          $or: [{ name: new RegExp(deptName, "i") }, { code: new RegExp(deptName, "i") }],
+      // Resolve department / year / section using pre-fetched Maps or create if missing
+      let deptObj = deptName ? (deptMap.get(deptName.toUpperCase()) || deptMap.get(deptName.toLowerCase())) : deptMap.get("CSE");
+      if (!deptObj) {
+        const codeStr = (deptName || "CSE").toUpperCase();
+        deptObj = await Department.create({
+          name: deptName || "Computer Science and Engineering",
+          code: codeStr,
+          institutionId: "KSRCE",
         });
-        if (!found) {
-          found = await Department.create({
-            name: deptName,
-            code: deptName.toUpperCase(),
-            institutionId: "KSRCE",
-          });
-        }
-        deptObj = found;
-      } else {
-        let found = await Department.findOne({ code: "CSE" });
-        if (!found) {
-          found = await Department.create({
-            name: "Computer Science and Engineering",
-            code: "CSE",
-            institutionId: "KSRCE",
-          });
-        }
-        deptObj = found;
+        deptMap.set(codeStr, deptObj);
       }
 
-      let yearObj = null;
       const targetYearName = yearName ? (yearName.toLowerCase().includes("year") ? yearName : `${yearName} Year`) : "";
-      if (targetYearName) {
-        let found = await AcademicYear.findOne({ name: new RegExp(targetYearName, "i") });
-        if (!found) {
-          found = await AcademicYear.create({
-            name: targetYearName,
-            startDate: new Date("2025-06-01"),
-            endDate: new Date("2026-04-30"),
-            institutionId: "KSRCE",
-          });
-        }
-        yearObj = found;
+      let yearObj = targetYearName ? yearMap.get(targetYearName.toLowerCase()) : null;
+      if (!yearObj && targetYearName) {
+        yearObj = await AcademicYear.create({
+          name: targetYearName,
+          startDate: new Date("2025-06-01"),
+          endDate: new Date("2026-04-30"),
+          institutionId: "KSRCE",
+        });
+        yearMap.set(targetYearName.toLowerCase(), yearObj);
       }
 
-      let secObj = null;
-      if (secName) {
-        let found = await Section.findOne({
+      const secKey = secName ? `${secName.toUpperCase()}_${yearObj ? yearObj._id : ''}` : "";
+      let secObj = secName ? sectionMap.get(secKey) : null;
+      if (!secObj && secName) {
+        secObj = await Section.create({
           name: secName.toUpperCase(),
+          departmentId: deptObj ? deptObj._id : null,
           academicYearId: yearObj ? yearObj._id : null,
+          institutionId: "KSRCE",
         });
-        if (!found) {
-          found = await Section.create({
-            name: secName.toUpperCase(),
-            departmentId: deptObj ? deptObj._id : null,
-            academicYearId: yearObj ? yearObj._id : null,
-            institutionId: "KSRCE",
-          });
-        }
-        secObj = found;
+        sectionMap.set(secKey, secObj);
       }
 
       const classCode = deptObj
-        ? `${deptObj.code}-${yearObj.name.charAt(0)}-${secObj.name}`
-        : `${yearObj.name.replace(/\s+Year/i, "")}-${secObj.name}`;
+        ? `${deptObj.code}-${yearObj ? yearObj.name.charAt(0) : "1"}-${secObj ? secObj.name : "A"}`
+        : `${yearObj ? yearObj.name.replace(/\s+Year/i, "") : "1"}-${secObj ? secObj.name : "A"}`;
 
-      let classroomObj = await ClassRoom.findOne({ code: classCode });
+      let classroomObj = classroomMap.get(classCode);
       if (!classroomObj && yearObj && secObj) {
         classroomObj = await ClassRoom.create({
           name: deptObj
@@ -244,65 +248,62 @@ class SpreadsheetService {
           academicYearId: yearObj ? yearObj._id : null,
           institutionId: "KSRCE",
         });
+        classroomMap.set(classCode, classroomObj);
       }
 
-      const newUser = await User.create({
-        name,
-        email,
-        studentId,
-        phone,
-        password: tempPassword, // plain-text — Mongoose pre-save hook will hash
-        role: "student",
-        institutionId: "KSRCE",
-        departmentId: deptObj ? deptObj._id : null,
-        academicYearId: yearObj ? yearObj._id : null,
-        sectionId: secObj ? secObj._id : null,
-        classRoomId: classroomObj ? classroomObj._id : null,
-        classId: classCode,
-        mustChangePassword: true,
-        passwordExpiresAt: expiryDate,
-        active: true,
-      });
-
-      createdCount++;
-      createdUsersForEmail.push({
-        name: newUser.name,
-        email: newUser.email,
-        studentId: newUser.studentId,
-        password: tempPassword,
+      usersToInsert.push({
+        userData: {
+          name,
+          email,
+          studentId,
+          phone,
+          plainPassword: tempPassword,
+          role: "student",
+          institutionId: "KSRCE",
+          departmentId: deptObj ? deptObj._id : null,
+          academicYearId: yearObj ? yearObj._id : null,
+          sectionId: secObj ? secObj._id : null,
+          classRoomId: classroomObj ? classroomObj._id : null,
+          classId: classCode,
+          mustChangePassword: true,
+          passwordExpiresAt: expiryDate,
+          isActive: true,
+          status: "active",
+          hasSetPassword: true,
+        },
+        tempPassword,
       });
     }
 
-    // AUTOMATIC EMAIL DISPATCH: Send temporary password ONLY to that student's email address
-    for (const studentData of createdUsersForEmail) {
-      try {
-        const emailResult = await emailService.sendTemporaryPasswordEmail({
-          toEmail: studentData.email,
-          name: studentData.name,
-          tempPassword: studentData.password,
-          role: "student",
-        });
+    // Parallel password hashing for fast batch insert
+    const usersToCreateDoc = await Promise.all(
+      usersToInsert.map(async (item) => {
+        const hashedPassword = await bcrypt.hash(item.userData.plainPassword, saltRounds);
+        const doc = { ...item.userData, password: hashedPassword };
+        delete doc.plainPassword;
+        return doc;
+      })
+    );
 
-        if (emailResult.success) {
-          emailSentCount++;
-        } else {
-          emailFailedCount++;
-          // Queue for background retry engine if direct send fails
-          await EmailQueue.create({
-            recipientEmail: studentData.email,
-            recipientName: studentData.name,
-            studentId: studentData.studentId,
-            subject: "Welcome to Smart Classroom Portal — Temporary Login Credentials",
-            tempPassword: studentData.password,
-            role: "student",
-            status: "pending",
-            lastError: emailResult.error || "Initial dispatch failed",
-          }).catch(() => {});
-        }
-      } catch (err) {
-        emailFailedCount++;
-        logger.error(`Failed to send credential email to ${studentData.email}: ${err.message}`);
-      }
+    if (usersToCreateDoc.length > 0) {
+      await User.insertMany(usersToCreateDoc, { ordered: false });
+      createdCount = usersToCreateDoc.length;
+    }
+
+    // Queue email credentials in background
+    const emailQueueEntries = usersToInsert.map((item) => ({
+      recipientEmail: item.userData.email,
+      recipientName: item.userData.name,
+      studentId: item.userData.studentId,
+      subject: "Welcome to Smart Classroom Portal — Temporary Login Credentials",
+      tempPassword: item.tempPassword,
+      role: "student",
+      status: "pending",
+    }));
+
+    if (emailQueueEntries.length > 0) {
+      await EmailQueue.insertMany(emailQueueEntries, { ordered: false }).catch(() => {});
+      emailSentCount = emailQueueEntries.length;
     }
 
     // Audit and upload history recording
