@@ -76,7 +76,7 @@ export const apiFetch = async (path, options = {}) => {
     ...(options.headers || {}),
   };
 
-  const timeoutMs = options.timeout || 45000;
+  const timeoutMs = options.timeout || 90000;
 
   const fetchWithTimeout = (url, opts, limitMs) => {
     return new Promise((resolve, reject) => {

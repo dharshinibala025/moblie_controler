@@ -8,3 +8,20 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+# React Native
+-keep class com.facebook.react.** { *; }
+-keepclassmembers class com.facebook.react.bridge.** { *; }
+
+# react-native-vector-icons
+-keep class com.oblador.vectoricons.** { *; }
+-keepclassmembers class com.oblador.vectoricons.** { *; }
+
+# Keep React Native bridge modules (accessed reflectively by the JS runtime)
+-keep class * extends com.facebook.react.bridge.JavaScriptModule { *; }
+-keep class * extends com.facebook.react.bridge.NativeModule { *; }
+-keep class * extends com.facebook.react.uimanager.ViewManager { *; }
+-keepclassmembers class * extends com.facebook.react.bridge.ReactContextBaseJavaModule {
+    native <methods>;
+    public <methods>;
+}
