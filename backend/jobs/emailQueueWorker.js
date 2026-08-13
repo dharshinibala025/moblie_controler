@@ -33,14 +33,19 @@ class EmailQueueWorker {
     logger.info("Enterprise Email Queue Background Worker stopped.");
   }
 
+  async triggerImmediateProcessing() {
+    // Non-blocking trigger to process queue immediately
+    setImmediate(() => this.processQueue().catch(() => {}));
+  }
+
   async processQueue() {
     try {
-      // Fetch up to 20 pending email jobs whose nextRetryAt <= now
+      // Fetch up to 50 pending email jobs whose nextRetryAt <= now
       const pendingJobs = await EmailQueue.find({
         status: "pending",
         nextRetryAt: { $lte: new Date() },
         attempts: { $lt: 5 },
-      }).limit(20);
+      }).limit(50);
 
       if (!pendingJobs || pendingJobs.length === 0) {
         return;
@@ -48,10 +53,11 @@ class EmailQueueWorker {
 
       logger.info(`Email Worker: Processing ${pendingJobs.length} queued email job(s)...`);
 
-      for (const job of pendingJobs) {
-        await this.dispatchJob(job);
-        // Rate-limiting delay of 100ms between dispatches
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      // Dispatch in parallel batches of 10 for high-throughput email sending
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < pendingJobs.length; i += BATCH_SIZE) {
+        const batch = pendingJobs.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map((job) => this.dispatchJob(job)));
       }
     } catch (err) {
       logger.error(`Email Worker Error: ${err.message}`);
