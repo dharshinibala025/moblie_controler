@@ -18,7 +18,7 @@ import SelectDropdown from '../components/SelectDropdown';
 import ImportExcelCard from '../components/ImportExcelCard';
 import SectionTitle from '../components/SectionTitle';
 import PersonRecordCard from '../components/PersonRecordCard';
-import adminService, { MOCK_STUDENTS } from '../../services/adminService';
+import adminService from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';
@@ -316,7 +316,7 @@ const StudentsScreen = () => {
         `• Successfully Imported: ${res?.createdCount || 0}\n` +
         `• Duplicate Records Ignored: ${res?.duplicateCount || 0}\n` +
         `• Failed Records: ${res?.failedCount || 0}\n` +
-        `• Emails Sent Successfully: ${res?.emailSentCount || 0}\n` +
+        `• Emails Queued: ${res?.emailQueuedCount ?? res?.emailSentCount ?? 0}\n` +
         `• Email Failures: ${res?.emailFailedCount || 0}`,
       );
       await loadStudents();

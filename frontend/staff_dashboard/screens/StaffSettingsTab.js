@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import SettingsRow from '../components/SettingsRow';
-import staffMockData from '../data/staffMockData';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 
 const STATUSBAR_OFFSET = 12;
@@ -117,13 +116,6 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
       return;
     }
     setStaffProfile({ ...profileForm });
-    
-    // Update central mock data in memory so other tabs reflect updated info
-    staffMockData.staff.name = profileForm.name;
-    staffMockData.staff.id = profileForm.employeeId;
-    staffMockData.staff.department = profileForm.department;
-    staffMockData.staff.email = profileForm.email;
-    staffMockData.staff.assignedClass = profileForm.assignedClass;
 
     setEditProfileVisible(false);
     Alert.alert('Profile Updated', 'Staff profile details have been saved.');

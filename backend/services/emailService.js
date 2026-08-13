@@ -15,6 +15,39 @@ const getTransporter = () => {
   });
 };
 
+exports.buildCredentialEmailHtml = ({ name, toEmail, regNo, tempPassword, role, appUrl }) => {
+  const safeRegNo = regNo || "N/A";
+  const safeUrl = appUrl || process.env.APP_URL || "https://classroom.ksrce.ac.in/login";
+  const safeRole = role ? String(role).toUpperCase() : "STUDENT";
+
+  return `
+    <div style="font-family: Arial, sans-serif; padding: 24px; color: #0F172A; max-width: 600px; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 12px;">
+      <h2 style="color: #2563EB; margin-top: 0;">Smart Classroom Mobile Usage Control</h2>
+      <p>Dear <strong>${name || "Student"}</strong>,</p>
+      <p>Your ${safeRole.toLowerCase()} account for the Smart Classroom Portal has been created successfully.</p>
+
+      <div style="background-color: #F8FAFC; padding: 18px; border-radius: 8px; border: 1px solid #E2E8F0; margin: 20px 0;">
+        <p style="margin: 0 0 8px 0;"><strong>Student Name:</strong> <span style="color: #0F172A;">${name || "Student"}</span></p>
+        <p style="margin: 0 0 8px 0;"><strong>Register Number:</strong> <span style="color: #0F172A;">${safeRegNo}</span></p>
+        <p style="margin: 0 0 8px 0;"><strong>Login Email:</strong> <code style="font-size: 14px; color: #0F172A;">${toEmail}</code></p>
+        <p style="margin: 0 0 8px 0;"><strong>Temporary Password:</strong> <code style="font-size: 18px; font-weight: bold; color: #2563EB;">${tempPassword}</code></p>
+        <p style="margin: 0;"><strong>Login URL:</strong> <a href="${safeUrl}" style="color: #2563EB; text-decoration: underline;">${safeUrl}</a></p>
+      </div>
+
+      <h4 style="color: #334155; margin-bottom: 8px;">Instructions for First Login:</h4>
+      <ol style="padding-left: 20px; line-height: 1.6; color: #475569;">
+        <li>Open the Smart Classroom Portal or Mobile App using the link above: <a href="${safeUrl}">${safeUrl}</a>.</li>
+        <li>Select the <strong>${safeRole}</strong> login tab and sign in using your registered email (<code>${toEmail}</code>) and temporary password.</li>
+        <li><strong>Password Change Required</strong>: Because this is a temporary password, the system will force you to set a new permanent password immediately upon your first successful login.</li>
+        <li>Once updated, your new password will be active for all future logins.</li>
+      </ol>
+
+      <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 24px 0 16px 0;" />
+      <p style="font-size: 12px; color: #94A3B8; margin: 0;">Official Institutional Portal • KSRCE Mobile Controller</p>
+    </div>
+  `;
+};
+
 exports.sendTemporaryPasswordEmail = async ({ toEmail, name, studentId, registerNumber, tempPassword, role, loginUrl }) => {
   try {
     const fromEmail = process.env.FROM_EMAIL || `"Smart Classroom Portal" <${process.env.SMTP_EMAIL || "vvdharani57cse24_27@ksrce.ac.in"}>`;
@@ -27,32 +60,7 @@ exports.sendTemporaryPasswordEmail = async ({ toEmail, name, studentId, register
       from: fromEmail,
       to: toEmail,
       subject: `Smart Classroom Portal — Your Temporary ${role ? role.toUpperCase() : "ACCOUNT"} Credentials`,
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 24px; color: #0F172A; max-width: 600px; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 12px;">
-          <h2 style="color: #2563EB; margin-top: 0;">Smart Classroom Mobile Usage Control</h2>
-          <p>Dear <strong>${name || "Student"}</strong>,</p>
-          <p>Your student account for the Smart Classroom Portal has been created successfully.</p>
-          
-          <div style="background-color: #F8FAFC; padding: 18px; border-radius: 8px; border: 1px solid #E2E8F0; margin: 20px 0;">
-            <p style="margin: 0 0 8px 0;"><strong>Student Name:</strong> <span style="color: #0F172A;">${name || "Student"}</span></p>
-            <p style="margin: 0 0 8px 0;"><strong>Register Number:</strong> <span style="color: #0F172A;">${regNo}</span></p>
-            <p style="margin: 0 0 8px 0;"><strong>Login Email:</strong> <code style="font-size: 14px; color: #0F172A;">${toEmail}</code></p>
-            <p style="margin: 0 0 8px 0;"><strong>Temporary Password:</strong> <code style="font-size: 18px; font-weight: bold; color: #2563EB;">${tempPassword}</code></p>
-            <p style="margin: 0;"><strong>Login URL:</strong> <a href="${appUrl}" style="color: #2563EB; text-decoration: underline;">${appUrl}</a></p>
-          </div>
-
-          <h4 style="color: #334155; margin-bottom: 8px;">Instructions for First Login:</h4>
-          <ol style="padding-left: 20px; line-height: 1.6; color: #475569;">
-            <li>Open the Smart Classroom Portal or Mobile App using the link above: <a href="${appUrl}">${appUrl}</a>.</li>
-            <li>Select the <strong>${role ? role.toUpperCase() : "STUDENT"}</strong> login tab and sign in using your registered email (<code>${toEmail}</code>) and temporary password.</li>
-            <li><strong>Password Change Required</strong>: Because this is a temporary password, the system will force you to set a new permanent password immediately upon your first successful login.</li>
-            <li>Once updated, your new password will be active for all future logins.</li>
-          </ol>
-
-          <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 24px 0 16px 0;" />
-          <p style="font-size: 12px; color: #94A3B8; margin: 0;">Official Institutional Portal • KSRCE Mobile Controller</p>
-        </div>
-      `,
+      html: exports.buildCredentialEmailHtml({ name, toEmail, regNo, tempPassword, role, appUrl }),
     };
 
     if (process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS) {

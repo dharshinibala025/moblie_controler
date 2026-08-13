@@ -13,8 +13,6 @@ import { colors, borderRadius, shadows } from '../styles/theme';
 import AppGridCard from '../components/AppGridCard';
 import VectorIcon from '../components/VectorIcon';
 
-import mockData from '../data/mockData';
-
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
 const FILTER_TABS = [

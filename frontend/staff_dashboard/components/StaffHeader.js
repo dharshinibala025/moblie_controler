@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Platform, StatusBar } from 'react-native';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
-import staffMockData from '../data/staffMockData';
 
 const STATUSBAR_OFFSET = 12;
 

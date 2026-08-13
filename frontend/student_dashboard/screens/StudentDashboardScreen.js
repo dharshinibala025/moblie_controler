@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Animated, StatusBar, SafeAreaView, AppState } from 'react-native';
-import mockData from '../data/mockData';
 import HomeScreen from './HomeScreen';
 import AppsScreen from './AppsScreen';
 import NotificationsScreen from './NotificationsScreen';
@@ -86,7 +85,7 @@ export const StudentDashboardScreen = ({ onLogout }) => {
   };
 
   const renderActiveScreen = () => {
-    const currentData = dashboardData || mockData;
+    const currentData = dashboardData;
     switch (activeTab) {
       case 'home':
         return (

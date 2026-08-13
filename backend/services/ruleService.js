@@ -152,30 +152,39 @@ async function dispatchRule(rule, action) {
     serverTimestamp: serverTimestamp.toISOString(),
   });
 
-  for (const device of targetDevices) {
-    device.lastKnownCommand = {
-      ruleId: rule._id,
-      action,
-      serverTimestamp,
-    };
-    await device.save();
-
-    if (device.fcmToken) {
-      try {
-        await fcmService.sendToDevice(device.fcmToken, {
-          ruleId: rule._id.toString(),
-          action,
-          blockedApps: JSON.stringify(rule.blockedApps),
-          scheduleStart: rule.scheduleStart,
-          scheduleEnd: rule.scheduleEnd,
-          activeDays: JSON.stringify(rule.activeDays),
-          status: rule.status,
-          policyVersion: String(rule.policyVersion || 1),
-          serverTimestamp: serverTimestamp.toISOString(),
-        });
-      } catch (err) {
-        logger.error(`FCM dispatch failed for device ${device._id}: ${err.message}`);
+  if (targetDevices.length > 0) {
+    const targetDeviceIds = targetDevices.map((d) => d._id);
+    await Device.updateMany(
+      { _id: { $in: targetDeviceIds } },
+      {
+        $set: {
+          lastKnownCommand: {
+            ruleId: rule._id,
+            action,
+            serverTimestamp,
+          },
+        },
       }
+    );
+
+    // Non-blocking async FCM dispatch for devices with FCM tokens
+    const devicesWithFcm = targetDevices.filter((d) => d.fcmToken);
+    if (devicesWithFcm.length > 0) {
+      Promise.allSettled(
+        devicesWithFcm.map((device) =>
+          fcmService.sendToDevice(device.fcmToken, {
+            ruleId: rule._id.toString(),
+            action,
+            blockedApps: JSON.stringify(rule.blockedApps),
+            scheduleStart: rule.scheduleStart,
+            scheduleEnd: rule.scheduleEnd,
+            activeDays: JSON.stringify(rule.activeDays),
+            status: rule.status,
+            policyVersion: String(rule.policyVersion || 1),
+            serverTimestamp: serverTimestamp.toISOString(),
+          })
+        )
+      ).catch(() => {});
     }
   }
 
