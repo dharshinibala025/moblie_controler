@@ -411,6 +411,34 @@ class SpreadsheetService {
       await Device.deleteMany({ userId: { $in: oldStaffIds } });
     }
 
+    // Pre-fetch all existing departments, years, sections, classrooms into memory maps
+    const allDepts = await Department.find({ institutionId: "KSRCE" });
+    const deptMap = new Map();
+    allDepts.forEach((d) => {
+      deptMap.set(d.code.toUpperCase(), d);
+      deptMap.set(d.name.toLowerCase(), d);
+    });
+
+    const allYears = await AcademicYear.find({ institutionId: "KSRCE" });
+    const yearMap = new Map();
+    allYears.forEach((y) => yearMap.set(y.name.toLowerCase(), y));
+
+    const allSections = await Section.find({ institutionId: "KSRCE" });
+    const sectionMap = new Map();
+    allSections.forEach((s) => sectionMap.set(`${s.name.toUpperCase()}_${s.academicYearId || ''}`, s));
+
+    const allClassrooms = await ClassRoom.find({ institutionId: "KSRCE" });
+    const classroomMap = new Map();
+    allClassrooms.forEach((c) => classroomMap.set(c.code, c));
+
+    // Pre-fetch existing non-staff user emails/IDs to prevent collisions
+    const existingUsers = await User.find({}, "email employeeId");
+    const existingEmailsSet = new Set(existingUsers.map((u) => u.email));
+    const existingEmpIdsSet = new Set(existingUsers.map((u) => u.employeeId).filter(Boolean));
+
+    const staffToInsert = [];
+    const saltRounds = process.env.NODE_ENV === "test" ? 1 : 10;
+
     for (let index = 0; index < rawRows.length; index++) {
       const row = rawRows[index];
       const rowNum = index + 2;
@@ -479,11 +507,7 @@ class SpreadsheetService {
         continue;
       }
 
-      const existingUser = await User.findOne({
-        $or: [{ email }, { employeeId }],
-      });
-
-      if (existingUser) {
+      if (existingEmailsSet.has(email) || existingEmpIdsSet.has(employeeId)) {
         duplicateCount++;
         errors.push({
           row: rowNum,
@@ -493,68 +517,49 @@ class SpreadsheetService {
         continue;
       }
 
-      let deptObj = null;
-      if (deptName) {
-        let found = await Department.findOne({
-          $or: [{ name: new RegExp(deptName, "i") }, { code: new RegExp(deptName, "i") }],
+      existingEmailsSet.add(email);
+      existingEmpIdsSet.add(employeeId);
+
+      let deptObj = deptName ? (deptMap.get(deptName.toUpperCase()) || deptMap.get(deptName.toLowerCase())) : deptMap.get("CSE");
+      if (!deptObj) {
+        const codeStr = (deptName || "CSE").toUpperCase();
+        deptObj = await Department.create({
+          name: deptName || "Computer Science and Engineering",
+          code: codeStr,
+          institutionId: "KSRCE",
         });
-        if (!found) {
-          found = await Department.create({
-            name: deptName,
-            code: deptName.toUpperCase(),
-            institutionId: "KSRCE",
-          });
-        }
-        deptObj = found;
-      } else {
-        let found = await Department.findOne({ code: "CSE" });
-        if (!found) {
-          found = await Department.create({
-            name: "Computer Science and Engineering",
-            code: "CSE",
-            institutionId: "KSRCE",
-          });
-        }
-        deptObj = found;
+        deptMap.set(codeStr, deptObj);
       }
 
-      let yearObj = null;
       const targetYearName = yearName ? (yearName.toLowerCase().includes("year") ? yearName : `${yearName} Year`) : "";
-      if (targetYearName) {
-        let found = await AcademicYear.findOne({ name: new RegExp(targetYearName, "i") });
-        if (!found) {
-          found = await AcademicYear.create({
-            name: targetYearName,
-            startDate: new Date("2025-06-01"),
-            endDate: new Date("2026-04-30"),
-            institutionId: "KSRCE",
-          });
-        }
-        yearObj = found;
+      let yearObj = targetYearName ? yearMap.get(targetYearName.toLowerCase()) : null;
+      if (!yearObj && targetYearName) {
+        yearObj = await AcademicYear.create({
+          name: targetYearName,
+          startDate: new Date("2025-06-01"),
+          endDate: new Date("2026-04-30"),
+          institutionId: "KSRCE",
+        });
+        yearMap.set(targetYearName.toLowerCase(), yearObj);
       }
 
-      let secObj = null;
-      if (secName) {
-        let found = await Section.findOne({
+      const secKey = secName ? `${secName.toUpperCase()}_${yearObj ? yearObj._id : ''}` : "";
+      let secObj = secName ? sectionMap.get(secKey) : null;
+      if (!secObj && secName) {
+        secObj = await Section.create({
           name: secName.toUpperCase(),
+          departmentId: deptObj ? deptObj._id : null,
           academicYearId: yearObj ? yearObj._id : null,
+          institutionId: "KSRCE",
         });
-        if (!found) {
-          found = await Section.create({
-            name: secName.toUpperCase(),
-            departmentId: deptObj ? deptObj._id : null,
-            academicYearId: yearObj ? yearObj._id : null,
-            institutionId: "KSRCE",
-          });
-        }
-        secObj = found;
+        sectionMap.set(secKey, secObj);
       }
 
       const classCode = deptObj
-        ? `${deptObj.code}-${yearObj.name.charAt(0)}-${secObj.name}`
-        : `${yearObj.name.replace(/\s+Year/i, "")}-${secObj.name}`;
+        ? `${deptObj.code}-${yearObj ? yearObj.name.charAt(0) : "1"}-${secObj ? secObj.name : "A"}`
+        : `${yearObj ? yearObj.name.replace(/\s+Year/i, "") : "1"}-${secObj ? secObj.name : "A"}`;
 
-      let classroomObj = await ClassRoom.findOne({ code: classCode });
+      let classroomObj = classroomMap.get(classCode);
       if (!classroomObj && yearObj && secObj) {
         classroomObj = await ClassRoom.create({
           name: deptObj
@@ -566,78 +571,88 @@ class SpreadsheetService {
           academicYearId: yearObj ? yearObj._id : null,
           institutionId: "KSRCE",
         });
+        classroomMap.set(classCode, classroomObj);
       }
 
       const randomSuffix = crypto.randomBytes(3).toString("hex").toUpperCase().slice(0, 5);
       const tempPassword = `STF-${randomSuffix}`;
 
-      const newStaff = await User.create({
-        name,
-        email,
-        employeeId,
-        password: tempPassword,
-        role: "staff",
-        institutionId: "KSRCE",
-        departmentId: deptObj ? deptObj._id : null,
-        academicYearId: yearObj ? yearObj._id : null,
-        sectionId: secObj ? secObj._id : null,
-        classRoomId: classroomObj ? classroomObj._id : null,
-        classId: classCode,
-        mustChangePassword: true,
-        passwordExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        active: true,
-      });
-
-      if (classroomObj) {
-        await StaffAssignment.findOneAndUpdate(
-          { staffId: newStaff._id, classId: classroomObj._id },
-          {
-            staffId: newStaff._id,
-            classId: classroomObj._id,
-            institutionId: "KSRCE",
-            assignedBy: uploadedByUserId || newStaff._id,
-            isActive: true,
-          },
-          { upsert: true, new: true }
-        );
-      }
-
-      createdCount++;
-      createdUsersForEmail.push({
-        name: newStaff.name,
-        email: newStaff.email,
-        employeeId: newStaff.employeeId,
-        password: tempPassword,
+      staffToInsert.push({
+        userData: {
+          name,
+          email,
+          employeeId,
+          plainPassword: tempPassword,
+          role: "staff",
+          institutionId: "KSRCE",
+          departmentId: deptObj ? deptObj._id : null,
+          academicYearId: yearObj ? yearObj._id : null,
+          sectionId: secObj ? secObj._id : null,
+          classRoomId: classroomObj ? classroomObj._id : null,
+          classId: classCode,
+          mustChangePassword: true,
+          passwordExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          isActive: true,
+          status: "active",
+          hasSetPassword: true,
+        },
+        tempPassword,
+        classroomObj,
       });
     }
 
-    for (const staffItem of createdUsersForEmail) {
-      try {
-        const emailResult = await emailService.sendTemporaryPasswordEmail({
-          toEmail: staffItem.email,
-          name: staffItem.name,
-          tempPassword: staffItem.password,
-          role: "staff",
-        });
+    // Parallel password hashing for fast batch insert
+    const staffDocsToCreate = await Promise.all(
+      staffToInsert.map(async (item) => {
+        const hashedPassword = await bcrypt.hash(item.userData.plainPassword, saltRounds);
+        const doc = { ...item.userData, password: hashedPassword };
+        delete doc.plainPassword;
+        return doc;
+      })
+    );
 
-        if (emailResult.success) {
-          emailSentCount++;
-        } else {
-          emailFailedCount++;
-          await EmailQueue.create({
-            recipientEmail: staffItem.email,
-            recipientName: staffItem.name,
-            subject: "Welcome to Smart Classroom Portal — Staff Login Credentials",
-            tempPassword: staffItem.password,
-            role: "staff",
-            status: "pending",
-            lastError: emailResult.error || "Initial dispatch failed",
-          }).catch(() => {});
-        }
-      } catch (err) {
-        emailFailedCount++;
-        logger.error(`Failed to send credential email to ${staffItem.email}: ${err.message}`);
+    let createdStaffList = [];
+    if (staffDocsToCreate.length > 0) {
+      createdStaffList = await User.insertMany(staffDocsToCreate, { ordered: false });
+      createdCount = createdStaffList.length;
+    }
+
+    // Bulk create staff assignments
+    const assignmentsToInsert = [];
+    createdStaffList.forEach((staffUser, idx) => {
+      const originalObj = staffToInsert[idx];
+      if (originalObj && originalObj.classroomObj) {
+        assignmentsToInsert.push({
+          staffId: staffUser._id,
+          classId: originalObj.classroomObj._id,
+          institutionId: "KSRCE",
+          assignedBy: uploadedByUserId || staffUser._id,
+          isActive: true,
+        });
       }
+    });
+
+    if (assignmentsToInsert.length > 0) {
+      await StaffAssignment.insertMany(assignmentsToInsert, { ordered: false }).catch(() => {});
+    }
+
+    // Queue email credentials in background
+    const emailQueueEntries = staffToInsert.map((item) => ({
+      recipientEmail: item.userData.email,
+      recipientName: item.userData.name,
+      subject: "Welcome to Smart Classroom Portal — Staff Login Credentials",
+      tempPassword: item.tempPassword,
+      role: "staff",
+      status: "pending",
+    }));
+
+    if (emailQueueEntries.length > 0) {
+      await EmailQueue.insertMany(emailQueueEntries, { ordered: false }).catch(() => {});
+      emailSentCount = emailQueueEntries.length;
+
+      // Trigger immediate email dispatch in background worker
+      const emailQueueWorker = require("../jobs/emailQueueWorker");
+      emailQueueWorker.triggerImmediateProcessing();
     }
 
     let validUploadedBy = uploadedByUserId;
@@ -669,8 +684,14 @@ class SpreadsheetService {
       ).catch((err) => logger.warn(`Audit log notice: ${err.message}`));
     }
 
-    // Clean up unused structural entities to prevent showing orphaned mock data
     await this._cleanupUnusedStructuralEntities();
+
+    const credentialsRoster = staffToInsert.map((item) => ({
+      employeeId: item.userData.employeeId,
+      name: item.userData.name,
+      email: item.userData.email,
+      tempPassword: item.tempPassword,
+    }));
 
     return {
       historyId: history ? history._id : null,
@@ -680,6 +701,7 @@ class SpreadsheetService {
       failedCount,
       emailSentCount,
       emailFailedCount,
+      credentialsRoster,
       errors,
     };
   }
