@@ -1,0 +1,22 @@
+name: Keep Render Alive
+
+# Prevents Render free-tier from sleeping after ~15 min idle.
+# An external process must ping it (the in-app self-ping dies with the server).
+
+on:
+  schedule:
+    - cron: '*/13 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping health endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -m 30 https://moblie-controler.onrender.com/health || echo "000")
+          echo "Render /health returned: $code"
