@@ -296,18 +296,28 @@ class SpreadsheetService {
       recipientName: item.userData.name,
       studentId: item.userData.studentId,
       subject: "Welcome to Smart Classroom Portal — Temporary Login Credentials",
+      htmlBody: emailService.buildCredentialEmailHtml({
+        name: item.userData.name,
+        toEmail: item.userData.email,
+        regNo: item.userData.studentId,
+        tempPassword: item.tempPassword,
+        role: "student",
+      }),
       tempPassword: item.tempPassword,
       role: "student",
       status: "pending",
     }));
 
     if (emailQueueEntries.length > 0) {
-      await EmailQueue.insertMany(emailQueueEntries, { ordered: false }).catch(() => {});
-      emailSentCount = emailQueueEntries.length;
+      const emailQueuedCount = await this._insertEmailQueueEntries(emailQueueEntries);
+      emailSentCount = emailQueuedCount;
+      emailFailedCount = emailQueueEntries.length - emailQueuedCount;
 
       // Trigger immediate email dispatch in background worker
-      const emailQueueWorker = require("../jobs/emailQueueWorker");
-      emailQueueWorker.triggerImmediateProcessing();
+      if (emailQueuedCount > 0) {
+        const emailQueueWorker = require("../jobs/emailQueueWorker");
+        emailQueueWorker.triggerImmediateProcessing();
+      }
     }
 
     // Audit and upload history recording
@@ -357,6 +367,7 @@ class SpreadsheetService {
       duplicateCount,
       failedCount,
       emailSentCount,
+      emailQueuedCount: emailSentCount,
       emailFailedCount,
       credentialsRoster,
       errors,
@@ -640,19 +651,30 @@ class SpreadsheetService {
     const emailQueueEntries = staffToInsert.map((item) => ({
       recipientEmail: item.userData.email,
       recipientName: item.userData.name,
+      studentId: item.userData.employeeId,
       subject: "Welcome to Smart Classroom Portal — Staff Login Credentials",
+      htmlBody: emailService.buildCredentialEmailHtml({
+        name: item.userData.name,
+        toEmail: item.userData.email,
+        regNo: item.userData.employeeId,
+        tempPassword: item.tempPassword,
+        role: "staff",
+      }),
       tempPassword: item.tempPassword,
       role: "staff",
       status: "pending",
     }));
 
     if (emailQueueEntries.length > 0) {
-      await EmailQueue.insertMany(emailQueueEntries, { ordered: false }).catch(() => {});
-      emailSentCount = emailQueueEntries.length;
+      const emailQueuedCount = await this._insertEmailQueueEntries(emailQueueEntries);
+      emailSentCount = emailQueuedCount;
+      emailFailedCount = emailQueueEntries.length - emailQueuedCount;
 
       // Trigger immediate email dispatch in background worker
-      const emailQueueWorker = require("../jobs/emailQueueWorker");
-      emailQueueWorker.triggerImmediateProcessing();
+      if (emailQueuedCount > 0) {
+        const emailQueueWorker = require("../jobs/emailQueueWorker");
+        emailQueueWorker.triggerImmediateProcessing();
+      }
     }
 
     let validUploadedBy = uploadedByUserId;
@@ -700,10 +722,30 @@ class SpreadsheetService {
       duplicateCount,
       failedCount,
       emailSentCount,
+      emailQueuedCount: emailSentCount,
       emailFailedCount,
       credentialsRoster,
       errors,
     };
+  }
+
+  /**
+   * Inserts queued credential emails into EmailQueue, returning the number of rows
+   * actually inserted. Never throws and never silently hides a full failure.
+   */
+  async _insertEmailQueueEntries(entries) {
+    if (!entries || entries.length === 0) return 0;
+    try {
+      const inserted = await EmailQueue.insertMany(entries, { ordered: false });
+      return (inserted || []).length;
+    } catch (err) {
+      const insertedCount = (err && (err.insertedCount || (err.result && err.result.nInserted))) || 0;
+      const failedCount = entries.length - insertedCount;
+      logger.warn(
+        `Email queue insert partially failed: ${failedCount}/${entries.length} row(s) rejected. ${err.message}`
+      );
+      return insertedCount || 0;
+    }
   }
 
   /**

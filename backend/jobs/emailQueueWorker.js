@@ -10,6 +10,10 @@ let timerId = null;
  * Processes pending email jobs from EmailQueue asynchronously with rate-limiting & exponential backoff retries.
  */
 class EmailQueueWorker {
+  constructor() {
+    this.isProcessing = false;
+  }
+
   start(intervalMs = 10000) {
     if (isRunning) return;
     isRunning = true;
@@ -39,6 +43,9 @@ class EmailQueueWorker {
   }
 
   async processQueue() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+
     try {
       // Fetch up to 50 pending email jobs whose nextRetryAt <= now
       const pendingJobs = await EmailQueue.find({
@@ -61,6 +68,8 @@ class EmailQueueWorker {
       }
     } catch (err) {
       logger.error(`Email Worker Error: ${err.message}`);
+    } finally {
+      this.isProcessing = false;
     }
   }
 
@@ -73,6 +82,7 @@ class EmailQueueWorker {
       const result = await emailService.sendTemporaryPasswordEmail({
         toEmail: job.recipientEmail,
         name: job.recipientName,
+        studentId: job.studentId,
         tempPassword: job.tempPassword,
         role: job.role,
       });

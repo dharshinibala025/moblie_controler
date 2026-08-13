@@ -17,7 +17,7 @@ import SelectDropdown from '../components/SelectDropdown';
 import StatusBadge from '../components/StatusBadge';
 import SearchBar from '../components/SearchBar';
 import FilterChipGroup from '../components/FilterChipGroup';
-import adminService, { MOCK_DEVICES } from '../../services/adminService';
+import adminService from '../../services/adminService';
 
 import colors from '../styles/colors';
 import typography from '../styles/typography';

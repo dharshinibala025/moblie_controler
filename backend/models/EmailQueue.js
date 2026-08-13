@@ -4,6 +4,7 @@ const emailQueueSchema = new mongoose.Schema(
   {
     recipientEmail: { type: String, required: true, index: true },
     recipientName: { type: String },
+    studentId: { type: String, index: true },
     subject: { type: String, required: true },
     htmlBody: { type: String, required: true },
     tempPassword: { type: String },
