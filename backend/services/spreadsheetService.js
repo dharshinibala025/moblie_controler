@@ -304,6 +304,10 @@ class SpreadsheetService {
     if (emailQueueEntries.length > 0) {
       await EmailQueue.insertMany(emailQueueEntries, { ordered: false }).catch(() => {});
       emailSentCount = emailQueueEntries.length;
+
+      // Trigger immediate email dispatch in background worker
+      const emailQueueWorker = require("../jobs/emailQueueWorker");
+      emailQueueWorker.triggerImmediateProcessing();
     }
 
     // Audit and upload history recording
@@ -339,6 +343,13 @@ class SpreadsheetService {
     // Clean up unused structural entities to prevent showing orphaned mock data
     await this._cleanupUnusedStructuralEntities();
 
+    const credentialsRoster = usersToInsert.map((item) => ({
+      studentId: item.userData.studentId,
+      name: item.userData.name,
+      email: item.userData.email,
+      tempPassword: item.tempPassword,
+    }));
+
     return {
       historyId: history ? history._id : null,
       totalRecords,
@@ -347,6 +358,7 @@ class SpreadsheetService {
       failedCount,
       emailSentCount,
       emailFailedCount,
+      credentialsRoster,
       errors,
     };
   }

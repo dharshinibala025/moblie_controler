@@ -32,7 +32,7 @@ router.get("/latest", async (req, res, next) => {
       return res.status(404).json({ error: "Device not found" });
     }
 
-    const student = await User.findById(device.userId);
+    const student = await User.findById(device.userId).lean();
     if (!student) {
       return res.status(404).json({ error: "Student not found" });
     }
@@ -71,7 +71,7 @@ router.get("/latest", async (req, res, next) => {
           studentId,
           category: "games",
           removedAt: null
-        });
+        }).lean();
         const seen = new Set(blocked);
         for (const game of games) {
           if (!seen.has(game.packageName)) {
@@ -94,7 +94,7 @@ router.get("/latest", async (req, res, next) => {
         ...(student.academicYearId ? [{ "targetScope.type": "year", "targetScope.targetId": student.academicYearId.toString() }] : []),
       ],
       status: "active",
-    }).sort({ updatedAt: -1 });
+    }).sort({ updatedAt: -1 }).lean();
 
     const { isRuleActiveNow } = require("../utils/scheduleHelper");
     const currentlyEnforcedRules = activeRules.filter((rule) => isRuleActiveNow(rule, new Date()));
