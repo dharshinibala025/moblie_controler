@@ -10,6 +10,7 @@ const adminRoutes = require("./routes/admin.routes");
 const staffRoutes = require("./routes/staff.routes");
 const studentRoutes = require("./routes/student.routes");
 const { generalLimiter, userLimiter } = require("./middleware/rateLimiter");
+const emailService = require("./services/emailService");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const logger = require("./utils/logger");
 
@@ -50,6 +51,17 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/health/smtp", (req, res) => {
+  res.json({
+    smtpConfigured: emailService.isSmtpConfigured(),
+    smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
+    smtpUser: process.env.SMTP_EMAIL || process.env.SMTP_USER || null,
+    fromEmail: process.env.FROM_EMAIL || null,
+    appUrl: process.env.APP_URL || null,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 app.use("/auth", authRoutes);

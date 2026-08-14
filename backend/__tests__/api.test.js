@@ -612,6 +612,14 @@ describe("MISC - Health Check", () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ok");
   });
+
+  test("GET /health/smtp reports SMTP configuration state", async () => {
+    const res = await request(app).get("/health/smtp");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("smtpConfigured");
+    expect(typeof res.body.smtpConfigured).toBe("boolean");
+    expect(res.body).toHaveProperty("smtpHost");
+  });
 });
 
 describe("MISC - 404 Handler", () => {

@@ -15,6 +15,8 @@ const getTransporter = () => {
   });
 };
 
+exports.isSmtpConfigured = () => Boolean(process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS);
+
 exports.buildCredentialEmailHtml = ({ name, toEmail, regNo, tempPassword, role, appUrl }) => {
   const safeRegNo = regNo || "N/A";
   const safeUrl = appUrl || process.env.APP_URL || "https://classroom.ksrce.ac.in/login";
