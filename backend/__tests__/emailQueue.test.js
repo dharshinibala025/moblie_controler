@@ -38,8 +38,18 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe("emailService.buildCredentialEmailHtml", () => {
-  it("renders the recipient details and temporary password into the email body", () => {
+describe("emailService.getTransporter", () => {
+  it("forces IPv4 and sets explicit connection timeouts (Render has no IPv6)", () => {
+    const transporter = emailService.getTransporter();
+    const options = transporter.options;
+    expect(options.family).toBe(4);
+    expect(options.connectionTimeout).toBe(30000);
+    expect(options.greetingTimeout).toBe(30000);
+    expect(options.socketTimeout).toBe(120000);
+  });
+});
+
+describe("emailService.buildCredentialEmailHtml", () => {  it("renders the recipient details and temporary password into the email body", () => {
     const html = emailService.buildCredentialEmailHtml({
       name: "Alice Test",
       toEmail: "alice@test.com",

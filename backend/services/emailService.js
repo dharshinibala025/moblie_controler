@@ -1,6 +1,5 @@
 const nodemailer = require("nodemailer");
 const logger = require("../utils/logger");
-
 const getTransporter = () => {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = parseInt(process.env.SMTP_PORT || "587");
@@ -12,8 +11,14 @@ const getTransporter = () => {
     port,
     secure: port === 465,
     auth: user && pass ? { user, pass } : undefined,
+    family: 4,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 120000,
   });
 };
+
+exports.getTransporter = getTransporter;
 
 exports.isSmtpConfigured = () => Boolean(process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS);
 

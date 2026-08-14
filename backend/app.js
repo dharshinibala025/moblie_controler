@@ -5,6 +5,8 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 
+const app = express();
+
 const authRoutes = require("./routes/auth.routes");
 const adminRoutes = require("./routes/admin.routes");
 const staffRoutes = require("./routes/staff.routes");
@@ -14,11 +16,7 @@ const emailService = require("./services/emailService");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const logger = require("./utils/logger");
 
-const app = express();
-
-if (process.env.TRUST_PROXY) {
-  app.set("trust proxy", parseInt(process.env.TRUST_PROXY) || 1);
-}
+app.set("trust proxy", 1);
 
 app.use(helmet());
 
