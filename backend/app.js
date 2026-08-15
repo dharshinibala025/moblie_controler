@@ -5,19 +5,18 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 
+const app = express();
+
 const authRoutes = require("./routes/auth.routes");
 const adminRoutes = require("./routes/admin.routes");
 const staffRoutes = require("./routes/staff.routes");
 const studentRoutes = require("./routes/student.routes");
 const { generalLimiter, userLimiter } = require("./middleware/rateLimiter");
+const emailService = require("./services/emailService");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const logger = require("./utils/logger");
 
-const app = express();
-
-if (process.env.TRUST_PROXY) {
-  app.set("trust proxy", parseInt(process.env.TRUST_PROXY) || 1);
-}
+app.set("trust proxy", 1);
 
 app.use(helmet());
 
@@ -52,6 +51,28 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+app.get("/health/smtp", (req, res) => {
+  res.json({
+    emailConfigured: emailService.isEmailConfigured(),
+    emailProvider: emailService.activeProvider(),
+    brevoConfigured: Boolean(process.env.BREVO_API_KEY),
+    smtpConfigured: emailService.isSmtpConfigured(),
+    smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
+    smtpUser: process.env.SMTP_EMAIL || process.env.SMTP_USER || null,
+    fromEmail: process.env.FROM_EMAIL || null,
+    appUrl: process.env.APP_URL || null,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/health/smtp-test", async (req, res) => {
+  const result = await emailService.testSmtpConnectivity();
+  res.json({
+    smtpConfigured: emailService.isSmtpConfigured(),
+    ...result,
+    timestamp: new Date().toISOString(),
+  });
+});
 app.use("/auth", authRoutes);
 app.use("/admin", userLimiter, adminRoutes);
 app.use("/staff", userLimiter, staffRoutes);

@@ -270,6 +270,10 @@ const StaffScreen = () => {
       
       const firstError = res?.errors && res.errors.length > 0 ? res.errors[0].reason : null;
       const errorSuffix = firstError ? `\n\nNote: ${firstError}` : '';
+      const emailConfigured = res?.emailConfigured !== false;
+      const emailLine = emailConfigured
+        ? `• Emails Queued: ${res?.emailQueuedCount ?? res?.emailSentCount ?? 0}\n`
+        : `• Emails NOT Sent: Server email is not configured — add BREVO_API_KEY or SMTP settings on Render\n`;
 
       Alert.alert(
         '📊 Import Summary Report',
@@ -277,7 +281,7 @@ const StaffScreen = () => {
         `• Successfully Imported: ${res?.createdCount || 0}\n` +
         `• Duplicate Records Ignored: ${res?.duplicateCount || 0}\n` +
         `• Failed Records: ${res?.failedCount || 0}\n` +
-        `• Emails Queued: ${res?.emailQueuedCount ?? res?.emailSentCount ?? 0}\n` +
+        emailLine +
         `• Email Failures: ${res?.emailFailedCount || 0}${errorSuffix}`,
       );
       await loadStaff();

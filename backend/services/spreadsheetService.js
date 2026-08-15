@@ -369,6 +369,7 @@ class SpreadsheetService {
       emailSentCount,
       emailQueuedCount: emailSentCount,
       emailFailedCount,
+      emailConfigured: emailService.isEmailConfigured(),
       credentialsRoster,
       errors,
     };
@@ -724,6 +725,7 @@ class SpreadsheetService {
       emailSentCount,
       emailQueuedCount: emailSentCount,
       emailFailedCount,
+      emailConfigured: emailService.isEmailConfigured(),
       credentialsRoster,
       errors,
     };

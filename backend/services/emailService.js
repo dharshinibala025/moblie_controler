@@ -1,18 +1,168 @@
 const nodemailer = require("nodemailer");
+const dns = require("dns");
+const net = require("net");
 const logger = require("../utils/logger");
 
-const getTransporter = () => {
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+
+const parseSender = () => {
+  const from = process.env.FROM_EMAIL || process.env.BREVO_SENDER_EMAIL || process.env.SMTP_EMAIL || "mobilecontrol07@gmail.com";
+  const match = String(from).match(/^"([^"]+)"\s*<([^>]+)>$/);
+  if (match) {
+    return { name: match[1], email: match[2] };
+  }
+  return { name: "Smart Classroom Portal", email: String(from).replace(/[<>]/g, "").trim() };
+};
+
+const sendBrevoEmail = async ({ toEmail, subject, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    throw new Error("BREVO_API_KEY is not configured");
+  }
+  const sender = parseSender();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(BREVO_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender,
+        to: [{ email: toEmail }],
+        subject,
+        htmlContent: html,
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = (data.message && data.message.join ? data.message.join("; ") : data.message) || response.statusText;
+      throw new Error(`Brevo API ${response.status}: ${detail}`);
+    }
+    return { success: true, messageId: data.messageId };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const deliverViaApi = async ({ toEmail, subject, html }) => {
+  if (process.env.BREVO_API_KEY) {
+    await sendBrevoEmail({ toEmail, subject, html });
+    return true;
+  }
+  return false;
+};
+
+const IPV4_CACHE_TTL = 6 * 60 * 60 * 1000;
+let ipv4Cache = { host: null, expires: 0 };
+
+const resolveIpv4Host = async (hostname) => {
+  if (ipv4Cache.host && Date.now() < ipv4Cache.expires) {
+    return ipv4Cache.host;
+  }
+  try {
+    const addresses = await dns.promises.lookup(hostname, { family: 4, all: true });
+    if (addresses && addresses.length) {
+      ipv4Cache = { host: addresses[0].address, expires: Date.now() + IPV4_CACHE_TTL };
+      return addresses[0].address;
+    }
+  } catch (err) {
+    logger.warn(`SMTP IPv4 resolution failed for ${hostname}: ${err.message}`);
+  }
+  return hostname;
+};
+
+const getTransporter = async () => {
+  const hostname = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = parseInt(process.env.SMTP_PORT || "587");
   const user = process.env.SMTP_EMAIL || process.env.SMTP_USER || "";
   const pass = process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS || "";
 
+  // Connect to an explicit IPv4 literal: nodemailer 9 resolves BOTH families and
+  // picks a random address (IPv6 ~50%), and Render instances have no working IPv6
+  // route -> 'connect ENETUNREACH <ipv6>:587'. Using an IPv4 literal skips its
+  // resolver entirely; servername keeps TLS/SNI correct.
+  const host = net.isIP(hostname) ? hostname : await resolveIpv4Host(hostname);
+
   return nodemailer.createTransport({
     host,
+    servername: hostname,
     port,
     secure: port === 465,
     auth: user && pass ? { user, pass } : undefined,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 120000,
   });
+};
+
+exports.getTransporter = getTransporter;
+
+exports._clearIpv4Cache = () => {
+  ipv4Cache = { host: null, expires: 0 };
+};
+
+const probeOne = (hostname, port) =>
+  new Promise((resolve) => {
+    dns.promises
+      .lookup(hostname, { family: 4, all: false })
+      .then((result) => {
+        const address = typeof result === "string" ? result : result.address;
+        const started = Date.now();
+        const socket = net.createConnection({
+          host: address,
+          port,
+          family: 4,
+          timeout: 8000,
+        });
+        socket.on("connect", () => {
+          socket.destroy();
+          resolve({ target: `${hostname}:${port}`, ok: true, host: address, port, ms: Date.now() - started });
+        });
+        socket.on("timeout", () => {
+          socket.destroy();
+          resolve({ target: `${hostname}:${port}`, ok: false, error: "connect timeout", host: address, port });
+        });
+        socket.on("error", (e) => {
+          socket.destroy();
+          resolve({ target: `${hostname}:${port}`, ok: false, error: e.code || e.message, host: address, port });
+        });
+      })
+      .catch((err) => {
+        resolve({ target: `${hostname}:${port}`, ok: false, error: "dns lookup failed: " + err.message });
+      });
+  });
+
+const PROBE_TARGETS = [
+  ["smtp.gmail.com", 587],
+  ["smtp.gmail.com", 465],
+  ["smtp.gmail.com", 25],
+  ["smtp.sendgrid.net", 587],
+  ["smtp.brevo.com", 587],
+];
+
+exports.testSmtpConnectivity = async () => {
+  const results = await Promise.all(
+    PROBE_TARGETS.map(([host, port]) => probeOne(host, port))
+  );
+  return { configured: process.env.SMTP_HOST || "smtp.gmail.com", results };
+};
+
+exports.isSmtpConfigured = () => Boolean(process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS);
+
+exports.isEmailConfigured = () =>
+  exports.isSmtpConfigured() || Boolean(process.env.BREVO_API_KEY);
+
+exports.activeProvider = () => {
+  if (process.env.BREVO_API_KEY) return "brevo";
+  if (exports.isSmtpConfigured()) return "smtp";
+  return "none";
 };
 
 exports.buildCredentialEmailHtml = ({ name, toEmail, regNo, tempPassword, role, appUrl }) => {
@@ -50,17 +200,24 @@ exports.buildCredentialEmailHtml = ({ name, toEmail, regNo, tempPassword, role, 
 
 exports.sendTemporaryPasswordEmail = async ({ toEmail, name, studentId, registerNumber, tempPassword, role, loginUrl }) => {
   try {
-    const fromEmail = process.env.FROM_EMAIL || `"Smart Classroom Portal" <${process.env.SMTP_EMAIL || "vvdharani57cse24_27@ksrce.ac.in"}>`;
-    const transporter = getTransporter();
-
     const regNo = registerNumber || studentId || "N/A";
     const appUrl = loginUrl || process.env.APP_URL || "https://classroom.ksrce.ac.in/login";
+    const subject = `Smart Classroom Portal — Your Temporary ${role ? role.toUpperCase() : "ACCOUNT"} Credentials`;
+    const html = exports.buildCredentialEmailHtml({ name, toEmail, regNo, tempPassword, role, appUrl });
+
+    if (await deliverViaApi({ toEmail, subject, html })) {
+      logger.info(`Temporary password email sent to ${toEmail} via ${exports.activeProvider()}`);
+      return { success: true };
+    }
+
+    const fromEmail = process.env.FROM_EMAIL || `"Smart Classroom Portal" <${process.env.SMTP_EMAIL || "vvdharani57cse24_27@ksrce.ac.in"}>`;
+    const transporter = await getTransporter();
 
     const mailOptions = {
       from: fromEmail,
       to: toEmail,
-      subject: `Smart Classroom Portal — Your Temporary ${role ? role.toUpperCase() : "ACCOUNT"} Credentials`,
-      html: exports.buildCredentialEmailHtml({ name, toEmail, regNo, tempPassword, role, appUrl }),
+      subject,
+      html,
     };
 
     if (process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS) {
@@ -80,7 +237,6 @@ exports.sendDeveloperCredentialRoster = async (rosterData) => {
   try {
     const developerEmail = process.env.SMTP_EMAIL || "vvdharani57cse24_27@ksrce.ac.in";
     const fromEmail = process.env.FROM_EMAIL || `"Smart Classroom Portal" <${developerEmail}>`;
-    const transporter = getTransporter();
 
     const studentRowsHtml = rosterData.students
       .map(
@@ -125,7 +281,13 @@ exports.sendDeveloperCredentialRoster = async (rosterData) => {
       `,
     };
 
+    if (await deliverViaApi({ toEmail: developerEmail, subject: mailOptions.subject, html: mailOptions.html })) {
+      logger.info(`Credential roster email dispatched successfully to ${developerEmail} via ${exports.activeProvider()}`);
+      return;
+    }
+
     if (process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS) {
+      const transporter = await getTransporter();
       await transporter.sendMail(mailOptions);
       logger.info(`Credential roster email dispatched successfully to ${developerEmail}`);
     } else {

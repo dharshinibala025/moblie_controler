@@ -310,13 +310,18 @@ const StudentsScreen = () => {
 
       const res = await adminService.uploadStudentSpreadsheet(fileBase64, fileName);
 
+      const emailConfigured = res?.emailConfigured !== false;
+      const emailLine = emailConfigured
+        ? `• Emails Queued: ${res?.emailQueuedCount ?? res?.emailSentCount ?? 0}\n`
+        : `• Emails NOT Sent: Server email is not configured — add BREVO_API_KEY or SMTP settings on Render\n`;
+
       Alert.alert(
         '📊 Import Summary Report',
         `• Total Records: ${res?.totalRecords || 0}\n` +
         `• Successfully Imported: ${res?.createdCount || 0}\n` +
         `• Duplicate Records Ignored: ${res?.duplicateCount || 0}\n` +
         `• Failed Records: ${res?.failedCount || 0}\n` +
-        `• Emails Queued: ${res?.emailQueuedCount ?? res?.emailSentCount ?? 0}\n` +
+        emailLine +
         `• Email Failures: ${res?.emailFailedCount || 0}`,
       );
       await loadStudents();
