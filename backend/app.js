@@ -53,6 +53,8 @@ app.get("/health", (req, res) => {
 
 app.get("/health/smtp", (req, res) => {
   res.json({
+    emailConfigured: emailService.isEmailConfigured(),
+    brevoConfigured: Boolean(process.env.BREVO_API_KEY),
     smtpConfigured: emailService.isSmtpConfigured(),
     smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
     smtpUser: process.env.SMTP_EMAIL || process.env.SMTP_USER || null,

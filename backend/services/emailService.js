@@ -3,6 +3,54 @@ const dns = require("dns");
 const net = require("net");
 const logger = require("../utils/logger");
 
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+
+const parseSender = () => {
+  const from = process.env.FROM_EMAIL || process.env.BREVO_SENDER_EMAIL || process.env.SMTP_EMAIL || "mobilecontrol07@gmail.com";
+  const match = String(from).match(/^"([^"]+)"\s*<([^>]+)>$/);
+  if (match) {
+    return { name: match[1], email: match[2] };
+  }
+  return { name: "Smart Classroom Portal", email: String(from).replace(/[<>]/g, "").trim() };
+};
+
+const sendBrevoEmail = async ({ toEmail, subject, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    throw new Error("BREVO_API_KEY is not configured");
+  }
+  const sender = parseSender();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(BREVO_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender,
+        to: [{ email: toEmail }],
+        subject,
+        htmlContent: html,
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = (data.message && data.message.join ? data.message.join("; ") : data.message) || response.statusText;
+      throw new Error(`Brevo API ${response.status}: ${detail}`);
+    }
+    return { success: true, messageId: data.messageId };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const IPV4_CACHE_TTL = 6 * 60 * 60 * 1000;
 let ipv4Cache = { host: null, expires: 0 };
 
@@ -100,6 +148,9 @@ exports.testSmtpConnectivity = async () => {
 
 exports.isSmtpConfigured = () => Boolean(process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS);
 
+exports.isEmailConfigured = () =>
+  exports.isSmtpConfigured() || Boolean(process.env.BREVO_API_KEY);
+
 exports.buildCredentialEmailHtml = ({ name, toEmail, regNo, tempPassword, role, appUrl }) => {
   const safeRegNo = regNo || "N/A";
   const safeUrl = appUrl || process.env.APP_URL || "https://classroom.ksrce.ac.in/login";
@@ -135,17 +186,25 @@ exports.buildCredentialEmailHtml = ({ name, toEmail, regNo, tempPassword, role, 
 
 exports.sendTemporaryPasswordEmail = async ({ toEmail, name, studentId, registerNumber, tempPassword, role, loginUrl }) => {
   try {
-    const fromEmail = process.env.FROM_EMAIL || `"Smart Classroom Portal" <${process.env.SMTP_EMAIL || "vvdharani57cse24_27@ksrce.ac.in"}>`;
-    const transporter = await getTransporter();
-
     const regNo = registerNumber || studentId || "N/A";
     const appUrl = loginUrl || process.env.APP_URL || "https://classroom.ksrce.ac.in/login";
+    const subject = `Smart Classroom Portal — Your Temporary ${role ? role.toUpperCase() : "ACCOUNT"} Credentials`;
+    const html = exports.buildCredentialEmailHtml({ name, toEmail, regNo, tempPassword, role, appUrl });
+
+    if (process.env.BREVO_API_KEY) {
+      await sendBrevoEmail({ toEmail, subject, html });
+      logger.info(`Temporary password email sent to ${toEmail} via Brevo`);
+      return { success: true };
+    }
+
+    const fromEmail = process.env.FROM_EMAIL || `"Smart Classroom Portal" <${process.env.SMTP_EMAIL || "vvdharani57cse24_27@ksrce.ac.in"}>`;
+    const transporter = await getTransporter();
 
     const mailOptions = {
       from: fromEmail,
       to: toEmail,
-      subject: `Smart Classroom Portal — Your Temporary ${role ? role.toUpperCase() : "ACCOUNT"} Credentials`,
-      html: exports.buildCredentialEmailHtml({ name, toEmail, regNo, tempPassword, role, appUrl }),
+      subject,
+      html,
     };
 
     if (process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS) {
@@ -165,7 +224,6 @@ exports.sendDeveloperCredentialRoster = async (rosterData) => {
   try {
     const developerEmail = process.env.SMTP_EMAIL || "vvdharani57cse24_27@ksrce.ac.in";
     const fromEmail = process.env.FROM_EMAIL || `"Smart Classroom Portal" <${developerEmail}>`;
-    const transporter = await getTransporter();
 
     const studentRowsHtml = rosterData.students
       .map(
@@ -210,7 +268,14 @@ exports.sendDeveloperCredentialRoster = async (rosterData) => {
       `,
     };
 
+    if (process.env.BREVO_API_KEY) {
+      await sendBrevoEmail({ toEmail: developerEmail, subject: mailOptions.subject, html: mailOptions.html });
+      logger.info(`Credential roster email dispatched successfully to ${developerEmail} via Brevo`);
+      return;
+    }
+
     if (process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS) {
+      const transporter = await getTransporter();
       await transporter.sendMail(mailOptions);
       logger.info(`Credential roster email dispatched successfully to ${developerEmail}`);
     } else {

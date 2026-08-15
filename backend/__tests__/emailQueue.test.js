@@ -264,3 +264,59 @@ describe("POST /admin/students/upload (end-to-end)", () => {
     }
   });
 });
+
+describe("emailService Brevo HTTPS sender (Render blocks SMTP egress)", () => {
+  const originalKey = process.env.BREVO_API_KEY;
+
+  afterEach(() => {
+    if (originalKey === undefined) delete process.env.BREVO_API_KEY;
+    else process.env.BREVO_API_KEY = originalKey;
+    jest.restoreAllMocks();
+  });
+
+  it("posts to the Brevo API when BREVO_API_KEY is set", async () => {
+    process.env.BREVO_API_KEY = "xkeysib-test";
+    const fetchMock = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: async () => ({ messageId: "abc-123" }),
+      });
+
+    const result = await emailService.sendTemporaryPasswordEmail({
+      toEmail: "student@test.com",
+      name: "Student One",
+      studentId: "221CS010",
+      tempPassword: "STU-PASS1",
+      role: "student",
+    });
+
+    expect(result.success).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.brevo.com/v3/smtp/email");
+    expect(init.headers["api-key"]).toBe("xkeysib-test");
+    const body = JSON.parse(init.body);
+    expect(body.sender.email).toBe("mobilecontrol07@gmail.com");
+    expect(body.to[0].email).toBe("student@test.com");
+    expect(body.htmlContent).toContain("STU-PASS1");
+  });
+
+  it("reports failure when the Brevo API rejects", async () => {
+    process.env.BREVO_API_KEY = "xkeysib-test";
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: ["invalid api key"] }),
+    });
+
+    const result = await emailService.sendTemporaryPasswordEmail({
+      toEmail: "student@test.com",
+      tempPassword: "STU-PASS1",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("401");
+  });
+});
