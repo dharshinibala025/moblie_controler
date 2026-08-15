@@ -5,6 +5,21 @@ const logger = require("../utils/logger");
 let isRunning = false;
 let timerId = null;
 
+const startOfTodayUtc = () => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+};
+
+const startOfTomorrowUtc = () => {
+  const today = startOfTodayUtc();
+  return new Date(today.getTime() + 24 * 60 * 60 * 1000);
+};
+
+const getDailySendLimit = () => {
+  const raw = parseInt(process.env.DAILY_SEND_LIMIT, 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 300;
+};
+
 /**
  * Enterprise Background Email Worker
  * Processes pending email jobs from EmailQueue asynchronously with rate-limiting & exponential backoff retries.
@@ -47,23 +62,55 @@ class EmailQueueWorker {
     this.isProcessing = true;
 
     try {
+      // Enforce the daily send budget (Brevo free tier = 300 emails/day)
+      const dailyLimit = getDailySendLimit();
+      const sentToday = await EmailQueue.countDocuments({
+        status: "sent",
+        sentAt: { $gte: startOfTodayUtc() },
+      });
+      const remainingBudget = dailyLimit - sentToday;
+
       // Fetch up to 200 pending email jobs whose nextRetryAt <= now
-      const pendingJobs = await EmailQueue.find({
+      const dueJobs = await EmailQueue.find({
         status: "pending",
         nextRetryAt: { $lte: new Date() },
         attempts: { $lt: 5 },
       }).limit(200);
 
-      if (!pendingJobs || pendingJobs.length === 0) {
+      if (!dueJobs || dueJobs.length === 0) {
         return;
       }
 
-      logger.info(`Email Worker: Processing ${pendingJobs.length} queued email job(s)...`);
+      if (remainingBudget <= 0) {
+        logger.warn(
+          `Email Worker: Daily send limit (${dailyLimit}) reached (${sentToday} sent). Parking ${dueJobs.length} job(s) until tomorrow.`
+        );
+        await EmailQueue.updateMany(
+          { _id: { $in: dueJobs.map((job) => job._id) } },
+          { $set: { nextRetryAt: startOfTomorrowUtc() } }
+        );
+        return;
+      }
+
+      let jobsToSend = dueJobs;
+      if (dueJobs.length > remainingBudget) {
+        jobsToSend = dueJobs.slice(0, remainingBudget);
+        const parked = dueJobs.slice(remainingBudget);
+        await EmailQueue.updateMany(
+          { _id: { $in: parked.map((job) => job._id) } },
+          { $set: { nextRetryAt: startOfTomorrowUtc() } }
+        );
+        logger.info(
+          `Email Worker: Daily budget allows ${remainingBudget} more send(s); parking ${parked.length} job(s) until tomorrow.`
+        );
+      }
+
+      logger.info(`Email Worker: Processing ${jobsToSend.length} queued email job(s)...`);
 
       // Dispatch in parallel batches of 20 for high-throughput email sending
       const BATCH_SIZE = 20;
-      for (let i = 0; i < pendingJobs.length; i += BATCH_SIZE) {
-        const batch = pendingJobs.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < jobsToSend.length; i += BATCH_SIZE) {
+        const batch = jobsToSend.slice(i, i + BATCH_SIZE);
         await Promise.all(batch.map((job) => this.dispatchJob(job)));
       }
     } catch (err) {

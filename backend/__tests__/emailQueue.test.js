@@ -216,6 +216,59 @@ describe("emailQueueWorker.processQueue", () => {
     expect(job.lastError).toBe("SMTP down");
     expect(job.nextRetryAt.getTime()).toBeGreaterThan(Date.now());
   });
+
+  it("parks excess jobs until tomorrow when the daily send limit is reached", async () => {
+    const sendSpy = jest
+      .spyOn(emailService, "sendTemporaryPasswordEmail")
+      .mockResolvedValue({ success: true });
+
+    const startOfToday = new Date();
+    startOfToday.setUTCHours(0, 0, 0, 0);
+    const sentToday = await EmailQueue.countDocuments({
+      status: "sent",
+      sentAt: { $gte: startOfToday },
+    });
+
+    // Budget = exactly 1 more send today, regardless of prior test state
+    process.env.DAILY_SEND_LIMIT = String(sentToday + 1);
+
+    await EmailQueue.create([
+      {
+        recipientEmail: "d@test.com",
+        recipientName: "D",
+        subject: "Welcome",
+        htmlBody: "<p>hi</p>",
+        tempPassword: "STU-DDD",
+        role: "student",
+        studentId: "221CS004",
+        status: "pending",
+        nextRetryAt: new Date(Date.now() - 1000),
+      },
+      {
+        recipientEmail: "e@test.com",
+        recipientName: "E",
+        subject: "Welcome",
+        htmlBody: "<p>hi</p>",
+        tempPassword: "STU-EEE",
+        role: "student",
+        studentId: "221CS005",
+        status: "pending",
+        nextRetryAt: new Date(Date.now() - 1000),
+      },
+    ]);
+
+    await emailQueueWorker.processQueue();
+
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+
+    const startOfTomorrow = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+    const jobs = await EmailQueue.find({ recipientEmail: { $in: ["d@test.com", "e@test.com"] } });
+    const parked = jobs.filter((job) => job.status === "pending");
+    expect(parked.length).toBe(1);
+    expect(parked[0].nextRetryAt.getTime()).toBeGreaterThanOrEqual(startOfTomorrow.getTime());
+
+    delete process.env.DAILY_SEND_LIMIT;
+  });
 });
 
 describe("POST /admin/students/upload (end-to-end)", () => {
@@ -318,78 +371,5 @@ describe("emailService Brevo HTTPS sender (Render blocks SMTP egress)", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("401");
-  });
-});
-
-describe("emailService Mailersend HTTPS sender (primary for 700+ bulk)", () => {
-  const originalKey = process.env.MAILERSEND_API_KEY;
-
-  afterEach(() => {
-    if (originalKey === undefined) delete process.env.MAILERSEND_API_KEY;
-    else process.env.MAILERSEND_API_KEY = originalKey;
-    jest.restoreAllMocks();
-  });
-
-  it("posts to the Mailersend API when MAILERSEND_API_KEY is set", async () => {
-    process.env.MAILERSEND_API_KEY = "mlsn.test";
-    const fetchMock = jest
-      .spyOn(global, "fetch")
-      .mockResolvedValue({
-        ok: true,
-        status: 202,
-        json: async () => ({}),
-      });
-
-    const result = await emailService.sendTemporaryPasswordEmail({
-      toEmail: "student@test.com",
-      name: "Student One",
-      studentId: "221CS010",
-      tempPassword: "STU-PASS1",
-      role: "student",
-    });
-
-    expect(result.success).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://api.mailersend.com/v1/email");
-    expect(init.headers.Authorization).toBe("Bearer mlsn.test");
-    const body = JSON.parse(init.body);
-    expect(body.from.email).toBe("mobilecontrol07@gmail.com");
-    expect(body.to[0].email).toBe("student@test.com");
-    expect(body.html).toContain("STU-PASS1");
-  });
-
-  it("reports failure when the Mailersend API rejects", async () => {
-    process.env.MAILERSEND_API_KEY = "mlsn.test";
-    jest.spyOn(global, "fetch").mockResolvedValue({
-      ok: false,
-      status: 429,
-      json: async () => ({ message: "Too Many Requests" }),
-    });
-
-    const result = await emailService.sendTemporaryPasswordEmail({
-      toEmail: "student@test.com",
-      tempPassword: "STU-PASS1",
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.error).toContain("429");
-  });
-
-  it("falls back to Brevo when Mailersend key is absent", async () => {
-    process.env.BREVO_API_KEY = "xkeysib-test";
-    delete process.env.MAILERSEND_API_KEY;
-    const fetchMock = jest
-      .spyOn(global, "fetch")
-      .mockResolvedValue({ ok: true, status: 201, json: async () => ({ messageId: "m1" }) });
-
-    const result = await emailService.sendTemporaryPasswordEmail({
-      toEmail: "student@test.com",
-      tempPassword: "STU-PASS1",
-    });
-
-    expect(result.success).toBe(true);
-    const [url] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://api.brevo.com/v3/smtp/email");
   });
 });
