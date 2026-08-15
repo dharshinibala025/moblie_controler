@@ -4,6 +4,7 @@ const net = require("net");
 const logger = require("../utils/logger");
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+const MAILERSEND_API_URL = "https://api.mailersend.com/v1/email";
 
 const parseSender = () => {
   const from = process.env.FROM_EMAIL || process.env.BREVO_SENDER_EMAIL || process.env.SMTP_EMAIL || "mobilecontrol07@gmail.com";
@@ -49,6 +50,57 @@ const sendBrevoEmail = async ({ toEmail, subject, html }) => {
   } finally {
     clearTimeout(timeout);
   }
+};
+
+const sendMailersendEmail = async ({ toEmail, subject, html }) => {
+  const apiKey = process.env.MAILERSEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("MAILERSEND_API_KEY is not configured");
+  }
+  const sender = parseSender();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(MAILERSEND_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        from: sender,
+        to: [{ email: toEmail }],
+        subject,
+        html,
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail =
+        (data.message && (Array.isArray(data.message) ? data.message.join("; ") : data.message)) ||
+        response.statusText;
+      throw new Error(`Mailersend API ${response.status}: ${detail}`);
+    }
+    return { success: true, messageId: data["X-Request-Id"] || data.requestId || null };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const deliverViaApi = async ({ toEmail, subject, html }) => {
+  if (process.env.MAILERSEND_API_KEY) {
+    await sendMailersendEmail({ toEmail, subject, html });
+    return true;
+  }
+  if (process.env.BREVO_API_KEY) {
+    await sendBrevoEmail({ toEmail, subject, html });
+    return true;
+  }
+  return false;
 };
 
 const IPV4_CACHE_TTL = 6 * 60 * 60 * 1000;
@@ -149,7 +201,16 @@ exports.testSmtpConnectivity = async () => {
 exports.isSmtpConfigured = () => Boolean(process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS);
 
 exports.isEmailConfigured = () =>
-  exports.isSmtpConfigured() || Boolean(process.env.BREVO_API_KEY);
+  exports.isSmtpConfigured() ||
+  Boolean(process.env.BREVO_API_KEY) ||
+  Boolean(process.env.MAILERSEND_API_KEY);
+
+exports.activeProvider = () => {
+  if (process.env.MAILERSEND_API_KEY) return "mailersend";
+  if (process.env.BREVO_API_KEY) return "brevo";
+  if (exports.isSmtpConfigured()) return "smtp";
+  return "none";
+};
 
 exports.buildCredentialEmailHtml = ({ name, toEmail, regNo, tempPassword, role, appUrl }) => {
   const safeRegNo = regNo || "N/A";
@@ -191,9 +252,8 @@ exports.sendTemporaryPasswordEmail = async ({ toEmail, name, studentId, register
     const subject = `Smart Classroom Portal — Your Temporary ${role ? role.toUpperCase() : "ACCOUNT"} Credentials`;
     const html = exports.buildCredentialEmailHtml({ name, toEmail, regNo, tempPassword, role, appUrl });
 
-    if (process.env.BREVO_API_KEY) {
-      await sendBrevoEmail({ toEmail, subject, html });
-      logger.info(`Temporary password email sent to ${toEmail} via Brevo`);
+    if (await deliverViaApi({ toEmail, subject, html })) {
+      logger.info(`Temporary password email sent to ${toEmail} via ${exports.activeProvider()}`);
       return { success: true };
     }
 
@@ -268,9 +328,8 @@ exports.sendDeveloperCredentialRoster = async (rosterData) => {
       `,
     };
 
-    if (process.env.BREVO_API_KEY) {
-      await sendBrevoEmail({ toEmail: developerEmail, subject: mailOptions.subject, html: mailOptions.html });
-      logger.info(`Credential roster email dispatched successfully to ${developerEmail} via Brevo`);
+    if (await deliverViaApi({ toEmail: developerEmail, subject: mailOptions.subject, html: mailOptions.html })) {
+      logger.info(`Credential roster email dispatched successfully to ${developerEmail} via ${exports.activeProvider()}`);
       return;
     }
 

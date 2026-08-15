@@ -313,7 +313,7 @@ const StudentsScreen = () => {
       const emailConfigured = res?.emailConfigured !== false;
       const emailLine = emailConfigured
         ? `• Emails Queued: ${res?.emailQueuedCount ?? res?.emailSentCount ?? 0}\n`
-        : `• Emails NOT Sent: Server email is not configured — add BREVO_API_KEY or SMTP settings on Render\n`;
+        : `• Emails NOT Sent: Server email is not configured — add MAILERSEND_API_KEY or BREVO_API_KEY on Render\n`;
 
       Alert.alert(
         '📊 Import Summary Report',

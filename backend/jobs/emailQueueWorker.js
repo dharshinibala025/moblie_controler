@@ -47,12 +47,12 @@ class EmailQueueWorker {
     this.isProcessing = true;
 
     try {
-      // Fetch up to 50 pending email jobs whose nextRetryAt <= now
+      // Fetch up to 200 pending email jobs whose nextRetryAt <= now
       const pendingJobs = await EmailQueue.find({
         status: "pending",
         nextRetryAt: { $lte: new Date() },
         attempts: { $lt: 5 },
-      }).limit(50);
+      }).limit(200);
 
       if (!pendingJobs || pendingJobs.length === 0) {
         return;
@@ -60,8 +60,8 @@ class EmailQueueWorker {
 
       logger.info(`Email Worker: Processing ${pendingJobs.length} queued email job(s)...`);
 
-      // Dispatch in parallel batches of 10 for high-throughput email sending
-      const BATCH_SIZE = 10;
+      // Dispatch in parallel batches of 20 for high-throughput email sending
+      const BATCH_SIZE = 20;
       for (let i = 0; i < pendingJobs.length; i += BATCH_SIZE) {
         const batch = pendingJobs.slice(i, i + BATCH_SIZE);
         await Promise.all(batch.map((job) => this.dispatchJob(job)));
