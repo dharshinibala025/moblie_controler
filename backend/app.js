@@ -70,7 +70,6 @@ app.get("/health/smtp-test", async (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
 app.use("/auth", authRoutes);
 app.use("/admin", userLimiter, adminRoutes);
 app.use("/staff", userLimiter, staffRoutes);

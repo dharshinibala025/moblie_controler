@@ -11,10 +11,10 @@ const resolveIpv4Host = async (hostname) => {
     return ipv4Cache.host;
   }
   try {
-    const addresses = await dns.promises.resolve4(hostname);
+    const addresses = await dns.promises.lookup(hostname, { family: 4, all: true });
     if (addresses && addresses.length) {
-      ipv4Cache = { host: addresses[0], expires: Date.now() + IPV4_CACHE_TTL };
-      return addresses[0];
+      ipv4Cache = { host: addresses[0].address, expires: Date.now() + IPV4_CACHE_TTL };
+      return addresses[0].address;
     }
   } catch (err) {
     logger.warn(`SMTP IPv4 resolution failed for ${hostname}: ${err.message}`);
@@ -52,35 +52,51 @@ exports._clearIpv4Cache = () => {
   ipv4Cache = { host: null, expires: 0 };
 };
 
-exports.testSmtpConnectivity = () =>
+const probeOne = (hostname, port) =>
   new Promise((resolve) => {
-    const hostname = process.env.SMTP_HOST || "smtp.gmail.com";
-    const port = parseInt(process.env.SMTP_PORT || "587");
-    dns.resolve4(hostname, (err, addresses) => {
-      if (err) {
-        return resolve({ ok: false, error: "dns.resolve4 failed: " + err.message });
-      }
-      const started = Date.now();
-      const socket = net.createConnection({
-        host: addresses[0],
-        port,
-        family: 4,
-        timeout: 10000,
+    dns.promises
+      .lookup(hostname, { family: 4, all: false })
+      .then((result) => {
+        const address = typeof result === "string" ? result : result.address;
+        const started = Date.now();
+        const socket = net.createConnection({
+          host: address,
+          port,
+          family: 4,
+          timeout: 8000,
+        });
+        socket.on("connect", () => {
+          socket.destroy();
+          resolve({ target: `${hostname}:${port}`, ok: true, host: address, port, ms: Date.now() - started });
+        });
+        socket.on("timeout", () => {
+          socket.destroy();
+          resolve({ target: `${hostname}:${port}`, ok: false, error: "connect timeout", host: address, port });
+        });
+        socket.on("error", (e) => {
+          socket.destroy();
+          resolve({ target: `${hostname}:${port}`, ok: false, error: e.code || e.message, host: address, port });
+        });
+      })
+      .catch((err) => {
+        resolve({ target: `${hostname}:${port}`, ok: false, error: "dns lookup failed: " + err.message });
       });
-      socket.on("connect", () => {
-        socket.destroy();
-        resolve({ ok: true, host: addresses[0], port, ms: Date.now() - started });
-      });
-      socket.on("timeout", () => {
-        socket.destroy();
-        resolve({ ok: false, error: "connect timeout", host: addresses[0], port });
-      });
-      socket.on("error", (e) => {
-        socket.destroy();
-        resolve({ ok: false, error: e.code || e.message, host: addresses[0], port });
-      });
-    });
   });
+
+const PROBE_TARGETS = [
+  ["smtp.gmail.com", 587],
+  ["smtp.gmail.com", 465],
+  ["smtp.gmail.com", 25],
+  ["smtp.sendgrid.net", 587],
+  ["smtp.brevo.com", 587],
+];
+
+exports.testSmtpConnectivity = async () => {
+  const results = await Promise.all(
+    PROBE_TARGETS.map(([host, port]) => probeOne(host, port))
+  );
+  return { configured: process.env.SMTP_HOST || "smtp.gmail.com", results };
+};
 
 exports.isSmtpConfigured = () => Boolean(process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS);
 
