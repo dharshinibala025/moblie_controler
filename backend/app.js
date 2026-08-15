@@ -62,6 +62,15 @@ app.get("/health/smtp", (req, res) => {
   });
 });
 
+app.get("/health/smtp-test", async (req, res) => {
+  const result = await emailService.testSmtpConnectivity();
+  res.json({
+    smtpConfigured: emailService.isSmtpConfigured(),
+    ...result,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.use("/auth", authRoutes);
 app.use("/admin", userLimiter, adminRoutes);
 app.use("/staff", userLimiter, staffRoutes);

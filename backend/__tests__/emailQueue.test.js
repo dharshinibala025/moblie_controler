@@ -39,13 +39,34 @@ afterEach(() => {
 });
 
 describe("emailService.getTransporter", () => {
-  it("forces IPv4 and sets explicit connection timeouts (Render has no IPv6)", () => {
-    const transporter = emailService.getTransporter();
-    const options = transporter.options;
-    expect(options.family).toBe(4);
-    expect(options.connectionTimeout).toBe(30000);
-    expect(options.greetingTimeout).toBe(30000);
-    expect(options.socketTimeout).toBe(120000);
+  it("connects to an explicit IPv4 literal with a proper TLS servername (Render has no IPv6)", async () => {
+    const dns = require("dns");
+    const net = require("net");
+    const spy = jest.spyOn(dns.promises, "resolve4").mockResolvedValue(["142.250.72.19"]);
+    try {
+      const transporter = await emailService.getTransporter();
+      const options = transporter.options;
+      expect(net.isIP(options.host)).toBe(4);
+      expect(options.servername).toBe("smtp.gmail.com");
+      expect(options.connectionTimeout).toBe(30000);
+      expect(options.greetingTimeout).toBe(30000);
+      expect(options.socketTimeout).toBe(120000);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("falls back to the hostname when IPv4 DNS resolution fails", async () => {
+    const dns = require("dns");
+    emailService._clearIpv4Cache();
+    const spy = jest.spyOn(dns.promises, "resolve4").mockRejectedValue(new Error("queryA ECONNREFUSED smtp.gmail.com"));
+    try {
+      const transporter = await emailService.getTransporter();
+      expect(transporter.options.host).toBe("smtp.gmail.com");
+      expect(transporter.options.servername).toBe("smtp.gmail.com");
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

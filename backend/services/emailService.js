@@ -1,17 +1,45 @@
 const nodemailer = require("nodemailer");
+const dns = require("dns");
+const net = require("net");
 const logger = require("../utils/logger");
-const getTransporter = () => {
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+
+const IPV4_CACHE_TTL = 6 * 60 * 60 * 1000;
+let ipv4Cache = { host: null, expires: 0 };
+
+const resolveIpv4Host = async (hostname) => {
+  if (ipv4Cache.host && Date.now() < ipv4Cache.expires) {
+    return ipv4Cache.host;
+  }
+  try {
+    const addresses = await dns.promises.resolve4(hostname);
+    if (addresses && addresses.length) {
+      ipv4Cache = { host: addresses[0], expires: Date.now() + IPV4_CACHE_TTL };
+      return addresses[0];
+    }
+  } catch (err) {
+    logger.warn(`SMTP IPv4 resolution failed for ${hostname}: ${err.message}`);
+  }
+  return hostname;
+};
+
+const getTransporter = async () => {
+  const hostname = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = parseInt(process.env.SMTP_PORT || "587");
   const user = process.env.SMTP_EMAIL || process.env.SMTP_USER || "";
   const pass = process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS || "";
 
+  // Connect to an explicit IPv4 literal: nodemailer 9 resolves BOTH families and
+  // picks a random address (IPv6 ~50%), and Render instances have no working IPv6
+  // route -> 'connect ENETUNREACH <ipv6>:587'. Using an IPv4 literal skips its
+  // resolver entirely; servername keeps TLS/SNI correct.
+  const host = net.isIP(hostname) ? hostname : await resolveIpv4Host(hostname);
+
   return nodemailer.createTransport({
     host,
+    servername: hostname,
     port,
     secure: port === 465,
     auth: user && pass ? { user, pass } : undefined,
-    family: 4,
     connectionTimeout: 30000,
     greetingTimeout: 30000,
     socketTimeout: 120000,
@@ -19,6 +47,40 @@ const getTransporter = () => {
 };
 
 exports.getTransporter = getTransporter;
+
+exports._clearIpv4Cache = () => {
+  ipv4Cache = { host: null, expires: 0 };
+};
+
+exports.testSmtpConnectivity = () =>
+  new Promise((resolve) => {
+    const hostname = process.env.SMTP_HOST || "smtp.gmail.com";
+    const port = parseInt(process.env.SMTP_PORT || "587");
+    dns.resolve4(hostname, (err, addresses) => {
+      if (err) {
+        return resolve({ ok: false, error: "dns.resolve4 failed: " + err.message });
+      }
+      const started = Date.now();
+      const socket = net.createConnection({
+        host: addresses[0],
+        port,
+        family: 4,
+        timeout: 10000,
+      });
+      socket.on("connect", () => {
+        socket.destroy();
+        resolve({ ok: true, host: addresses[0], port, ms: Date.now() - started });
+      });
+      socket.on("timeout", () => {
+        socket.destroy();
+        resolve({ ok: false, error: "connect timeout", host: addresses[0], port });
+      });
+      socket.on("error", (e) => {
+        socket.destroy();
+        resolve({ ok: false, error: e.code || e.message, host: addresses[0], port });
+      });
+    });
+  });
 
 exports.isSmtpConfigured = () => Boolean(process.env.SMTP_APP_PASSWORD || process.env.SMTP_PASS);
 
@@ -58,7 +120,7 @@ exports.buildCredentialEmailHtml = ({ name, toEmail, regNo, tempPassword, role, 
 exports.sendTemporaryPasswordEmail = async ({ toEmail, name, studentId, registerNumber, tempPassword, role, loginUrl }) => {
   try {
     const fromEmail = process.env.FROM_EMAIL || `"Smart Classroom Portal" <${process.env.SMTP_EMAIL || "vvdharani57cse24_27@ksrce.ac.in"}>`;
-    const transporter = getTransporter();
+    const transporter = await getTransporter();
 
     const regNo = registerNumber || studentId || "N/A";
     const appUrl = loginUrl || process.env.APP_URL || "https://classroom.ksrce.ac.in/login";
@@ -87,7 +149,7 @@ exports.sendDeveloperCredentialRoster = async (rosterData) => {
   try {
     const developerEmail = process.env.SMTP_EMAIL || "vvdharani57cse24_27@ksrce.ac.in";
     const fromEmail = process.env.FROM_EMAIL || `"Smart Classroom Portal" <${developerEmail}>`;
-    const transporter = getTransporter();
+    const transporter = await getTransporter();
 
     const studentRowsHtml = rosterData.students
       .map(
