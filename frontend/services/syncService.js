@@ -7,10 +7,13 @@ const { AppScannerModule } = NativeModules;
 const CACHE_KEYS = {
   DEVICE_ID: '@focussync:deviceId',
   POLICY_VERSION: '@focussync:policyVersion',
+  APPS_CACHE: '@focussync:appsCache',
 };
 
 class SyncService {
   isSyncing = false;
+  _intervalId = null;
+  _appStateSubscription = null;
 
   async sync(syncType = 'periodic') {
     if (this.isSyncing) return;
@@ -65,6 +68,13 @@ class SyncService {
         isGame: !!app.isGame,
       }));
 
+      // 3b. Cache scanned apps locally so the Apps screen can render offline
+      try {
+        await AsyncStorage.setItem(CACHE_KEYS.APPS_CACHE, JSON.stringify(installedApps));
+      } catch (e) {
+        // ignore cache failures
+      }
+
       // 4. Synchronize apps inventory with backend
       await apiFetch('/student/scan', {
         method: 'POST',
@@ -93,6 +103,36 @@ class SyncService {
       console.warn('FocusSync: Background Synchronization failed:', error.message);
     } finally {
       this.isSyncing = false;
+    }
+  }
+
+  /**
+   * Periodic background sync so the 09:00-16:00 restriction policy is refreshed
+   * even when the student is not actively opening the Apps screen.
+   */
+  startPeriodicSync(intervalMs = 15 * 60 * 1000) {
+    if (this._intervalId) return;
+
+    const { AppState } = require('react-native');
+    this._appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        this.sync('periodic').catch(() => null);
+      }
+    });
+
+    this._intervalId = setInterval(() => {
+      this.sync('periodic').catch(() => null);
+    }, intervalMs);
+  }
+
+  stopPeriodicSync() {
+    if (this._intervalId) {
+      clearInterval(this._intervalId);
+      this._intervalId = null;
+    }
+    if (this._appStateSubscription) {
+      this._appStateSubscription.remove();
+      this._appStateSubscription = null;
     }
   }
 

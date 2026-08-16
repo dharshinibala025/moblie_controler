@@ -8,12 +8,16 @@ import {
   TouchableOpacity,
   Platform,
   StatusBar,
+  NativeModules,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, borderRadius, shadows } from '../styles/theme';
 import AppGridCard from '../components/AppGridCard';
 import VectorIcon from '../components/VectorIcon';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
+
+const APPS_CACHE_KEY = '@focussync:appsCache';
 
 const FILTER_TABS = [
   { key: 'all', label: 'All Apps' },
@@ -29,19 +33,63 @@ export const AppsScreen = ({ data }) => {
   React.useEffect(() => {
     let isMounted = true;
     const fetchApps = async () => {
+      // 1. Trigger background sync with native scanner (stores cache + policy)
       try {
-        // Trigger background sync with native scanner
         const syncService = require('../../services/syncService').default;
         await syncService.sync('apps_screen');
+      } catch (e) {
+        // continue with local fallbacks
+      }
 
-        // Fetch live scanned apps from server
+      let serverApps = null;
+      let cachedApps = null;
+      let nativeApps = null;
+
+      // 2. Fetch live scanned apps from server
+      try {
         const { apiFetch } = require('../../services/apiConfig');
         const res = await apiFetch('/student/apps');
-        if (isMounted && res && res.apps) {
-          setLiveApps(res.apps);
+        if (res && res.apps) {
+          serverApps = res.apps;
         }
       } catch (e) {
-        // Fallback to parent prop data if network error
+        // network error - use fallbacks below
+      }
+
+      // 3. Local AsyncStorage cache of last successful scan
+      if (!serverApps || serverApps.length === 0) {
+        try {
+          const cached = await AsyncStorage.getItem(APPS_CACHE_KEY);
+          if (cached) {
+            cachedApps = JSON.parse(cached);
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // 4. Native scanner direct fallback (works fully offline)
+      if ((!serverApps || serverApps.length === 0) && (!cachedApps || cachedApps.length === 0)) {
+        const { AppScannerModule } = NativeModules;
+        if (AppScannerModule && AppScannerModule.getInstalledApps) {
+          try {
+            nativeApps = await AppScannerModule.getInstalledApps();
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+
+      if (isMounted) {
+        const merged =
+          serverApps && serverApps.length > 0
+            ? serverApps
+            : cachedApps && cachedApps.length > 0
+            ? cachedApps
+            : nativeApps;
+        if (merged && merged.length > 0) {
+          setLiveApps(merged);
+        }
       }
     };
     fetchApps();
@@ -61,11 +109,11 @@ export const AppsScreen = ({ data }) => {
         ? data.blockedApps
         : [];
 
-    // Ensure every app has a "blocked" boolean field
+    // Ensure every app has a "blocked" boolean field (default Allowed)
     return source.map((app) => ({
       ...app,
       name: app.name || app.appName || 'Application',
-      blocked: app.blocked !== undefined ? app.blocked : true,
+      blocked: app.blocked !== undefined ? app.blocked : false,
     }));
   }, [liveApps, data]);
 

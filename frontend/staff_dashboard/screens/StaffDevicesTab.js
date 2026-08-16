@@ -98,22 +98,36 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const [activeRule, setActiveRule] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Helper to resolve staff class ID dynamically
-  const getAssignedClassId = async () => {
-    let classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
-    if (!classIdToQuery) {
+  // Helper to resolve staff class ID dynamically.
+  // Rules and student matching are keyed by the human-readable class CODE
+  // (e.g. "CSE-2-A"), NOT the Mongo ObjectId, so we must always resolve the code.
+  const resolveStaffClassCode = async () => {
+    const isObjectId = (value) => !!value && /^[a-f0-9]{24}$/i.test(value);
+
+    const candidates = [staffInfo?.classId, staffInfo?.assignedClass];
+    for (const candidate of candidates) {
+      if (candidate && !isObjectId(candidate)) {
+        return candidate;
+      }
+    }
+
+    if (staffInfo?.classRoomId) {
       try {
         const staffService = require('../../services/staffService').default;
         const myClassesRes = await staffService.fetchMyClasses();
         if (myClassesRes && myClassesRes.classes && myClassesRes.classes.length > 0) {
-          classIdToQuery = myClassesRes.classes[0]._id || myClassesRes.classes[0].code;
+          const cls = myClassesRes.classes[0];
+          return cls.code || cls._id;
         }
       } catch (e) {
         console.warn('FocusSync: My classes fetch notice:', e.message);
       }
     }
-    return classIdToQuery || staffInfo?.assignedClass || 'default-class';
+
+    return staffInfo?.classRoomId || staffInfo?.classId || 'default-class';
   };
+
+  const getAssignedClassId = () => resolveStaffClassCode();
 
   // Load rules on mount
   useEffect(() => {
@@ -274,7 +288,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   };
 
   const handleRemoveRestriction = async () => {
-    const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+    const classIdToQuery = await getAssignedClassId();
     if (!classIdToQuery || !activeRule) return;
 
     setLoading(true);

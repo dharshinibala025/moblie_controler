@@ -234,10 +234,43 @@ router.get("/apps", async (req, res, next) => {
 
     const currentlyEnforcedRules = activeRules.filter((rule) => isRuleActiveNow(rule, new Date()));
 
+    const SOCIAL_MEDIA_AND_GAMES_PACKAGES = [
+      "com.instagram.android",
+      "com.whatsapp",
+      "org.telegram.messenger",
+      "com.snapchat.android",
+      "com.twitter.android",
+      "com.facebook.katana",
+      "com.google.android.youtube",
+      "com.instagram.barcelona", // Threads
+      "in.startv.hotstar",       // Hotstar
+      "com.jio.media.ondemand",  // JioCinema
+      "com.netflix.mediaclient",
+      "com.netmirror",
+      "com.sun.nxt",
+      "com.amazon.avod.thirdpartyclient", // Prime Video
+      "com.airtel.tv",           // Airtel Xstream
+      "com.graymatrix.did",      // Zee5
+      "com.android.vending",     // Google Play Store
+      "com.dts.freefireth",      // Free fire
+      "com.tencent.ig",          // PUBG
+      "com.pubg.imobile",        // BGMI
+      "com.discord"              // Discord
+    ];
+
     const blockedAppsSet = new Set();
-    currentlyEnforcedRules.forEach((rule) => {
-      rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
-    });
+    if (currentlyEnforcedRules.length > 0) {
+      SOCIAL_MEDIA_AND_GAMES_PACKAGES.forEach((pkg) => blockedAppsSet.add(pkg));
+      scannedApps.forEach((app) => {
+        if (app.category === "games" || app.category === "social") {
+          blockedAppsSet.add(app.packageName);
+        }
+      });
+    } else {
+      currentlyEnforcedRules.forEach((rule) => {
+        rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
+      });
+    }
 
     const appList = scannedApps.map((app) => ({
       id: app._id,

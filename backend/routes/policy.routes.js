@@ -67,19 +67,19 @@ router.get("/latest", async (req, res, next) => {
       const blocked = [...SOCIAL_MEDIA_AND_GAMES_PACKAGES];
       try {
         const ScannedApp = require("../models/ScannedApp");
-        const games = await ScannedApp.find({
+        const categorized = await ScannedApp.find({
           studentId,
-          category: "games",
+          category: { $in: ["games", "social"] },
           removedAt: null
         }).lean();
         const seen = new Set(blocked);
-        for (const game of games) {
-          if (!seen.has(game.packageName)) {
-            blocked.push(game.packageName);
+        for (const app of categorized) {
+          if (!seen.has(app.packageName)) {
+            blocked.push(app.packageName);
           }
         }
       } catch (err) {
-        logger.error("Error fetching scanned games for auto-block:", err);
+        logger.error("Error fetching scanned games/social apps for auto-block:", err);
       }
       return blocked;
     };

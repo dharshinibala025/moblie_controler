@@ -32,8 +32,8 @@ const resolveAppIcon = (app) => {
 };
 
 export const AppCard = ({ app, isLast }) => {
-  // Use per-app blocked status; fallback to true if not defined
-  const isBlocked = app.blocked !== undefined ? app.blocked : true;
+  // Use per-app blocked status; default to Allowed when not defined
+  const isBlocked = app.blocked !== undefined ? app.blocked : false;
   const iconName = resolveAppIcon(app);
   const name = app.name || app.appName || 'Application';
   const category = app.category || app.packageName || 'System Application';

@@ -1,9 +1,11 @@
 package com.mobile_controller
 
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -27,10 +29,29 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             val appsList: List<ApplicationInfo> = pm.getInstalledApplications(PackageManager.GET_META_DATA)
             val resultArray: WritableArray = Arguments.createArray()
 
-            for (appInfo in appsList) {
-                // Filter to user-facing applications with a launcher intent
-                val launchIntent = pm.getLaunchIntentForPackage(appInfo.packageName)
-                if (launchIntent != null) {
+            // Collect user-facing (launcher) packages first, resolving launchers robustly.
+            val launcherPackages = resolveLauncherPackages()
+
+            // Sort by app label for a stable, predictable order.
+            val sortedApps = appsList.sortedWith(
+                compareBy { appInfo ->
+                    try {
+                        pm.getApplicationLabel(appInfo).toString().lowercase()
+                    } catch (e: Exception) {
+                        ""
+                    }
+                }
+            )
+
+            for (appInfo in sortedApps) {
+                try {
+                    // Filter to user-facing applications with a launcher intent
+                    val hasLaunchIntent = launcherPackages.contains(appInfo.packageName) ||
+                        pm.getLaunchIntentForPackage(appInfo.packageName) != null
+                    if (!hasLaunchIntent) {
+                        continue
+                    }
+
                     val appMap: WritableMap = Arguments.createMap()
                     val appName = pm.getApplicationLabel(appInfo).toString()
                     val packageName = appInfo.packageName
@@ -48,7 +69,7 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     }
 
                     val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                    
+
                     // FLAG_IS_GAME is 1 shl 22 (0x00400000)
                     val flagIsGame = (appInfo.flags and 0x00400000) != 0
                     val categoryIsGame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -57,6 +78,7 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                         false
                     }
                     val isGame = flagIsGame || categoryIsGame
+                    val isSocial = isSocialPackage(packageName, appName)
 
                     appMap.putString("appName", appName)
                     appMap.putString("packageName", packageName)
@@ -66,8 +88,12 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     appMap.putBoolean("isSystemApp", isSystemApp)
                     appMap.putBoolean("isUserFacing", true)
                     appMap.putBoolean("isGame", isGame)
+                    appMap.putBoolean("isSocial", isSocial)
 
                     resultArray.pushMap(appMap)
+                } catch (e: Exception) {
+                    // Skip a single problematic package instead of failing the whole scan.
+                    Log.w("AppScanner", "Skipped package due to error: ${appInfo.packageName}", e)
                 }
             }
 
@@ -75,6 +101,89 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
         } catch (e: Exception) {
             promise.reject("SCAN_ERROR", e.localizedMessage, e)
         }
+    }
+
+    /**
+     * Returns the set of packages that expose a launcher activity. On API 30+ the
+     * package visibility filtering can hide launcher intents for packages without a
+     * matching <queries> entry, so we query with MATCH_ALL to work around it.
+     */
+    private fun resolveLauncherPackages(): Set<String> {
+        val launcherPackages = mutableSetOf<String>()
+        try {
+            val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            val resolveInfos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                reactContext.packageManager.queryIntentActivities(
+                    launcherIntent,
+                    PackageManager.MATCH_ALL
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                reactContext.packageManager.queryIntentActivities(launcherIntent, 0)
+            }
+            for (resolveInfo in resolveInfos) {
+                val packageName = resolveInfo.activityInfo?.packageName
+                if (packageName != null) {
+                    launcherPackages.add(packageName)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("AppScanner", "Failed to resolve launcher packages", e)
+        }
+        return launcherPackages
+    }
+
+    private fun isSocialPackage(packageName: String, appName: String): Boolean {
+        val knownSocial = setOf(
+            "com.whatsapp",
+            "com.instagram.android",
+            "com.facebook.katana",
+            "com.facebook.orca",
+            "com.twitter.android",
+            "com.snapchat.android",
+            "org.telegram.messenger",
+            "com.zhiliaoapp.musically",
+            "com.instagram.barcelona",
+            "com.discord",
+            "com.likee",
+            "com.pinterest",
+            "com.linkedin.android",
+            "com.reddit.frontpage",
+            "com.tinder",
+            "com.badoo.mobile",
+            "com.quora.android",
+            "com.tumblr",
+            "com.google.android.youtube"
+        )
+        val pkg = packageName.lowercase()
+        val name = appName.lowercase()
+        if (knownSocial.contains(pkg)) return true
+        if (pkg.contains("facebook") ||
+            pkg.contains("instagram") ||
+            pkg.contains("whatsapp") ||
+            pkg.contains("twitter") ||
+            pkg.contains("snapchat") ||
+            pkg.contains("telegram") ||
+            pkg.contains("tiktok") ||
+            pkg.contains("discord") ||
+            pkg.contains("pinterest")
+        ) {
+            return true
+        }
+        if (name.contains("instagram") ||
+            name.contains("whatsapp") ||
+            name.contains("facebook") ||
+            name.contains("messenger") ||
+            name.contains("telegram") ||
+            name.contains("snapchat") ||
+            name.contains("tiktok") ||
+            name.contains("threads") ||
+            name.contains("twitter") ||
+            name.contains("discord")
+        ) {
+            return true
+        }
+        return false
     }
 
     @ReactMethod

@@ -1179,14 +1179,17 @@ router.get("/devices/list", async (req, res, next) => {
     const formatted = devices.map((d) => {
       const userName = d.userId ? d.userId.name : "Unknown User";
       const isBlocked = d.status === "blocked";
-      const diffMs = Date.now() - new Date(d.lastSeenAt || d.updatedAt).getTime();
+      const deviceInfo = d.deviceInfo || {};
+      const manufacturer = deviceInfo.manufacturer || "Android";
+      const deviceModel = deviceInfo.deviceModel || "phone";
+      const diffMs = Date.now() - new Date(d.lastSyncAt || d.updatedAt).getTime();
       const diffMins = Math.max(1, Math.round(diffMs / 60000));
       const lastActive = diffMins < 60 ? `${diffMins}m ago` : `${Math.round(diffMins / 60)}h ago`;
 
       return {
         id: d._id.toString(),
         name: `${userName}'s Device`,
-        deviceType: `${d.manufacturer || "Android"} ${d.deviceModel || "phone"}`,
+        deviceType: `${manufacturer} ${deviceModel}`,
         ipAddress: "192.168.1.42",
         lastActive,
         isBlocked,
