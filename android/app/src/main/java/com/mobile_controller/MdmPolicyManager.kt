@@ -28,4 +28,18 @@ class MdmPolicyManager(private val context: Context) {
             false
         }
     }
+
+    fun clearAppRestrictions(packages: List<String>): Boolean {
+        if (!isDeviceOwner()) {
+            return false
+        }
+        return try {
+            val packageArray = packages.toTypedArray()
+            dpm.setPackagesSuspended(adminComponent, packageArray, false)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }

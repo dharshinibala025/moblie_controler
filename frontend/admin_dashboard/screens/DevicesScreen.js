@@ -443,17 +443,14 @@ const DevicesScreen = () => {
             </TouchableOpacity>
 
             <View style={styles.secondaryControlsRow}>
-              {restrictionStatus === 'ACTIVE' ? (
-                <TouchableOpacity style={styles.pauseBtn} onPress={handlePauseRestriction} activeOpacity={0.8}>
-                  <Icon name="pause" size={16} color="#D97706" />
-                  <Text style={styles.pauseBtnText}>Pause</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={styles.resumeBtn} onPress={handleResumeRestriction} activeOpacity={0.8}>
-                  <Icon name="play-arrow" size={16} color="#15803D" />
-                  <Text style={styles.resumeBtnText}>Resume</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity style={styles.pauseBtn} onPress={handlePauseRestriction} activeOpacity={0.8}>
+                <Icon name="pause" size={16} color="#D97706" />
+                <Text style={styles.pauseBtnText}>Pause</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.resumeBtn} onPress={handleResumeRestriction} activeOpacity={0.8}>
+                <Icon name="play-arrow" size={16} color="#15803D" />
+                <Text style={styles.resumeBtnText}>Resume</Text>
+              </TouchableOpacity>
 
               <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock} activeOpacity={0.8}>
                 <Icon name="warning" size={16} color={colors.white} />

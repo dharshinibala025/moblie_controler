@@ -8,6 +8,7 @@ const CACHE_KEYS = {
   DEVICE_ID: '@focussync:deviceId',
   POLICY_VERSION: '@focussync:policyVersion',
   APPS_CACHE: '@focussync:appsCache',
+  POLICY_CACHE: '@focussync:policyCache',
 };
 
 class SyncService {
@@ -66,6 +67,8 @@ class SyncService {
         versionName: app.versionName || '1.0.0',
         isSystemApp: !!app.isSystemApp,
         isGame: !!app.isGame,
+        isSocial: !!app.isSocial,
+        category: app.category || 'uncategorized',
       }));
 
       // 3b. Cache scanned apps locally so the Apps screen can render offline
@@ -88,21 +91,52 @@ class SyncService {
 
       // 6. Save latest policy to native storage for Accessibility Service
       if (policy) {
+        const policyVersion = policy.policyVersion || 1;
+        const status = policy.status || 'active';
+        const emergency = policy.emergency === 'active';
         await AppScannerModule.savePolicy(
-          (policy.policyVersion || 1).toString(),
+          policyVersion.toString(),
           policy.blockedPackages || [],
           policy.scheduleStart || '09:00',
           policy.scheduleEnd || '16:00',
           policy.activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
           policy.restrictionReason || 'Institutional restriction policy',
-          policy.policyVersion || 1
+          policyVersion,
+          status,
+          emergency
         );
-        await AsyncStorage.setItem(CACHE_KEYS.POLICY_VERSION, (policy.policyVersion || 1).toString());
+        await AsyncStorage.setItem(CACHE_KEYS.POLICY_VERSION, policyVersion.toString());
+
+        // Cache the full policy envelope so the Apps screen can render live
+        // badges and schedule info even while offline.
+        try {
+          await AsyncStorage.setItem(CACHE_KEYS.POLICY_CACHE, JSON.stringify(policy));
+        } catch (e) {
+          // ignore cache failures
+        }
       }
     } catch (error) {
       console.warn('FocusSync: Background Synchronization failed:', error.message);
     } finally {
       this.isSyncing = false;
+    }
+  }
+
+  async getCachedPolicy() {
+    try {
+      const raw = await AsyncStorage.getItem(CACHE_KEYS.POLICY_CACHE);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async getCachedApps() {
+    try {
+      const raw = await AsyncStorage.getItem(CACHE_KEYS.APPS_CACHE);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
     }
   }
 

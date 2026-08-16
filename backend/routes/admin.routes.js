@@ -570,9 +570,11 @@ router.post("/rules/:id/command", validate("commandBody"), async (req, res, next
 // Admin Real-Time Emergency Overrides (Pause / Resume / Emergency Unlock)
 router.post("/override/pause", async (req, res, next) => {
   try {
-    const { targetScope = { type: "institution", targetId: "KSRCE" }, reason = "Administrator disabled social media blocking", durationMinutes = 60 } = req.body;
+    const { classId, targetScope = { type: "institution", targetId: "KSRCE" }, reason = "Administrator disabled social media blocking", durationMinutes = 60 } = req.body;
     const Rule = require("../models/Rule");
-    const activeRules = await Rule.find({ status: "active" });
+    const query = { status: "active" };
+    if (classId) query.targetClassId = classId;
+    const activeRules = await Rule.find(query);
 
     for (const rule of activeRules) {
       await ruleService.sendCommand(rule._id, "pause", req.user.userId, req.scopeInstitutionId);
@@ -583,6 +585,7 @@ router.post("/override/pause", async (req, res, next) => {
       override: "paused",
       reason,
       durationMinutes,
+      classId: classId || null,
       affectedRules: activeRules.length,
       timestamp: new Date().toISOString(),
     });
@@ -593,8 +596,17 @@ router.post("/override/pause", async (req, res, next) => {
 
 router.post("/override/resume", async (req, res, next) => {
   try {
+    const { classId } = req.body;
     const Rule = require("../models/Rule");
-    const pausedRules = await Rule.find({ status: "paused" });
+    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    if (classId) {
+      setClassEmergencyUnblock(classId, false);
+    } else {
+      setEmergencyUnblock(false);
+    }
+    const query = { status: "paused" };
+    if (classId) query.targetClassId = classId;
+    const pausedRules = await Rule.find(query);
 
     for (const rule of pausedRules) {
       await ruleService.sendCommand(rule._id, "start", req.user.userId, req.scopeInstitutionId);
@@ -603,6 +615,7 @@ router.post("/override/resume", async (req, res, next) => {
     res.json({
       success: true,
       override: "resumed",
+      classId: classId || null,
       affectedRules: pausedRules.length,
       timestamp: new Date().toISOString(),
     });

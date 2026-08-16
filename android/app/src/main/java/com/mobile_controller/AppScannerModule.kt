@@ -79,6 +79,7 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     }
                     val isGame = flagIsGame || categoryIsGame
                     val isSocial = isSocialPackage(packageName, appName)
+                    val category = AppClassifier.classify(packageName, appName, isGame, isSystemApp)
 
                     appMap.putString("appName", appName)
                     appMap.putString("packageName", packageName)
@@ -89,6 +90,7 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     appMap.putBoolean("isUserFacing", true)
                     appMap.putBoolean("isGame", isGame)
                     appMap.putBoolean("isSocial", isSocial)
+                    appMap.putString("category", category)
 
                     resultArray.pushMap(appMap)
                 } catch (e: Exception) {
@@ -225,6 +227,8 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
         activeDays: ReadableArray,
         reason: String,
         version: Int,
+        status: String,
+        emergency: Boolean,
         promise: Promise
     ) {
         try {
@@ -244,6 +248,8 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                 }
             }
 
+            val policyActive = status.equals("active", ignoreCase = true)
+
             // 1. Save to SharedPreferences local storage (AccessibilityService reads this)
             val policyStorage = PolicyStorage(reactContext)
             policyStorage.savePolicy(
@@ -253,12 +259,14 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                 scheduleEnd,
                 daysList,
                 reason,
-                version
+                version,
+                status,
+                emergency
             )
 
             // 2. Call Enterprise EMM Device Policy Manager (sets package suspension if app is Device Owner)
             val mdmPolicyManager = MdmPolicyManager(reactContext)
-            val mdmEnforced = mdmPolicyManager.applyAppRestrictions(blockedList, true)
+            val mdmEnforced = mdmPolicyManager.applyAppRestrictions(blockedList, policyActive)
 
             val result = Arguments.createMap()
             result.putBoolean("success", true)
@@ -266,6 +274,24 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("SAVE_POLICY_ERROR", e.localizedMessage, e)
+        }
+    }
+
+    @ReactMethod
+    fun clearPolicy(promise: Promise) {
+        try {
+            val policyStorage = PolicyStorage(reactContext)
+            val blockedBeforeClear = policyStorage.getBlockedApps().toList()
+            policyStorage.clearPolicy()
+
+            val mdmPolicyManager = MdmPolicyManager(reactContext)
+            mdmPolicyManager.clearAppRestrictions(blockedBeforeClear)
+
+            val result = Arguments.createMap()
+            result.putBoolean("success", true)
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("CLEAR_POLICY_ERROR", e.localizedMessage, e)
         }
     }
 

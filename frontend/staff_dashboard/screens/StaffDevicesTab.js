@@ -129,7 +129,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
   const getAssignedClassId = () => resolveStaffClassCode();
 
-  // Load rules on mount
+  // Load rules on mount + poll live status every 15s
   useEffect(() => {
     const fetchRule = async () => {
       const classIdToQuery = await getAssignedClassId();
@@ -163,6 +163,10 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
     };
 
     fetchRule();
+    const liveInterval = setInterval(() => {
+      fetchRule();
+    }, 15 * 1000);
+    return () => clearInterval(liveInterval);
   }, [staffInfo]);
 
   // Clock Update
@@ -307,12 +311,14 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
   const handleEmergencyUnblock = () => {
     Alert.alert(
-      '🚨 Emergency Unblock Confirmation',
-      'Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices across ALL branches and classes?',
+      'Emergency Unblock Confirmation',
+      `Are you sure you want to IMMEDIATELY UNBLOCK all devices in your assigned class (${formatClassDisplay(
+        mentorClass,
+      )})?\n\nThis lifts restrictions for your class only and lasts 2 hours.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Emergency Unblock All',
+          text: 'Unblock My Class',
           style: 'destructive',
           onPress: async () => {
             setLoading(true);
@@ -321,7 +327,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               setRestrictionStatus('IDLE');
               Alert.alert(
                 'Emergency Unblock Executed',
-                'All mobile restrictions lifted immediately across ALL student devices.',
+                `Restrictions lifted for your assigned class (${formatClassDisplay(mentorClass)}).`,
               );
             } catch (err) {
               Alert.alert('Unblock Failed', err.message || 'An error occurred.');
@@ -375,7 +381,9 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <Text style={styles.fieldLabel}>Department</Text>
               <View style={styles.lockedBadge}>
                 <VectorIcon name="school" size={14} color="#475569" />
-                <Text style={styles.lockedBadgeText}>CSE</Text>
+                <Text style={styles.lockedBadgeText}>
+                  {staffInfo.department || 'CSE'}
+                </Text>
               </View>
             </View>
 
@@ -429,22 +437,19 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
             </TouchableOpacity>
 
             <View style={styles.secondaryControlsRow}>
-              {restrictionStatus === 'ACTIVE' ? (
-                <TouchableOpacity style={styles.pauseBtn} onPress={handlePauseRestriction}>
-                  <VectorIcon name="pause" size={16} color="#F59E0B" />
-                  <Text style={styles.pauseBtnText}>Pause</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={styles.resumeBtn} onPress={handleResumeRestriction}>
-                  <VectorIcon name="play" size={16} color="#16A34A" />
-                  <Text style={styles.resumeBtnText}>Resume</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity style={styles.pauseBtn} onPress={handlePauseRestriction}>
+                <VectorIcon name="pause" size={16} color="#F59E0B" />
+                <Text style={styles.pauseBtnText}>Pause</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.resumeBtn} onPress={handleResumeRestriction}>
+                <VectorIcon name="play" size={16} color="#16A34A" />
+                <Text style={styles.resumeBtnText}>Resume</Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock}>
               <VectorIcon name="alert-circle" size={18} color="#FFFFFF" />
-              <Text style={styles.emergencyBtnText}>Emergency Unblock All</Text>
+              <Text style={styles.emergencyBtnText}>Emergency Unblock (My Class)</Text>
             </TouchableOpacity>
           </View>
         </View>

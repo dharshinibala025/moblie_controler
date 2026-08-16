@@ -7,6 +7,16 @@ import VectorIcon from './VectorIcon';
  * Individual Application List Row Component
  * Sleek, high-density row layout designed specifically for mobile screens.
  */
+const CATEGORY_LABELS = {
+  social: 'Social Media',
+  entertainment: 'Entertainment',
+  games: 'Games',
+  educational: 'Educational',
+  productivity: 'Productivity',
+  utilities: 'Utilities',
+  uncategorized: 'Applications',
+};
+
 const resolveAppIcon = (app) => {
   if (app.icon) return app.icon;
   const pkg = (app.packageName || '').toLowerCase();
@@ -36,7 +46,8 @@ export const AppCard = ({ app, isLast }) => {
   const isBlocked = app.blocked !== undefined ? app.blocked : false;
   const iconName = resolveAppIcon(app);
   const name = app.name || app.appName || 'Application';
-  const category = app.category || app.packageName || 'System Application';
+  const rawCategory = (app.category || '').toLowerCase();
+  const category = CATEGORY_LABELS[rawCategory] || app.category || app.packageName || 'System Application';
 
   return (
     <View style={[styles.listRow, !isLast && styles.listRowBorder]}>

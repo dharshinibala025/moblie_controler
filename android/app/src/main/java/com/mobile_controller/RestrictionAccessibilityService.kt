@@ -76,14 +76,29 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 policyStorage = it
             }
 
-            val blockedApps = storage.getBlockedApps().toMutableSet()
-            if (blockedApps.isEmpty()) {
-                blockedApps.addAll(fallbackBlockedPackages)
-            } else {
-                blockedApps.addAll(fallbackBlockedPackages)
+            // Emergency unblock always wins: never enforce the overlay during an emergency.
+            if (storage.getEmergency()) {
+                return
             }
 
-            if (blockedApps.contains(packageName)) {
+            // hasStoredPolicy reflects whether a server policy has EVER been synced.
+            // Only the offline default-window fallback applies before the first sync.
+            val storedBlocked = storage.getBlockedApps()
+
+            val blockedSet = if (storage.isConfigured()) {
+                // Only enforce the stored list while the policy is active.
+                if (storage.isPolicyActive()) {
+                    storedBlocked
+                } else {
+                    emptySet()
+                }
+            } else {
+                // No policy synced yet: enforce the offline default window fallback
+                // (only effective while the default schedule window is active).
+                fallbackBlockedPackages
+            }
+
+            if (blockedSet.contains(packageName)) {
                 if (isWithinSchedule()) {
                     if (shouldLaunch(packageName)) {
                         Log.w("RestrictionService", "Blocking restricted package: $packageName")
@@ -122,6 +137,18 @@ class RestrictionAccessibilityService : AccessibilityService() {
             val endParts = end.split(":").map { it.toInt() }
 
             val cal = Calendar.getInstance()
+
+            // Active-days check (e.g. "Mon".."Sat"); default when nothing stored.
+            val activeDays = storage.getActiveDays()
+            val dayName = cal.getDisplayName(
+                Calendar.DAY_OF_WEEK,
+                Calendar.SHORT,
+                java.util.Locale.US
+            )?.substring(0, 3) ?: ""
+            if (activeDays.isNotEmpty() && !activeDays.contains(dayName)) {
+                return false
+            }
+
             val currentHour = cal.get(Calendar.HOUR_OF_DAY)
             val currentMinute = cal.get(Calendar.MINUTE)
 
@@ -129,9 +156,26 @@ class RestrictionAccessibilityService : AccessibilityService() {
             val startMinutesOfDay = startParts[0] * 60 + startParts[1]
             val endMinutesOfDay = endParts[0] * 60 + endParts[1]
 
-            return currentMinutesOfDay in startMinutesOfDay..endMinutesOfDay
+            // End-exclusive so the restriction lifts exactly at the end time.
+            return currentMinutesOfDay in startMinutesOfDay until endMinutesOfDay
         } catch (e: Exception) {
             return true // Default active if parse error occurs
+        }
+    }
+
+    private fun nextUnlockLabel(): String {
+        val storage = policyStorage ?: return ""
+        val end = storage.getScheduleEnd() // e.g. "16:00"
+        return try {
+            val parts = end.split(":").map { it.toInt() }
+            val hour = parts[0]
+            val minute = parts[1]
+            val ampm = if (hour >= 12) "PM" else "AM"
+            var displayHour = hour % 12
+            if (displayHour == 0) displayHour = 12
+            String.format("%02d:%02d %s", displayHour, minute, ampm)
+        } catch (e: Exception) {
+            ""
         }
     }
 
@@ -152,6 +196,9 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 putExtra("packageName", packageName)
                 putExtra("reason", storage.getReason())
+                putExtra("scheduleStart", storage.getScheduleStart())
+                putExtra("scheduleEnd", storage.getScheduleEnd())
+                putExtra("nextUnlockLabel", nextUnlockLabel())
             }
             startActivity(intent)
         } catch (e: Exception) {

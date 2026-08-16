@@ -11,7 +11,17 @@ class PolicyStorage(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("smart_classroom_policy_prefs", Context.MODE_PRIVATE)
 
-    fun savePolicy(ruleId: String, blockedApps: List<String>, scheduleStart: String, scheduleEnd: String, activeDays: List<String>, reason: String, version: Int) {
+    fun savePolicy(
+        ruleId: String,
+        blockedApps: List<String>,
+        scheduleStart: String,
+        scheduleEnd: String,
+        activeDays: List<String>,
+        reason: String,
+        version: Int,
+        status: String = "active",
+        emergency: Boolean = false
+    ) {
         val jsonArray = JSONArray(blockedApps)
         val daysArray = JSONArray(activeDays)
         val elapsedRealtimeAtSave = SystemClock.elapsedRealtime()
@@ -24,10 +34,24 @@ class PolicyStorage(context: Context) {
             .putString("active_days", daysArray.toString())
             .putString("reason", reason)
             .putInt("version", version)
+            .putString("status", if (status.isBlank()) "active" else status)
+            .putBoolean("emergency", emergency)
+            .putBoolean("configured", true)
             .putLong("saved_timestamp_system", System.currentTimeMillis())
             .putLong("saved_timestamp_elapsed", elapsedRealtimeAtSave)
             .apply()
     }
+
+    fun clearPolicy() {
+        prefs.edit()
+            .putString("blocked_apps", "[]")
+            .putString("status", "inactive")
+            .putBoolean("emergency", false)
+            .putBoolean("configured", false)
+            .apply()
+    }
+
+    fun isConfigured(): Boolean = prefs.getBoolean("configured", false)
 
     fun getBlockedApps(): Set<String> {
         val raw = prefs.getString("blocked_apps", "[]") ?: "[]"
@@ -48,6 +72,27 @@ class PolicyStorage(context: Context) {
     fun getReason(): String = prefs.getString("reason", "") ?: ""
     fun getRuleId(): String = prefs.getString("rule_id", "") ?: ""
     fun getVersion(): Int = prefs.getInt("version", 1)
+
+    fun getStatus(): String = prefs.getString("status", "active") ?: "active"
+    fun isPolicyActive(): Boolean = getStatus().equals("active", ignoreCase = true)
+    fun getEmergency(): Boolean = prefs.getBoolean("emergency", false)
+
+    fun getActiveDays(): Set<String> {
+        val raw = prefs.getString("active_days", "[\"Mon\",\"Tue\",\"Wed\",\"Thu\",\"Fri\",\"Sat\"]") ?: "[]"
+        val set = mutableSetOf<String>()
+        try {
+            val jsonArray = JSONArray(raw)
+            for (i in 0 until jsonArray.length()) {
+                set.add(jsonArray.getString(i))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        if (set.isEmpty()) {
+            set.addAll(listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat"))
+        }
+        return set
+    }
 
     fun checkTamperDetected(): Boolean {
         val savedSysTime = prefs.getLong("saved_timestamp_system", 0L)

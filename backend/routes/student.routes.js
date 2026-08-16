@@ -100,11 +100,11 @@ router.post("/command/ack", verifyDevice, validate("commandAck"), async (req, re
 router.get("/dashboard", async (req, res, next) => {
   try {
     const User = require("../models/User");
-    const Rule = require("../models/Rule");
     const ScannedApp = require("../models/ScannedApp");
     const UsageLog = require("../models/UsageLog");
     const Device = require("../models/Device");
     const Notification = require("../models/Notification");
+    const autoBlockService = require("../services/autoBlockService");
 
     const student = await User.findById(req.user.userId).populate("departmentId sectionId academicYearId");
     if (!student) {
@@ -113,27 +113,11 @@ router.get("/dashboard", async (req, res, next) => {
 
     const device = await Device.findOne({ userId: req.user.userId }).sort({ updatedAt: -1 });
 
-    const activeRules = await Rule.find({
-      $or: [
-        { targetClassId: student.classId },
-        { "targetScope.type": "student", "targetScope.targetId": student._id.toString() },
-        { "targetScope.type": "class", "targetScope.targetId": student.classId },
-        { "targetScope.type": "institution", "targetScope.targetId": student.institutionId || "KSRCE" },
-      ],
-      status: "active",
-    }).sort({ updatedAt: -1 });
-
-    const { isRuleActiveNow } = require("../utils/scheduleHelper");
-    const activeRule = activeRules[0] || null;
-    const currentlyEnforcedRules = activeRules.filter((rule) => isRuleActiveNow(rule, new Date()));
-
-    const blockedAppsSet = new Set();
-    currentlyEnforcedRules.forEach((rule) => {
-      rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
-    });
+    const policy = await autoBlockService.getStudentPolicy({ student, device, now: new Date() });
+    const blockedSet = new Set(policy.blockedPackages);
 
     const scannedApps = await ScannedApp.find({ studentId: req.user.userId }).sort({ appName: 1 });
-    const blockedAppList = scannedApps.filter((app) => blockedAppsSet.has(app.packageName));
+    const blockedAppList = scannedApps.filter((app) => blockedSet.has(app.packageName));
 
     const recentLogs = await UsageLog.find({ studentId: req.user.userId })
       .sort({ timestamp: -1 })
@@ -152,23 +136,17 @@ router.get("/dashboard", async (req, res, next) => {
       read: false,
     });
 
-    let isActive = false;
+    const isActive = policy.scheduleActive;
     let remainingTime = "No active restriction window";
-
-    if (activeRule) {
-      const now = new Date();
-      isActive = isRuleActiveNow(activeRule, now);
-
-      if (isActive) {
-        const [endH, endM] = activeRule.scheduleEnd.split(":").map(Number);
-        const endTime = new Date(now).setHours(endH, endM, 0, 0);
-        const diffMs = Math.max(0, endTime - now);
-        const hours = Math.floor(diffMs / (1000 * 60 * 60));
-        const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-        remainingTime = `Remaining: ${hours} Hours ${mins} Minutes`;
-      } else {
-        remainingTime = `Schedule Window: ${activeRule.scheduleStart} – ${activeRule.scheduleEnd}`;
-      }
+    if (isActive) {
+      const [endH, endM] = policy.scheduleEnd.split(":").map(Number);
+      const endTime = new Date().setHours(endH, endM, 0, 0);
+      const diffMs = Math.max(0, endTime - Date.now());
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      remainingTime = `Remaining: ${hours} Hours ${mins} Minutes`;
+    } else if (policy.source === "default") {
+      remainingTime = `Schedule Window: ${policy.scheduleStart} – ${policy.scheduleEnd}`;
     }
 
     res.json({
@@ -184,10 +162,11 @@ router.get("/dashboard", async (req, res, next) => {
       restrictionStatus: {
         isActive,
         statusTitle: isActive ? "Restrictions Active" : "No Restrictions Active",
-        schedule: activeRule ? `${activeRule.scheduleStart} – ${activeRule.scheduleEnd}` : "09:00 – 16:00",
+        schedule: `${policy.scheduleStart} – ${policy.scheduleEnd}`,
         remainingTime,
-        reason: activeRule ? activeRule.reason : "",
-        noticeText: activeRule
+        reason: policy.restrictionReason,
+        source: policy.source,
+        noticeText: isActive
           ? `Controlled by Department Admin during class hours.`
           : `No policy currently applied.`,
       },
@@ -214,63 +193,18 @@ router.get("/dashboard", async (req, res, next) => {
 
 router.get("/apps", async (req, res, next) => {
   try {
-    const Rule = require("../models/Rule");
-    const ScannedApp = require("../models/ScannedApp");
     const User = require("../models/User");
-    const { isRuleActiveNow } = require("../utils/scheduleHelper");
+    const ScannedApp = require("../models/ScannedApp");
+    const Device = require("../models/Device");
+    const autoBlockService = require("../services/autoBlockService");
 
     const student = await User.findById(req.user.userId);
+    const device = await Device.findOne({ userId: req.user.userId }).sort({ updatedAt: -1 });
+
+    const policy = await autoBlockService.getStudentPolicy({ student, device, now: new Date() });
+    const blockedSet = new Set(policy.blockedPackages);
+
     const scannedApps = await ScannedApp.find({ studentId: req.user.userId, removedAt: null }).sort({ appName: 1 });
-
-    const activeRules = await Rule.find({
-      $or: [
-        { targetClassId: student.classId },
-        { "targetScope.type": "student", "targetScope.targetId": student._id.toString() },
-        { "targetScope.type": "class", "targetScope.targetId": student.classId },
-        { "targetScope.type": "institution", "targetScope.targetId": student.institutionId || "KSRCE" },
-      ],
-      status: "active",
-    });
-
-    const currentlyEnforcedRules = activeRules.filter((rule) => isRuleActiveNow(rule, new Date()));
-
-    const SOCIAL_MEDIA_AND_GAMES_PACKAGES = [
-      "com.instagram.android",
-      "com.whatsapp",
-      "org.telegram.messenger",
-      "com.snapchat.android",
-      "com.twitter.android",
-      "com.facebook.katana",
-      "com.google.android.youtube",
-      "com.instagram.barcelona", // Threads
-      "in.startv.hotstar",       // Hotstar
-      "com.jio.media.ondemand",  // JioCinema
-      "com.netflix.mediaclient",
-      "com.netmirror",
-      "com.sun.nxt",
-      "com.amazon.avod.thirdpartyclient", // Prime Video
-      "com.airtel.tv",           // Airtel Xstream
-      "com.graymatrix.did",      // Zee5
-      "com.android.vending",     // Google Play Store
-      "com.dts.freefireth",      // Free fire
-      "com.tencent.ig",          // PUBG
-      "com.pubg.imobile",        // BGMI
-      "com.discord"              // Discord
-    ];
-
-    const blockedAppsSet = new Set();
-    if (currentlyEnforcedRules.length > 0) {
-      SOCIAL_MEDIA_AND_GAMES_PACKAGES.forEach((pkg) => blockedAppsSet.add(pkg));
-      scannedApps.forEach((app) => {
-        if (app.category === "games" || app.category === "social") {
-          blockedAppsSet.add(app.packageName);
-        }
-      });
-    } else {
-      currentlyEnforcedRules.forEach((rule) => {
-        rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
-      });
-    }
 
     const appList = scannedApps.map((app) => ({
       id: app._id,
@@ -278,11 +212,19 @@ router.get("/apps", async (req, res, next) => {
       packageName: app.packageName,
       category: app.category,
       versionName: app.versionName,
-      blocked: blockedAppsSet.has(app.packageName),
+      blocked: blockedSet.has(app.packageName),
       scannedAt: app.scannedAt,
     }));
 
-    res.json({ apps: appList });
+    res.json({
+      apps: appList,
+      scheduleActive: policy.scheduleActive,
+      scheduleStart: policy.scheduleStart,
+      scheduleEnd: policy.scheduleEnd,
+      activeDays: policy.activeDays,
+      source: policy.source,
+      restrictionReason: policy.restrictionReason,
+    });
   } catch (err) {
     next(err);
   }
