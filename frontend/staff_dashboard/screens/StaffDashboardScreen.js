@@ -9,7 +9,7 @@ import NotificationsScreen from '../../admin_dashboard/screens/NotificationsScre
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
 import { getStoredUser } from '../../services/apiConfig';
 import syncService from '../../services/syncService';
-import api from '../../services/api';
+import { fetchStaffNotifications } from '../../services/staffService';
 
 export const StaffDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -34,8 +34,7 @@ export const StaffDashboardScreen = ({ onLogout }) => {
 
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const res = await api.get('/staff/notifications');
-      const data = res.data;
+      const data = await fetchStaffNotifications();
       if (Array.isArray(data)) {
         const unread = data.filter(n => !n.isRead).length;
         setUnreadCount(unread);
