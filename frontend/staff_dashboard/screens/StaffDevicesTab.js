@@ -97,6 +97,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const [currentTime, setCurrentTime] = useState('');
   const [activeRule, setActiveRule] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [liveStudents, setLiveStudents] = useState([]);
 
   // Helper to resolve staff class ID dynamically.
   // Rules and student matching are keyed by the human-readable class CODE
@@ -162,9 +163,25 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       }
     };
 
+    const fetchStudents = async () => {
+      const classIdToQuery = await getAssignedClassId();
+      if (!classIdToQuery) return;
+      try {
+        const staffService = require('../../services/staffService').default;
+        const data = await staffService.fetchClassLiveStatus(classIdToQuery);
+        if (data && data.students) {
+          setLiveStudents(data.students);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
     fetchRule();
+    fetchStudents();
     const liveInterval = setInterval(() => {
       fetchRule();
+      fetchStudents();
     }, 15 * 1000);
     return () => clearInterval(liveInterval);
   }, [staffInfo]);
@@ -437,13 +454,23 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
             </TouchableOpacity>
 
             <View style={styles.secondaryControlsRow}>
-              <TouchableOpacity style={styles.pauseBtn} onPress={handlePauseRestriction}>
-                <VectorIcon name="pause" size={16} color="#F59E0B" />
-                <Text style={styles.pauseBtnText}>Pause</Text>
+              <TouchableOpacity
+                style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
+                onPress={handlePauseRestriction}
+              >
+                <VectorIcon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#F59E0B'} />
+                <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>
+                  {restrictionStatus === 'ACTIVE' ? 'PAUSING...' : 'Pause'}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.resumeBtn} onPress={handleResumeRestriction}>
-                <VectorIcon name="play" size={16} color="#16A34A" />
-                <Text style={styles.resumeBtnText}>Resume</Text>
+              <TouchableOpacity
+                style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
+                onPress={handleResumeRestriction}
+              >
+                <VectorIcon name="play" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#16A34A'} />
+                <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>
+                  {restrictionStatus === 'PAUSED' ? 'RESUMED' : 'Resume'}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -452,6 +479,85 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <Text style={styles.emergencyBtnText}>Emergency Unblock (My Class)</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Student Devices List */}
+        <View style={styles.deviceListSection}>
+          <View style={styles.listHeaderRow}>
+            <Text style={styles.listTitleText}>Student Devices</Text>
+            <Text style={styles.listCountText}>({liveStudents.length} Students)</Text>
+          </View>
+
+          {liveStudents.length === 0 ? (
+            <View style={styles.emptyDeviceContainer}>
+              <VectorIcon name="cellphone-off" size={40} color="#94A3B8" />
+              <Text style={styles.emptyDeviceTitle}>No Student Devices</Text>
+              <Text style={styles.emptyDeviceSubtitle}>No students are currently registered.</Text>
+            </View>
+          ) : (
+            liveStudents.map((student, index) => {
+              const isBlocked = student.deviceStatus === 'blocked';
+              const hasPerms = student.accessibilityEnabled && student.overlayEnabled;
+              const isLoggedIn = student.isOnline;
+
+              let badgeBgColor = '#DCFCE7';
+              let badgeTextColor = '#16A34A';
+              let badgeText = 'Unblocked';
+
+              if (!student.hasDevice) {
+                badgeBgColor = '#FEF3C7';
+                badgeTextColor = '#D97706';
+                badgeText = 'No Login';
+              } else if (!hasPerms) {
+                badgeBgColor = '#FEE2E2';
+                badgeTextColor = '#EF4444';
+                badgeText = 'No Perms';
+              } else if (isBlocked) {
+                badgeBgColor = '#FEE2E2';
+                badgeTextColor = '#EF4444';
+                badgeText = 'Blocked';
+              } else if (student.scheduleRestricted) {
+                badgeBgColor = '#FEF3C7';
+                badgeTextColor = '#D97706';
+                badgeText = 'Restricted';
+              } else if (!isLoggedIn) {
+                badgeBgColor = '#F1F5F9';
+                badgeTextColor = '#64748B';
+                badgeText = 'Offline';
+              }
+
+              return (
+                <View key={student.studentId || index} style={styles.studentDeviceRow}>
+                  <View style={styles.studentDeviceInfo}>
+                    <View style={[styles.studentIconWrapper, { backgroundColor: isBlocked ? '#FEE2E2' : '#DCFCE7' }]}>
+                      <VectorIcon name="cellphone" size={16} color={isBlocked ? '#EF4444' : '#16A34A'} />
+                    </View>
+                    <View style={styles.studentTextGroup}>
+                      <Text style={styles.studentDeviceName}>{student.name}</Text>
+                      <Text style={styles.studentDeviceMeta}>
+                        {student.deviceModel || 'Android'} · {student.rollNo || student.email}
+                      </Text>
+                      <View style={styles.permBadgeRow}>
+                        <View style={[styles.permBadge, { backgroundColor: student.accessibilityEnabled ? '#DCFCE7' : '#FEE2E2' }]}>
+                          <Text style={[styles.permBadgeText, { color: student.accessibilityEnabled ? '#16A34A' : '#DC2626' }]}>
+                            Access {student.accessibilityEnabled ? '✓' : '✗'}
+                          </Text>
+                        </View>
+                        <View style={[styles.permBadge, { backgroundColor: student.overlayEnabled ? '#DCFCE7' : '#FEE2E2' }]}>
+                          <Text style={[styles.permBadgeText, { color: student.overlayEnabled ? '#16A34A' : '#DC2626' }]}>
+                            Overlay {student.overlayEnabled ? '✓' : '✗'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={[styles.studentBadge, { backgroundColor: badgeBgColor }]}>
+                    <Text style={[styles.studentBadgeText, { color: badgeTextColor }]}>{badgeText}</Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
         </View>
       </ScrollView>
     </View>
@@ -690,10 +796,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
+  pauseBtnActive: {
+    backgroundColor: '#F59E0B',
+    borderColor: '#D97706',
+  },
   pauseBtnText: {
     fontSize: 13,
     fontWeight: '700',
     color: '#D97706',
+  },
+  pauseBtnTextActive: {
+    color: '#FFFFFF',
   },
   resumeBtn: {
     flex: 1,
@@ -707,10 +820,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
+  resumeBtnActive: {
+    backgroundColor: '#16A34A',
+    borderColor: '#15803D',
+  },
   resumeBtnText: {
     fontSize: 13,
     fontWeight: '700',
     color: '#16A34A',
+  },
+  resumeBtnTextActive: {
+    color: '#FFFFFF',
   },
   removeBtn: {
     flex: 1,
@@ -742,6 +862,106 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  deviceListSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  listHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginBottom: 12,
+  },
+  listTitleText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  listCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  studentDeviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  studentDeviceInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  studentIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  studentTextGroup: {
+    flex: 1,
+  },
+  studentDeviceName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  studentDeviceMeta: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  permBadgeRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 4,
+  },
+  permBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  permBadgeText: {
+    fontSize: 8,
+    fontWeight: '700',
+  },
+  studentBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  studentBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  emptyDeviceContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  emptyDeviceTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 8,
+  },
+  emptyDeviceSubtitle: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
   },
 });
 

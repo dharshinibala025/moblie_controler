@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-na
 import { colors, shadows } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 
-export const StaffBottomNavBar = ({ activeTab = 'dashboard', onSelectTab }) => {
+export const StaffBottomNavBar = ({ activeTab = 'dashboard', onSelectTab, unreadCount = 0 }) => {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: 'view-dashboard' },
     { id: 'devices', label: 'Devices', icon: 'cellphone-cog' },
@@ -29,6 +29,13 @@ export const StaffBottomNavBar = ({ activeTab = 'dashboard', onSelectTab }) => {
                   size={24}
                   color={isActive ? colors.primary : '#64748B'}
                 />
+                {tab.id === 'dashboard' && unreadCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <Text
@@ -91,6 +98,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderBottomLeftRadius: 3,
     borderBottomRightRadius: 3,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -10,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
 

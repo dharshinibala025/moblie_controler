@@ -25,6 +25,8 @@ const DeviceCard = ({
   ipAddress,
   lastActive,
   isBlocked = false,
+  accessibilityEnabled = false,
+  overlayEnabled = false,
   onToggleBlock,
 }) => {
   return (
@@ -46,6 +48,20 @@ const DeviceCard = ({
         <Text style={styles.name} numberOfLines={1}>{name}</Text>
         <Text style={styles.meta} numberOfLines={1}>{deviceType} &middot; {ipAddress}</Text>
         <Text style={styles.meta} numberOfLines={1}>Last active: {lastActive}</Text>
+        <View style={styles.permRow}>
+          <View style={[styles.permBadge, { backgroundColor: accessibilityEnabled ? '#DCFCE7' : '#FEE2E2' }]}>
+            <Icon name="accessibility-new" size={10} color={accessibilityEnabled ? '#16A34A' : '#DC2626'} />
+            <Text style={[styles.permText, { color: accessibilityEnabled ? '#16A34A' : '#DC2626' }]}>
+              Access {accessibilityEnabled ? '✓' : '✗'}
+            </Text>
+          </View>
+          <View style={[styles.permBadge, { backgroundColor: overlayEnabled ? '#DCFCE7' : '#FEE2E2' }]}>
+            <Icon name="layers" size={10} color={overlayEnabled ? '#16A34A' : '#DC2626'} />
+            <Text style={[styles.permText, { color: overlayEnabled ? '#16A34A' : '#DC2626' }]}>
+              Overlay {overlayEnabled ? '✓' : '✗'}
+            </Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.rightWrapper}>
@@ -90,6 +106,23 @@ const styles = StyleSheet.create({
   textWrapper: { flex: 1, marginRight: spacing.sm },
   name: { ...typography.bodyMedium, color: colors.textPrimary },
   meta: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
+  permRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 4,
+  },
+  permBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  permText: {
+    fontSize: 8,
+    fontWeight: '700',
+  },
   rightWrapper: { alignItems: 'flex-end' },
   actionButton: {
     marginTop: spacing.sm,

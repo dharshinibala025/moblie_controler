@@ -1,6 +1,9 @@
 const User = require("../models/User");
 const Device = require("../models/Device");
+const Rule = require("../models/Rule");
 const usageService = require("./usageService");
+const { getISTDate } = require("../utils/istTime");
+const { isRuleActiveNow } = require("../utils/scheduleHelper");
 
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -49,6 +52,21 @@ class ClassService {
     });
     const activeUserSet = new Set(activeSessions.map((sess) => sess.userId.toString()));
 
+    // Check if schedule is currently active (IST-aware) for this class
+    const istNow = getISTDate();
+    let hasScheduleActive = false;
+    try {
+      const activeRules = await Rule.find({
+        targetClassId: classId,
+        status: "active",
+      }).lean();
+      if (activeRules.length > 0) {
+        hasScheduleActive = activeRules.some((rule) => isRuleActiveNow(rule, istNow));
+      }
+    } catch (e) {
+      // ignore - schedule check is best-effort
+    }
+
     // Fetch attempts count for each student in a single aggregation query
     const attemptsMap = new Map();
     const attemptsData = await BlockedAttempt.aggregate([
@@ -63,6 +81,12 @@ class ClassService {
       const device = deviceMap.get(student._id.toString());
       const isBlocked = device ? device.status === "blocked" : false;
       const isLoggedIn = activeUserSet.has(student._id.toString());
+      const hasPerms = device && device.deviceInfo
+        ? device.deviceInfo.accessibilityEnabled !== false && device.deviceInfo.overlayEnabled !== false
+        : false;
+
+      // Schedule-based restriction check (IST-aware)
+      const scheduleRestricted = hasScheduleActive && !isBlocked && hasPerms;
 
       const computedDeviceStatus = isBlocked ? "blocked" : isLoggedIn ? "Logged In" : "No Login";
 
@@ -75,10 +99,11 @@ class ClassService {
         lastSyncAt: device ? device.lastSyncAt : null,
         deviceStatus: computedDeviceStatus,
         deviceModel: device ? (device.deviceInfo?.deviceModel || device.status) : "None",
-        screenTime: isBlocked ? "Blocked" : isLoggedIn ? "Active" : "Offline",
+        screenTime: isBlocked ? "Blocked" : scheduleRestricted ? "Restricted" : isLoggedIn ? "Active" : "Offline",
         attempts: attemptsMap.get(student._id.toString()) || 0,
         accessibilityEnabled: device && device.deviceInfo ? device.deviceInfo.accessibilityEnabled !== false : false,
         overlayEnabled: device && device.deviceInfo ? device.deviceInfo.overlayEnabled !== false : false,
+        scheduleRestricted,
         hasDevice: !!device,
       };
     });

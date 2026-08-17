@@ -4,6 +4,7 @@ const Device = require("../models/Device");
 const ScannedApp = require("../models/ScannedApp");
 const { isRuleActiveNow } = require("../utils/scheduleHelper");
 const { getEmergencyUnblock } = require("../utils/emergencyHelper");
+const { getISTDate } = require("../utils/istTime");
 const logger = require("../utils/logger");
 
 const DEFAULT_WINDOW = {
@@ -72,13 +73,14 @@ const toMinutes = (hhmm) => {
   return (h || 0) * 60 + (m || 0);
 };
 
-const isDefaultWindowActive = (now = new Date()) => {
+const isDefaultWindowActive = (now) => {
+  const istNow = getISTDate(now);
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const currentDay = dayNames[now.getDay()];
+  const currentDay = dayNames[istNow.getDay()];
   if (!DEFAULT_WINDOW.activeDays.includes(currentDay)) {
     return false;
   }
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentMinutes = istNow.getHours() * 60 + istNow.getMinutes();
   return currentMinutes >= toMinutes(DEFAULT_WINDOW.scheduleStart) &&
     currentMinutes < toMinutes(DEFAULT_WINDOW.scheduleEnd);
 };
@@ -149,7 +151,8 @@ const resolveBlockedPackages = async (studentId, rules) => {
  * Compute the live enforcement policy for a student.
  * @param {{student: Object, device: Object|null, now?: Date}} params
  */
-const getStudentPolicy = async ({ student, device = null, now = new Date() }) => {
+const getStudentPolicy = async ({ student, device = null, now }) => {
+  const istNow = getISTDate(now);
   const rules = await Rule.find({
     ...buildScopeRuleQuery(student),
     status: { $in: ["active", "paused", "stopped"] },
@@ -179,9 +182,9 @@ const getStudentPolicy = async ({ student, device = null, now = new Date() }) =>
   // ever been configured, by the built-in default 09:00 - 16:00 window.
   let scheduleActive = false;
   if (activeRules.length > 0) {
-    scheduleActive = activeRules.some((rule) => isRuleActiveNow(rule, now));
+    scheduleActive = activeRules.some((rule) => isRuleActiveNow(rule, istNow));
   } else if (!hasAnyRule) {
-    scheduleActive = isDefaultWindowActive(now);
+    scheduleActive = isDefaultWindowActive(istNow);
   }
 
   let status;
@@ -224,7 +227,7 @@ const getStudentPolicy = async ({ student, device = null, now = new Date() }) =>
     source,
     emergency: emergencyActive ? "active" : "inactive",
     classId: student.classId,
-    nextUnlockAt: status === "active" ? computeNextBoundary(now, scheduleEnd, activeDays) : null,
+    nextUnlockAt: status === "active" ? computeNextBoundary(istNow, scheduleEnd, activeDays) : null,
   };
 };
 
@@ -259,7 +262,8 @@ const computeNextBoundary = (now, scheduleEnd, activeDays) => {
  * @param {string} classId
  * @param {Date} now
  */
-const getClassWindow = async (classId, now = new Date()) => {
+const getClassWindow = async (classId, now) => {
+  const istNow = getISTDate(now);
   const rules = await Rule.find({
     targetClassId: classId,
     status: { $in: ["active", "paused", "stopped"] },
@@ -283,9 +287,9 @@ const getClassWindow = async (classId, now = new Date()) => {
 
   let active = false;
   if (activeRules.length > 0) {
-    active = activeRules.some((rule) => isRuleActiveNow(rule, now));
+    active = activeRules.some((rule) => isRuleActiveNow(rule, istNow));
   } else if (!hasAnyRule) {
-    active = isDefaultWindowActive(now);
+    active = isDefaultWindowActive(istNow);
   }
 
   return {

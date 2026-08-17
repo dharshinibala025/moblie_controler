@@ -8,6 +8,7 @@ const usageService = require("../services/usageService");
 const auditService = require("../services/auditService");
 const dispatchService = require("../services/dispatchService");
 const Session = require("../models/Session");
+const Device = require("../models/Device");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -32,8 +33,72 @@ router.post("/device/register", validate("registerDevice"), async (req, res, nex
   try {
     const { fcmToken, deviceInfo } = req.body;
     const deviceFingerprint = Session.generateDeviceFingerprint(deviceInfo);
+
+    // Check for permission revocation before updating device
+    const existingDevice = await Device.findOne({ userId: req.user.userId });
+    const prevAccess = existingDevice?.deviceInfo?.accessibilityEnabled !== false;
+    const prevOverlay = existingDevice?.deviceInfo?.overlayEnabled !== false;
+    const newAccess = deviceInfo?.accessibilityEnabled !== false;
+    const newOverlay = deviceInfo?.overlayEnabled !== false;
+
     const device = await deviceService.registerDevice(req.user.userId, fcmToken, deviceInfo, deviceFingerprint);
     const currentCommand = await dispatchService.getLatestCommand(req.user.classId);
+
+    // Create notifications if permissions were revoked
+    if ((prevAccess && !newAccess) || (prevOverlay && !newOverlay)) {
+      const User = require("../models/User");
+      const Notification = require("../models/Notification");
+      const StaffAssignment = require("../models/StaffAssignment");
+      const { emitToClass } = require("../config/socket");
+
+      const student = await User.findById(req.user.userId).select("name classId institutionId departmentId academicYearId sectionId");
+      if (student) {
+        const permissionName = (!prevAccess && newAccess === false) ? "Accessibility" : "Display Over Apps";
+
+        // Find all admins
+        const admins = await User.find({ role: "admin", institutionId: student.institutionId }).select("_id");
+
+        // Find assigned staff for this student's class
+        let staffIds = [];
+        const staffAssignments = await StaffAssignment.find({ classId: student.classId, isActive: true }).select("staffId");
+        staffIds = staffAssignments.map((a) => a.staffId.toString());
+
+        // Also include staff by department/section
+        const deptStaff = await User.find({
+          role: "staff",
+          departmentId: student.departmentId,
+          academicYearId: student.academicYearId,
+          sectionId: student.sectionId,
+        }).select("_id");
+        staffIds = [...new Set([...staffIds, ...deptStaff.map((s) => s._id.toString())])];
+
+        const recipientIds = [
+          ...admins.map((a) => a._id.toString()),
+          ...staffIds,
+        ];
+
+        if (recipientIds.length > 0) {
+          const notifications = recipientIds.map((recipientId) => ({
+            recipientId,
+            recipientRole: admins.some((a) => a._id.toString() === recipientId) ? "admin" : "staff",
+            title: "Student Permission Revoked",
+            message: `${student.name} has disabled ${permissionName} permission! Blocking may not work on their device.`,
+            type: "restriction",
+            read: false,
+            metadata: {
+              studentId: student._id,
+              studentName: student.name,
+              permission: permissionName.toLowerCase().includes("access") ? "accessibility" : "overlay",
+              action: "revoked",
+              classId: student.classId,
+            },
+          }));
+
+          await Notification.insertMany(notifications);
+          emitToClass("ALL", "notification:new", { timestamp: new Date() });
+        }
+      }
+    }
 
     res.status(201).json({
       deviceId: device._id,

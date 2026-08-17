@@ -93,6 +93,7 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
   const [targetDetail, setTargetDetail] = useState('');
   const [permModalVisible, setPermModalVisible] = useState(false);
   const [permStep, setPermStep] = useState('notification');
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -107,6 +108,27 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
     };
     fetchOverview();
     const interval = setInterval(fetchOverview, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Fetch unread notification count
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUnreadCount = async () => {
+      try {
+        const notifs = await adminService.getAdminNotifications();
+        if (isMounted && Array.isArray(notifs)) {
+          setUnreadCount(notifs.filter((n) => !n.read).length);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -222,7 +244,11 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
               activeOpacity={0.8}
             >
               <Icon name="campaign" size={22} color={colors.primaryBlue} />
-              <View style={styles.notificationDot} />
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>AD</Text>
@@ -408,14 +434,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.sm,
   },
-  notificationDot: {
+  notificationBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: radius.round,
+    top: 4,
+    right: 4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.white,
+  },
     borderWidth: 1.5,
     borderColor: colors.background,
   },

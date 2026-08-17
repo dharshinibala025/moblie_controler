@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import StaffDashboardTab from './StaffDashboardTab';
@@ -9,10 +9,13 @@ import NotificationsScreen from '../../admin_dashboard/screens/NotificationsScre
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
 import { getStoredUser } from '../../services/apiConfig';
 import syncService from '../../services/syncService';
+import api from '../../services/api';
 
 export const StaffDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [staffInfo, setStaffInfo] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const prevTabRef = useRef('dashboard');
 
   useEffect(() => {
     const loadStaffInfo = async () => {
@@ -28,6 +31,36 @@ export const StaffDashboardScreen = ({ onLogout }) => {
     };
     loadStaffInfo();
   }, []);
+
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const res = await api.get('/staff/notifications');
+      const data = res.data;
+      if (Array.isArray(data)) {
+        const unread = data.filter(n => !n.isRead).length;
+        setUnreadCount(unread);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [fetchUnreadCount]);
+
+  const handleTabChange = useCallback((newTab) => {
+    const prevTab = prevTabRef.current;
+    prevTabRef.current = newTab;
+
+    if (prevTab === 'notifications' && newTab !== 'notifications') {
+      fetchUnreadCount();
+    }
+
+    setActiveTab(newTab);
+  }, [fetchUnreadCount]);
 
   const renderActiveScreen = () => {
     switch (activeTab) {
@@ -52,7 +85,7 @@ export const StaffDashboardScreen = ({ onLogout }) => {
       <View style={styles.screenContainer}>
         {renderActiveScreen()}
       </View>
-      <StaffBottomNavBar activeTab={activeTab} onSelectTab={setActiveTab} />
+      <StaffBottomNavBar activeTab={activeTab} onSelectTab={handleTabChange} unreadCount={unreadCount} />
     </SafeAreaView>
   );
 };

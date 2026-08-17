@@ -1210,6 +1210,9 @@ router.get("/devices/list", async (req, res, next) => {
         userName,
         userRole: d.userId ? d.userId.role : "student",
         classId: d.userId ? d.userId.classId : null,
+        accessibilityEnabled: deviceInfo.accessibilityEnabled !== false,
+        overlayEnabled: deviceInfo.overlayEnabled !== false,
+        rollNo: d.userId ? d.userId.studentId : null,
       };
     });
 

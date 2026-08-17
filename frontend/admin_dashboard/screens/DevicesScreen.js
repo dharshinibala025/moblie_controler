@@ -443,20 +443,32 @@ const DevicesScreen = () => {
             </TouchableOpacity>
 
             <View style={styles.secondaryControlsRow}>
-              <TouchableOpacity style={styles.pauseBtn} onPress={handlePauseRestriction} activeOpacity={0.8}>
-                <Icon name="pause" size={16} color="#D97706" />
-                <Text style={styles.pauseBtnText}>Pause</Text>
+              <TouchableOpacity
+                style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
+                onPress={handlePauseRestriction}
+                activeOpacity={0.8}
+              >
+                <Icon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
+                <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>
+                  {restrictionStatus === 'ACTIVE' ? 'PAUSING...' : 'Pause'}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.resumeBtn} onPress={handleResumeRestriction} activeOpacity={0.8}>
-                <Icon name="play-arrow" size={16} color="#15803D" />
-                <Text style={styles.resumeBtnText}>Resume</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock} activeOpacity={0.8}>
-                <Icon name="warning" size={16} color={colors.white} />
-                <Text style={styles.emergencyBtnText}>Emergency Unblock</Text>
+              <TouchableOpacity
+                style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
+                onPress={handleResumeRestriction}
+                activeOpacity={0.8}
+              >
+                <Icon name="play-arrow" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
+                <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>
+                  {restrictionStatus === 'PAUSED' ? 'RESUMED' : 'Resume'}
+                </Text>
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock} activeOpacity={0.8}>
+              <Icon name="warning" size={16} color={colors.white} />
+              <Text style={styles.emergencyBtnText}>Emergency Unblock (All Classes)</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -478,6 +490,8 @@ const DevicesScreen = () => {
               ipAddress={device.rollNo ? `Reg. No: ${device.rollNo}` : device.deviceId || 'DEV-100'}
               lastActive={device.lastPing || device.activeTime || 'Active'}
               isBlocked={device.isBlocked}
+              accessibilityEnabled={device.accessibilityEnabled}
+              overlayEnabled={device.overlayEnabled}
               onToggleBlock={() => handleToggleBlock(device.id)}
             />
           ))
@@ -613,11 +627,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     gap: 4,
   },
+  pauseBtnActive: {
+    backgroundColor: '#F59E0B',
+    borderColor: '#D97706',
+  },
   pauseBtnText: {
     ...typography.button,
     color: '#D97706',
     fontSize: 13,
     fontWeight: '700',
+  },
+  pauseBtnTextActive: {
+    color: '#FFFFFF',
   },
   resumeBtn: {
     flex: 1,
@@ -631,11 +652,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     gap: 4,
   },
+  resumeBtnActive: {
+    backgroundColor: '#16A34A',
+    borderColor: '#15803D',
+  },
   resumeBtnText: {
     ...typography.button,
     color: '#15803D',
     fontSize: 13,
     fontWeight: '700',
+  },
+  resumeBtnTextActive: {
+    color: '#FFFFFF',
   },
   emergencyBtn: {
     flex: 1,

@@ -37,6 +37,8 @@ const schemas = {
       appVersion: Joi.string().allow(null, "").default(""),
       deviceModel: Joi.string().allow(null, "").default(""),
       deviceId: Joi.string().default("default-device-id"),
+      accessibilityEnabled: Joi.boolean().default(false),
+      overlayEnabled: Joi.boolean().default(false),
     }).default({ platform: "android", deviceId: "default-device-id" }),
   }),
 

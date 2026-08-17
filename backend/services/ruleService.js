@@ -16,6 +16,7 @@ exports.createRule = async (ruleData, actorId) => {
   });
 
   if (rule.status === "active") {
+    rule.startedAt = new Date();
     await dispatchRule(rule, "start");
   }
 
@@ -39,8 +40,10 @@ exports.updateRule = async (ruleId, updateData, actorId, institutionId) => {
   await rule.save();
 
   if (rule.status !== previousStatus && rule.status === "active") {
+    rule.startedAt = new Date();
     await dispatchRule(rule, "start");
   } else if (rule.status === "paused" || rule.status === "stopped") {
+    rule.startedAt = null;
     await dispatchRule(rule, rule.status === "paused" ? "pause" : "stop");
   } else {
     // If rule remains active but other parameters (like blockedApps) change, dispatch update
@@ -93,9 +96,16 @@ exports.sendCommand = async (ruleId, action, actorId, institutionId) => {
     throw new ValidationError(`Cannot '${action}' a rule with status '${rule.status}'`);
   }
 
-  if (action === "start") rule.status = "active";
-  else if (action === "pause") rule.status = "paused";
-  else if (action === "stop") rule.status = "stopped";
+  if (action === "start") {
+    rule.status = "active";
+    rule.startedAt = new Date();
+  } else if (action === "pause") {
+    rule.status = "paused";
+    rule.startedAt = null;
+  } else if (action === "stop") {
+    rule.status = "stopped";
+    rule.startedAt = null;
+  }
 
   // Increment policyVersion on command state change
   rule.policyVersion = (rule.policyVersion || 1) + 1;

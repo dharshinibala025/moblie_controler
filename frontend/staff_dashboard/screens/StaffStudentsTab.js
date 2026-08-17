@@ -20,7 +20,7 @@ const STATUSBAR_OFFSET = 12;
 export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => {
   const staffInfo = propStaffInfo || { name: '', department: '' };
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'blocked' | 'offline'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'blocked' | 'restricted' | 'offline'
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentTime, setCurrentTime] = useState('');
   const [liveStudents, setLiveStudents] = useState([]);
@@ -72,16 +72,19 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
             const rawStatus = String(student.deviceStatus || '').toLowerCase();
             const isBlocked = rawStatus === 'blocked';
             const isLoggedIn = !isBlocked && (rawStatus === 'logged in' || rawStatus === 'active' || student.isOnline === true);
+            const isRestricted = student.scheduleRestricted === true;
 
             return {
               id: student.studentId || student._id,
               name: student.name,
               rollNo: student.rollNo,
               email: student.email,
-              status: isBlocked ? 'blocked' : isLoggedIn ? 'active' : 'offline',
+              status: isBlocked ? 'blocked' : isRestricted ? 'restricted' : isLoggedIn ? 'active' : 'offline',
               device: student.deviceModel || 'Android Device',
               screenTime: student.screenTime || 'Active',
               attempts: student.attempts || 0,
+              accessibilityEnabled: student.accessibilityEnabled,
+              overlayEnabled: student.overlayEnabled,
             };
           });
           setLiveStudents(mapped);
@@ -175,6 +178,14 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
           border: '#FECACA',
           icon: 'cellphone-off',
           label: 'BLOCKED',
+        };
+      case 'restricted':
+        return {
+          bg: '#FEF3C7',
+          text: '#D97706',
+          border: '#FDE68A',
+          icon: 'clock-outline',
+          label: 'RESTRICTED',
         };
       case 'offline':
       default:
@@ -332,6 +343,23 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
                     ]}
                   >
                     Blocked ({liveStudents.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setStatusFilter('restricted')}
+                  style={[
+                    styles.filterBadge,
+                    statusFilter === 'restricted' && [styles.filterBadgeActive, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }],
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterBadgeText,
+                      statusFilter === 'restricted' && { color: '#D97706', fontWeight: '700' },
+                    ]}
+                  >
+                    Restricted ({liveStudents.filter((s) => s.status === 'restricted').length})
                   </Text>
                 </TouchableOpacity>
 
