@@ -2,6 +2,7 @@ const User = require("../models/User");
 const Device = require("../models/Device");
 const Rule = require("../models/Rule");
 const autoBlockService = require("./autoBlockService");
+const ruleService = require("./ruleService");
 const { emitToClass } = require("../config/socket");
 const { getISTDate } = require("../utils/istTime");
 const logger = require("../utils/logger");
@@ -26,7 +27,9 @@ const tick = async () => {
 
   const now = getISTDate();
   try {
-    const classIds = await User.distinct("classId", { role: "student", classId: { $ne: null } });
+    const classIdsFromField = await User.distinct("classId", { role: "student", classId: { $ne: null } });
+    const classIdsFromRef = await User.distinct("classRoomId", { role: "student", classRoomId: { $ne: null } });
+    const classIds = [...new Set([...classIdsFromField, ...classIdsFromRef.map(id => id.toString())])];
 
     for (const classId of classIds) {
       if (!classId) continue;
@@ -52,9 +55,11 @@ const tick = async () => {
 
           if (activeRules.length > 0) {
             for (const rule of activeRules) {
-              rule.status = "paused";
-              rule.startedAt = null;
-              await rule.save();
+              try {
+                await ruleService.sendCommand(rule._id, "pause", "Schedule window closed - auto-pause");
+              } catch (cmdErr) {
+                logger.error(`Auto-pause command failed for rule ${rule._id}: ${cmdErr.message}`);
+              }
             }
 
             emitToClass(classId, "rule:update", {
@@ -64,7 +69,7 @@ const tick = async () => {
               activeDays: window.activeDays,
               status: "paused",
               source: window.source,
-              serverTimestamp: now.toISOString(),
+              serverTimestamp: new Date().toISOString(),
             });
 
             await Device.updateMany(

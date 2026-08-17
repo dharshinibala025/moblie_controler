@@ -33,6 +33,17 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const [permissions, setPermissions] = useState({ accessibilityEnabled: false, overlayEnabled: false });
   const [scheduleStart, setScheduleStart] = useState('09:00');
   const [scheduleEnd, setScheduleEnd] = useState('16:00');
+  const scheduleStartRef = useRef('09:00');
+  const scheduleEndRef = useRef('16:00');
+
+  const handleScheduleStartChange = (val) => {
+    setScheduleStart(val);
+    scheduleStartRef.current = val;
+  };
+  const handleScheduleEndChange = (val) => {
+    setScheduleEnd(val);
+    scheduleEndRef.current = val;
+  };
 
   // Custom Permission Modal State — one-by-one, no double popups
   const [permModalVisible, setPermModalVisible] = useState(false);
@@ -157,22 +168,20 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     // Load cached policy for dynamic schedule
     syncService.getCachedPolicy().then((p) => {
       if (p) {
-        if (p.scheduleStart) setScheduleStart(p.scheduleStart);
-        if (p.scheduleEnd) setScheduleEnd(p.scheduleEnd);
+        if (p.scheduleStart) handleScheduleStartChange(p.scheduleStart);
+        if (p.scheduleEnd) handleScheduleEndChange(p.scheduleEnd);
       }
     }).catch(() => {});
 
     const subscription = AppState.addEventListener('change', async (nextState) => {
       if (nextState === 'active') {
-        // Reload permission status silently (update shield badge)
         const res = await syncService.checkPermissions().catch(() => null);
         if (res) setPermissions(res);
 
-        // Reload policy on foreground
         syncService.getCachedPolicy().then((p) => {
           if (p) {
-            if (p.scheduleStart) setScheduleStart(p.scheduleStart);
-            if (p.scheduleEnd) setScheduleEnd(p.scheduleEnd);
+            if (p.scheduleStart) handleScheduleStartChange(p.scheduleStart);
+            if (p.scheduleEnd) handleScheduleEndChange(p.scheduleEnd);
           }
         }).catch(() => {});
 
@@ -211,9 +220,8 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       const seconds = now.getSeconds();
       const currentSec = hours * 3600 + minutes * 60 + seconds;
 
-      // Parse schedule times (HH:MM format, device local time)
-      const [startH, startM] = scheduleStart.split(':').map(Number);
-      const [endH, endM] = scheduleEnd.split(':').map(Number);
+      const [startH, startM] = scheduleStartRef.current.split(':').map(Number);
+      const [endH, endM] = scheduleEndRef.current.split(':').map(Number);
       const startSec = startH * 3600 + startM * 60;
       const endSec = endH * 3600 + endM * 60;
       const totalDuration = endSec - startSec;

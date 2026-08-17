@@ -24,18 +24,6 @@ import typography from '../styles/typography';
 import { spacing, radius, softShadow } from '../styles/globalStyles';
 import { getSectionOptions } from '../config/sectionsConfig';
 
-const parseTo24Hour = (timeStr) => {
-  if (!timeStr) return '09:00';
-  const clean = timeStr.trim().toUpperCase();
-  const match = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
-  if (!match) return '09:00';
-  let [_, hoursStr, minutesStr, ampm] = match;
-  let hours = parseInt(hoursStr, 10);
-  if (ampm === 'PM' && hours < 12) hours += 12;
-  if (ampm === 'AM' && hours === 12) hours = 0;
-  return `${hours.toString().padStart(2, '0')}:${minutesStr}`;
-};
-
 const formatTo12Hour = (timeStr) => {
   if (!timeStr) return '09:00 AM';
   const parts = timeStr.split(':');
@@ -65,6 +53,7 @@ const DevicesScreen = () => {
 
   const yearDropdownOptions = useMemo(
     () => [
+      { label: 'ALL Year', value: 'All' },
       { label: '1st Year', value: '1st Year' },
       { label: '2nd Year', value: '2nd Year' },
       { label: '3rd Year', value: '3rd Year' },
@@ -75,7 +64,8 @@ const DevicesScreen = () => {
 
   const sectionDropdownOptions = useMemo(() => {
     const sections = getSectionOptions(draftYear);
-    return sections.map((s) => ({ label: `Section ${s}`, value: s }));
+    const sectionOpts = sections.map((s) => ({ label: `Section ${s}`, value: s }));
+    return [{ label: 'ALL Section', value: 'All' }, ...sectionOpts];
   }, [draftYear]);
 
   const loadDevices = async () => {
@@ -85,22 +75,32 @@ const DevicesScreen = () => {
 
   const loadRules = async () => {
     try {
-      const yearChar = draftYear.charAt(0);
-      const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
       const rules = await adminService.getRules();
-      const classRule = (rules || []).find((r) => r.targetClassId === targetClassId);
-      if (classRule) {
-        setStartTime(formatTo12Hour(classRule.scheduleStart));
-        setEndTime(formatTo12Hour(classRule.scheduleEnd));
-        if (classRule.status === 'active') {
-          setRestrictionStatus('ACTIVE');
-        } else if (classRule.status === 'paused') {
-          setRestrictionStatus('PAUSED');
+      if (draftYear === 'All' || draftSection === 'All') {
+        // For "All", show the most recent rule overall
+        const classRule = (rules || [])[0];
+        if (classRule) {
+          setStartTime(formatTo12Hour(classRule.scheduleStart));
+          setEndTime(formatTo12Hour(classRule.scheduleEnd));
+          if (classRule.status === 'active') setRestrictionStatus('ACTIVE');
+          else if (classRule.status === 'paused') setRestrictionStatus('PAUSED');
+          else setRestrictionStatus('IDLE');
         } else {
           setRestrictionStatus('IDLE');
         }
       } else {
-        setRestrictionStatus('IDLE');
+        const yearChar = draftYear.charAt(0);
+        const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
+        const classRule = (rules || []).find((r) => r.targetClassId === targetClassId);
+        if (classRule) {
+          setStartTime(formatTo12Hour(classRule.scheduleStart));
+          setEndTime(formatTo12Hour(classRule.scheduleEnd));
+          if (classRule.status === 'active') setRestrictionStatus('ACTIVE');
+          else if (classRule.status === 'paused') setRestrictionStatus('PAUSED');
+          else setRestrictionStatus('IDLE');
+        } else {
+          setRestrictionStatus('IDLE');
+        }
       }
     } catch (err) {
       console.warn('Failed to load rules for class:', err.message);
@@ -114,17 +114,25 @@ const DevicesScreen = () => {
 
   const filteredDevices = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    const yearChar = draftYear.charAt(0);
-    const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
 
     return devices.filter((device) => {
-      // 1. Only show student devices
       if (device.userRole !== 'student') return false;
 
-      // 2. Filter by target class ID (academic year, section, department)
-      if (device.classId !== targetClassId) return false;
+      // Filter by classId matching pattern
+      const deviceClassId = device.classId || '';
+      if (draftYear !== 'All' && draftSection !== 'All') {
+        const yearChar = draftYear.charAt(0);
+        const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
+        if (deviceClassId !== targetClassId) return false;
+      } else if (draftYear !== 'All') {
+        const yearChar = draftYear.charAt(0);
+        if (!deviceClassId.startsWith(`${selectedDept}-${yearChar}-`)) return false;
+      } else if (draftSection !== 'All') {
+        const suffix = `-${draftSection}`;
+        if (!deviceClassId.endsWith(suffix)) return false;
+      }
+      // If both are 'All', show all student devices
 
-      // 3. Search match
       const name = String(device?.studentName || device?.name || '').toLowerCase();
       const model = String(device?.model || device?.deviceType || '').toLowerCase();
       const deviceId = String(device?.deviceId || device?.id || '').toLowerCase();
@@ -143,15 +151,7 @@ const DevicesScreen = () => {
     });
   }, [devices, searchQuery, filterMode, selectedDept, draftYear, draftSection]);
 
-  const displayDevices = useMemo(() => {
-    if (filterMode === 'Active Devices' || filterMode === 'Active' || filterMode === 'Connected') {
-      return filteredDevices.filter((d) => !d.isBlocked);
-    }
-    if (filterMode === 'Blocked Devices' || filterMode === 'Blocked') {
-      return filteredDevices.filter((d) => d.isBlocked);
-    }
-    return filteredDevices;
-  }, [filteredDevices, filterMode]);
+  const displayDevices = filteredDevices;
 
   const sectionTitleText = useMemo(() => {
     if (filterMode === 'Active Devices' || filterMode === 'Active' || filterMode === 'Connected') {
@@ -262,43 +262,56 @@ const DevicesScreen = () => {
       const timeVal = parts[0];
       const modifier = parts[1];
       let [hours, minutes] = timeVal.split(':');
-      if (hours === '12') {
-        hours = '00';
-      }
-      if (modifier === 'PM') {
-        hours = String(parseInt(hours, 10) + 12);
-      }
+      if (hours === '12') hours = '00';
+      if (modifier === 'PM') hours = String(parseInt(hours, 10) + 12);
       return `${hours.padStart(2, '0')}:${minutes}`;
     };
 
-    const yearChar = draftYear.charAt(0);
-    const targetClassId = `${selectedDept}-${yearChar}-${draftSection}`;
+    // Build list of target class IDs based on filter
+    const yearChars = draftYear === 'All' ? ['1', '2', '3', '4'] : [draftYear.charAt(0)];
+    const sections = draftSection === 'All'
+      ? getSectionOptions(null).filter(s => s !== 'All')
+      : [draftSection];
+    const targetClassIds = [];
+    yearChars.forEach(yc => {
+      sections.forEach(sec => {
+        targetClassIds.push(`${selectedDept}-${yc}-${sec}`);
+      });
+    });
 
-    const policyData = {
-      blockedApps: ['SocialMedia'],
-      scheduleStart: formatTimeForBackend(startTime),
-      scheduleEnd: formatTimeForBackend(endTime),
-      activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      targetClassId,
-      status: 'active',
-      reason: 'Classroom Policy Restriction',
-    };
+    const results = [];
+    for (const targetClassId of targetClassIds) {
+      const policyData = {
+        blockedApps: ['SocialMedia'],
+        scheduleStart: formatTimeForBackend(startTime),
+        scheduleEnd: formatTimeForBackend(endTime),
+        activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        targetClassId,
+        status: 'active',
+        reason: 'Classroom Policy Restriction',
+      };
+      try {
+        await adminService.applyRestrictionPolicy(policyData);
+        results.push({ targetClassId, success: true });
+      } catch (err) {
+        results.push({ targetClassId, success: false, error: err.message });
+      }
+    }
 
-    try {
-      await adminService.applyRestrictionPolicy(policyData);
-      setRestrictionStatus('ACTIVE');
-      await loadRules();
-      await loadDevices();
+    const successCount = results.filter(r => r.success).length;
+    setRestrictionStatus('ACTIVE');
+    await loadRules();
+    await loadDevices();
+
+    if (successCount === targetClassIds.length) {
       Alert.alert(
         'Mobile Restriction Applied',
-        `Restriction policy active!\n\nTarget: ${draftYear} - Sec ${draftSection} (${selectedDept})\nSchedule: ${startTime} – ${endTime}\nRemaining: ${remainingInfo.text}`,
+        `Restriction policy active for ${successCount} class(es)!\nSchedule: ${startTime} – ${endTime}`,
       );
-    } catch (err) {
-      await loadRules();
-      await loadDevices();
+    } else {
       Alert.alert(
-        'Restriction Policy Set',
-        `Mobile restriction schedule updated for ${startTime} – ${endTime}.\nRemaining Time: ${remainingInfo.text}`,
+        'Partial Success',
+        `Applied to ${successCount}/${targetClassIds.length} classes.\nSchedule: ${startTime} – ${endTime}`,
       );
     }
   };
@@ -341,8 +354,7 @@ const DevicesScreen = () => {
               setDevices((prev) => prev.map((d) => ({ ...d, isBlocked: false })));
               Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across ALL student devices.');
             } catch (err) {
-              console.warn('Emergency unblock API notice:', err.message);
-              Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across ALL student devices.');
+              Alert.alert('Emergency Unblock Failed', err.message || 'Failed to execute emergency unblock. Please try again.');
             }
           },
         },
@@ -446,6 +458,7 @@ const DevicesScreen = () => {
               <TouchableOpacity
                 style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
                 onPress={handlePauseRestriction}
+                disabled={restrictionStatus !== 'ACTIVE'}
                 activeOpacity={0.8}
               >
                 <Icon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
@@ -456,6 +469,7 @@ const DevicesScreen = () => {
               <TouchableOpacity
                 style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
                 onPress={handleResumeRestriction}
+                disabled={restrictionStatus !== 'PAUSED'}
                 activeOpacity={0.8}
               >
                 <Icon name="play-arrow" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
@@ -517,82 +531,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginVertical: spacing.md,
-  },
-  timingCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: spacing.md,
-    marginTop: spacing.xs,
-  },
-  timingHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  timerIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.secondaryBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  timingHeaderInfo: { flex: 1 },
-  timingCardTitle: {
-    ...typography.bodyMedium,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  timingCardSubtitle: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  remainingBox: {
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-  },
-  remainingInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: spacing.xs,
-  },
-  remainingLabel: {
-    ...typography.captionMedium,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  remainingValue: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primaryBlue,
-  },
-  progressBarTrack: {
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: radius.round,
-    overflow: 'hidden',
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: colors.primaryBlue,
-    borderRadius: radius.round,
-  },
-  progressPctText: {
-    fontSize: 10,
-    color: colors.textMuted,
-    fontWeight: '600',
-    marginTop: 2,
   },
   controlsGroup: {
     gap: spacing.sm,

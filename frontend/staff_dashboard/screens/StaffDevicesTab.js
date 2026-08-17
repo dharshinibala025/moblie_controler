@@ -7,14 +7,10 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Platform,
-  StatusBar,
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import staffService from '../../services/staffService';
-
-const STATUSBAR_OFFSET = 12;
 
 
 const parseTo24Hour = (timeStr) => {
@@ -215,7 +211,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
     };
 
     updateTime();
-    const interval = setInterval(updateTime, 1000);
+    const interval = setInterval(updateTime, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -264,11 +260,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
         `Restriction schedule successfully applied to your class!\n\nClass: ${mentorClass}\nSchedule: ${startTime} – ${endTime}`,
       );
     } catch (err) {
-      setRestrictionStatus('ACTIVE');
-      Alert.alert(
-        'Restriction Policy Applied',
-        `Restriction schedule configured for ${startTime} – ${endTime}.\nPolicy status is now Active.`,
-      );
+      Alert.alert('Apply Failed', err.message || 'Failed to apply restriction policy. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -284,8 +276,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       setRestrictionStatus('PAUSED');
       Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused. Students can access apps now.');
     } catch (err) {
-      setRestrictionStatus('PAUSED');
-      Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused. Students can access apps now.');
+      Alert.alert('Pause Failed', err.message || 'Failed to pause restriction. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -301,63 +292,12 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       setRestrictionStatus('ACTIVE');
       Alert.alert('Restriction Resumed', 'Mobile restriction is active again. Apps are now blocked.');
     } catch (err) {
-      setRestrictionStatus('ACTIVE');
-      Alert.alert('Restriction Resumed', 'Mobile restriction is active again. Apps are now blocked.');
+      Alert.alert('Resume Failed', err.message || 'Failed to resume restriction. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRemoveRestriction = async () => {
-    const classIdToQuery = await getAssignedClassId();
-    if (!classIdToQuery || !activeRule) return;
-
-    setLoading(true);
-    try {
-      const staffService = require('../../services/staffService').default;
-      const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'stop');
-      setActiveRule(ruleResult);
-      setRestrictionStatus('IDLE');
-      Alert.alert('Restriction Removed', 'All restriction policies have been removed for your class.');
-    } catch (err) {
-      Alert.alert('Remove Failed', err.message || 'An error occurred.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEmergencyUnblock = () => {
-    Alert.alert(
-      'Emergency Unblock Confirmation',
-      `Are you sure you want to IMMEDIATELY UNBLOCK all devices in your assigned class (${formatClassDisplay(
-        mentorClass,
-      )})?\n\nThis lifts restrictions for your class only and lasts 2 hours.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Unblock My Class',
-          style: 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            try {
-              await staffService.emergencyUnblockAll();
-              setRestrictionStatus('IDLE');
-              Alert.alert(
-                'Emergency Unblock Executed',
-                `Restrictions lifted for your assigned class (${formatClassDisplay(mentorClass)}).`,
-              );
-            } catch (err) {
-              Alert.alert('Unblock Failed', err.message || 'An error occurred.');
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  // Helper to get status color
   const getStatusColor = () => {
     if (restrictionStatus === 'ACTIVE') return '#16A34A';
     if (restrictionStatus === 'PAUSED') return '#F59E0B';
@@ -457,6 +397,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <TouchableOpacity
                 style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
                 onPress={handlePauseRestriction}
+                disabled={restrictionStatus !== 'ACTIVE'}
               >
                 <VectorIcon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#F59E0B'} />
                 <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>
@@ -466,6 +407,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <TouchableOpacity
                 style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
                 onPress={handleResumeRestriction}
+                disabled={restrictionStatus !== 'PAUSED'}
               >
                 <VectorIcon name="play" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#16A34A'} />
                 <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>
@@ -473,11 +415,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                 </Text>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock}>
-              <VectorIcon name="alert-circle" size={18} color="#FFFFFF" />
-              <Text style={styles.emergencyBtnText}>Emergency Unblock (My Class)</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -830,37 +767,6 @@ const styles = StyleSheet.create({
     color: '#16A34A',
   },
   resumeBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  removeBtn: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  removeBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  emergencyBtn: {
-    backgroundColor: '#EF4444',
-    height: 44,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  emergencyBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
     color: '#FFFFFF',
   },
   deviceListSection: {

@@ -1129,8 +1129,8 @@ router.get("/staff", async (req, res, next) => {
         name: s.name,
         staffId: s.employeeId || "STF001",
         department: s.departmentId ? s.departmentId.name : "Computer Science",
-        year: "1st Year",
-        section: "A",
+        year: s.academicYearId || s.classId || "Not Assigned",
+        section: s.sectionId || "A",
         deviceStatus,
         isBlocked,
         email: s.email,
@@ -1210,8 +1210,8 @@ router.get("/devices/list", async (req, res, next) => {
         userName,
         userRole: d.userId ? d.userId.role : "student",
         classId: d.userId ? d.userId.classId : null,
-        accessibilityEnabled: deviceInfo.accessibilityEnabled !== false,
-        overlayEnabled: deviceInfo.overlayEnabled !== false,
+        accessibilityEnabled: deviceInfo.accessibilityEnabled === true,
+        overlayEnabled: deviceInfo.overlayEnabled === true,
         rollNo: d.userId ? d.userId.studentId : null,
       };
     });
@@ -1406,7 +1406,7 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
 
     setEmergencyUnblock(true);
 
-    await Rule.updateMany({}, { $set: { status: "paused" } });
+    await Rule.updateMany({}, { $set: { status: "paused", startedAt: null } });
     await Device.updateMany({}, { $set: { status: "active" } });
 
     emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
@@ -1447,32 +1447,6 @@ router.post("/students/upload", async (req, res, next) => {
     const result = await spreadsheetService.processStudentUpload(
       fileBuffer,
       fileName || "students.xlsx",
-      req.user?.userId || "admin",
-      req.user?.role || "admin"
-    );
-
-    res.json({ success: true, ...result });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/staff/upload", async (req, res, next) => {
-  try {
-    const spreadsheetService = require("../services/spreadsheetService");
-    const { fileBase64, fileName } = req.body;
-
-    if (!fileBase64 || typeof fileBase64 !== "string" || fileBase64.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "No file uploaded. Please select a staff Excel file (.xlsx or .csv) from your mobile device storage.",
-      });
-    }
-
-    const fileBuffer = Buffer.from(fileBase64, "base64");
-    const result = await spreadsheetService.processStaffUpload(
-      fileBuffer,
-      fileName || "staff.xlsx",
       req.user?.userId || "admin",
       req.user?.role || "admin"
     );
@@ -1549,7 +1523,7 @@ router.delete("/notifications/:id", async (req, res, next) => {
 router.post("/notifications/mark-read", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
-    await Notification.updateMany({ studentId: req.user.userId }, { $set: { read: true } });
+    await Notification.updateMany({ recipientId: req.user.userId, recipientRole: "admin" }, { $set: { read: true } });
     res.json({ success: true });
   } catch (err) {
     next(err);

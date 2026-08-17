@@ -11,7 +11,6 @@ import SettingsScreen from './screens/SettingsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 
 import colors from './styles/colors';
-import syncService from '../services/syncService';
 
 /**
  * AdminPanel
@@ -36,9 +35,7 @@ const TABS = [
 const AdminPanel = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  useEffect(() => {
-    syncService.requestAllPermissions().catch(() => null);
-  }, []);
+
 
   const renderActiveScreen = () => {
     switch (activeTab) {

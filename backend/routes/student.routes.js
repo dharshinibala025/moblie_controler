@@ -36,10 +36,10 @@ router.post("/device/register", validate("registerDevice"), async (req, res, nex
 
     // Check for permission revocation before updating device
     const existingDevice = await Device.findOne({ userId: req.user.userId });
-    const prevAccess = existingDevice?.deviceInfo?.accessibilityEnabled !== false;
-    const prevOverlay = existingDevice?.deviceInfo?.overlayEnabled !== false;
-    const newAccess = deviceInfo?.accessibilityEnabled !== false;
-    const newOverlay = deviceInfo?.overlayEnabled !== false;
+    const prevAccess = existingDevice?.deviceInfo?.accessibilityEnabled === true;
+    const prevOverlay = existingDevice?.deviceInfo?.overlayEnabled === true;
+    const newAccess = deviceInfo?.accessibilityEnabled === true;
+    const newOverlay = deviceInfo?.overlayEnabled === true;
 
     const device = await deviceService.registerDevice(req.user.userId, fcmToken, deviceInfo, deviceFingerprint);
     const currentCommand = await dispatchService.getLatestCommand(req.user.classId);
@@ -53,7 +53,7 @@ router.post("/device/register", validate("registerDevice"), async (req, res, nex
 
       const student = await User.findById(req.user.userId).select("name classId institutionId departmentId academicYearId sectionId");
       if (student) {
-        const permissionName = (!prevAccess && newAccess === false) ? "Accessibility" : "Display Over Apps";
+        const permissionName = (prevAccess && !newAccess) ? "Accessibility" : "Display Over Apps";
 
         // Find all admins
         const admins = await User.find({ role: "admin", institutionId: student.institutionId }).select("_id");
@@ -384,8 +384,8 @@ router.post("/blocked-attempt", async (req, res, next) => {
       student.institutionId || "KSRCE"
     );
 
-    // Fetch Admin users
-    const admins = await User.find({ role: "admin" }).select("_id");
+    // Fetch Admin users scoped to student's institution
+    const admins = await User.find({ role: "admin", institutionId: student.institutionId }).select("_id");
     const adminIds = admins.map((a) => a._id);
 
     // Fetch assigned Staff users for this class
@@ -399,7 +399,9 @@ router.post("/blocked-attempt", async (req, res, next) => {
     const resolvedAppName = appName || packageName;
 
     const notificationsToCreate = recipientIds.map((recId) => ({
-      studentId: recId,
+      recipientId: recId,
+      recipientRole: admins.some((a) => a._id.toString() === recId.toString()) ? "admin" : "staff",
+      studentId: student._id,
       title: "Unauthorized App Restriction Triggered",
       message: `High risk app (${resolvedAppName}) launched during restriction hours on ${modelName} (${displayName}).`,
       type: "restriction",

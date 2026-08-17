@@ -8,7 +8,6 @@ import StaffSettingsTab from './StaffSettingsTab';
 import NotificationsScreen from '../../admin_dashboard/screens/NotificationsScreen';
 import StaffBottomNavBar from '../components/StaffBottomNavBar';
 import { getStoredUser } from '../../services/apiConfig';
-import syncService from '../../services/syncService';
 import { fetchStaffNotifications } from '../../services/staffService';
 
 export const StaffDashboardScreen = ({ onLogout }) => {
@@ -24,7 +23,7 @@ export const StaffDashboardScreen = ({ onLogout }) => {
         if (user) {
           setStaffInfo(user);
         }
-        syncService.requestAllPermissions().catch(() => null);
+
       } catch (err) {
         console.warn('FocusSync: Failed to load staff details:', err);
       }

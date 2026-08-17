@@ -460,7 +460,7 @@ router.delete("/notifications/:id", async (req, res, next) => {
 router.post("/notifications/mark-read", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
-    await Notification.updateMany({ recipientRole: "staff" }, { $set: { read: true } });
+    await Notification.updateMany({ recipientRole: "staff", recipientId: req.user.userId }, { $set: { read: true } });
     res.json({ success: true });
   } catch (err) {
     next(err);

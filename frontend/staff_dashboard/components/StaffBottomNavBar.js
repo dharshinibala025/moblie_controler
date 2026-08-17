@@ -3,18 +3,18 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-na
 import { colors, shadows } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 
-export const StaffBottomNavBar = ({ activeTab = 'dashboard', onSelectTab, unreadCount = 0 }) => {
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'view-dashboard' },
-    { id: 'devices', label: 'Devices', icon: 'cellphone-cog' },
-    { id: 'students', label: 'Students', icon: 'account-group' },
-    { id: 'settings', label: 'Settings', icon: 'cog' },
-  ];
+const TABS = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'view-dashboard' },
+  { id: 'devices', label: 'Devices', icon: 'cellphone-cog' },
+  { id: 'students', label: 'Students', icon: 'account-group' },
+  { id: 'settings', label: 'Settings', icon: 'cog' },
+];
 
+export const StaffBottomNavBar = ({ activeTab = 'dashboard', onSelectTab, unreadCount = 0 }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {tabs.map((tab) => {
+        {TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <TouchableOpacity
