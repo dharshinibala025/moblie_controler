@@ -7,6 +7,7 @@ const { initializeFirebase } = require("./config/firebase");
 const { initializeSocket } = require("./config/socket");
 const { setupDeviceGateway } = require("./sockets/deviceGateway");
 const { startScheduler } = require("./jobs/aggregateReports");
+const { startScheduleEngine } = require("./services/scheduleEngine");
 const emailQueueWorker = require("./jobs/emailQueueWorker");
 const institutionService = require("./services/institutionService");
 const logger = require("./utils/logger");
@@ -37,6 +38,7 @@ const startServer = async () => {
         await institutionService.ensureAdminExists();
         setupDeviceGateway();
         startScheduler();
+        startScheduleEngine();
         emailQueueWorker.start(10000);
 
         // Keep-alive self-ping interval every 14 minutes to prevent Render free-tier from sleeping

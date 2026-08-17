@@ -570,9 +570,11 @@ router.post("/rules/:id/command", validate("commandBody"), async (req, res, next
 // Admin Real-Time Emergency Overrides (Pause / Resume / Emergency Unlock)
 router.post("/override/pause", async (req, res, next) => {
   try {
-    const { targetScope = { type: "institution", targetId: "KSRCE" }, reason = "Administrator disabled social media blocking", durationMinutes = 60 } = req.body;
+    const { classId, targetScope = { type: "institution", targetId: "KSRCE" }, reason = "Administrator disabled social media blocking", durationMinutes = 60 } = req.body;
     const Rule = require("../models/Rule");
-    const activeRules = await Rule.find({ status: "active" });
+    const query = { status: "active" };
+    if (classId) query.targetClassId = classId;
+    const activeRules = await Rule.find(query);
 
     for (const rule of activeRules) {
       await ruleService.sendCommand(rule._id, "pause", req.user.userId, req.scopeInstitutionId);
@@ -583,6 +585,7 @@ router.post("/override/pause", async (req, res, next) => {
       override: "paused",
       reason,
       durationMinutes,
+      classId: classId || null,
       affectedRules: activeRules.length,
       timestamp: new Date().toISOString(),
     });
@@ -593,8 +596,17 @@ router.post("/override/pause", async (req, res, next) => {
 
 router.post("/override/resume", async (req, res, next) => {
   try {
+    const { classId } = req.body;
     const Rule = require("../models/Rule");
-    const pausedRules = await Rule.find({ status: "paused" });
+    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    if (classId) {
+      setClassEmergencyUnblock(classId, false);
+    } else {
+      setEmergencyUnblock(false);
+    }
+    const query = { status: "paused" };
+    if (classId) query.targetClassId = classId;
+    const pausedRules = await Rule.find(query);
 
     for (const rule of pausedRules) {
       await ruleService.sendCommand(rule._id, "start", req.user.userId, req.scopeInstitutionId);
@@ -603,6 +615,7 @@ router.post("/override/resume", async (req, res, next) => {
     res.json({
       success: true,
       override: "resumed",
+      classId: classId || null,
       affectedRules: pausedRules.length,
       timestamp: new Date().toISOString(),
     });
@@ -1116,8 +1129,8 @@ router.get("/staff", async (req, res, next) => {
         name: s.name,
         staffId: s.employeeId || "STF001",
         department: s.departmentId ? s.departmentId.name : "Computer Science",
-        year: "1st Year",
-        section: "A",
+        year: s.academicYearId || s.classId || "Not Assigned",
+        section: s.sectionId || "A",
         deviceStatus,
         isBlocked,
         email: s.email,
@@ -1179,14 +1192,17 @@ router.get("/devices/list", async (req, res, next) => {
     const formatted = devices.map((d) => {
       const userName = d.userId ? d.userId.name : "Unknown User";
       const isBlocked = d.status === "blocked";
-      const diffMs = Date.now() - new Date(d.lastSeenAt || d.updatedAt).getTime();
+      const deviceInfo = d.deviceInfo || {};
+      const manufacturer = deviceInfo.manufacturer || "Android";
+      const deviceModel = deviceInfo.deviceModel || "phone";
+      const diffMs = Date.now() - new Date(d.lastSyncAt || d.updatedAt).getTime();
       const diffMins = Math.max(1, Math.round(diffMs / 60000));
       const lastActive = diffMins < 60 ? `${diffMins}m ago` : `${Math.round(diffMins / 60)}h ago`;
 
       return {
         id: d._id.toString(),
         name: `${userName}'s Device`,
-        deviceType: `${d.manufacturer || "Android"} ${d.deviceModel || "phone"}`,
+        deviceType: `${manufacturer} ${deviceModel}`,
         ipAddress: "192.168.1.42",
         lastActive,
         isBlocked,
@@ -1194,6 +1210,9 @@ router.get("/devices/list", async (req, res, next) => {
         userName,
         userRole: d.userId ? d.userId.role : "student",
         classId: d.userId ? d.userId.classId : null,
+        accessibilityEnabled: deviceInfo.accessibilityEnabled === true,
+        overlayEnabled: deviceInfo.overlayEnabled === true,
+        rollNo: d.userId ? d.userId.studentId : null,
       };
     });
 
@@ -1387,7 +1406,7 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
 
     setEmergencyUnblock(true);
 
-    await Rule.updateMany({}, { $set: { status: "paused" } });
+    await Rule.updateMany({}, { $set: { status: "paused", startedAt: null } });
     await Device.updateMany({}, { $set: { status: "active" } });
 
     emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
@@ -1428,32 +1447,6 @@ router.post("/students/upload", async (req, res, next) => {
     const result = await spreadsheetService.processStudentUpload(
       fileBuffer,
       fileName || "students.xlsx",
-      req.user?.userId || "admin",
-      req.user?.role || "admin"
-    );
-
-    res.json({ success: true, ...result });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/staff/upload", async (req, res, next) => {
-  try {
-    const spreadsheetService = require("../services/spreadsheetService");
-    const { fileBase64, fileName } = req.body;
-
-    if (!fileBase64 || typeof fileBase64 !== "string" || fileBase64.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "No file uploaded. Please select a staff Excel file (.xlsx or .csv) from your mobile device storage.",
-      });
-    }
-
-    const fileBuffer = Buffer.from(fileBase64, "base64");
-    const result = await spreadsheetService.processStaffUpload(
-      fileBuffer,
-      fileName || "staff.xlsx",
       req.user?.userId || "admin",
       req.user?.role || "admin"
     );
@@ -1530,7 +1523,7 @@ router.delete("/notifications/:id", async (req, res, next) => {
 router.post("/notifications/mark-read", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
-    await Notification.updateMany({ studentId: req.user.userId }, { $set: { read: true } });
+    await Notification.updateMany({ recipientId: req.user.userId, recipientRole: "admin" }, { $set: { read: true } });
     res.json({ success: true });
   } catch (err) {
     next(err);

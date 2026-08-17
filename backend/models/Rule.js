@@ -69,6 +69,10 @@ const ruleSchema = new mongoose.Schema(
       enum: ["draft", "active", "paused", "stopped"],
       default: "draft",
     },
+    startedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

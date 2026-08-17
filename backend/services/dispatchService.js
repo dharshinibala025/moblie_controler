@@ -52,6 +52,25 @@ exports.getLatestCommand = async (classId) => {
 
   if (!rule) return null;
 
+  // If rule is active but was manually started today, check if startedAt is stale (previous day)
+  if (rule.status === "active" && rule.startedAt) {
+    const today = new Date();
+    const startedDay = new Date(rule.startedAt);
+    const sameDay = today.toDateString() === startedDay.toDateString();
+    if (!sameDay) {
+      // startedAt is from a previous day — treat as not started today
+      return {
+        ruleId: rule._id,
+        action: "stop",
+        blockedApps: [],
+        scheduleStart: rule.scheduleStart,
+        scheduleEnd: rule.scheduleEnd,
+        activeDays: rule.activeDays,
+        serverTimestamp: rule.updatedAt,
+      };
+    }
+  }
+
   return {
     ruleId: rule._id,
     action: rule.status === "active" ? "start" : "pause",

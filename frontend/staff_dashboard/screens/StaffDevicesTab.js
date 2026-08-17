@@ -14,7 +14,7 @@ import { colors, shadows, borderRadius } from '../../student_dashboard/styles/th
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import staffService from '../../services/staffService';
 
-const STATUSBAR_OFFSET = 12;
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
 
 const parseTo24Hour = (timeStr) => {
@@ -97,25 +97,40 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const [currentTime, setCurrentTime] = useState('');
   const [activeRule, setActiveRule] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [liveStudents, setLiveStudents] = useState([]);
 
-  // Helper to resolve staff class ID dynamically
-  const getAssignedClassId = async () => {
-    let classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
-    if (!classIdToQuery) {
+  // Helper to resolve staff class ID dynamically.
+  // Rules and student matching are keyed by the human-readable class CODE
+  // (e.g. "CSE-2-A"), NOT the Mongo ObjectId, so we must always resolve the code.
+  const resolveStaffClassCode = async () => {
+    const isObjectId = (value) => !!value && /^[a-f0-9]{24}$/i.test(value);
+
+    const candidates = [staffInfo?.classId, staffInfo?.assignedClass];
+    for (const candidate of candidates) {
+      if (candidate && !isObjectId(candidate)) {
+        return candidate;
+      }
+    }
+
+    if (staffInfo?.classRoomId) {
       try {
         const staffService = require('../../services/staffService').default;
         const myClassesRes = await staffService.fetchMyClasses();
         if (myClassesRes && myClassesRes.classes && myClassesRes.classes.length > 0) {
-          classIdToQuery = myClassesRes.classes[0]._id || myClassesRes.classes[0].code;
+          const cls = myClassesRes.classes[0];
+          return cls.code || cls._id;
         }
       } catch (e) {
         console.warn('FocusSync: My classes fetch notice:', e.message);
       }
     }
-    return classIdToQuery || staffInfo?.assignedClass || 'default-class';
+
+    return staffInfo?.classRoomId || staffInfo?.classId || 'default-class';
   };
 
-  // Load rules on mount
+  const getAssignedClassId = () => resolveStaffClassCode();
+
+  // Load rules on mount + poll live status every 15s
   useEffect(() => {
     const fetchRule = async () => {
       const classIdToQuery = await getAssignedClassId();
@@ -148,7 +163,27 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       }
     };
 
+    const fetchStudents = async () => {
+      const classIdToQuery = await getAssignedClassId();
+      if (!classIdToQuery) return;
+      try {
+        const staffService = require('../../services/staffService').default;
+        const data = await staffService.fetchClassLiveStatus(classIdToQuery);
+        if (data && data.students) {
+          setLiveStudents(data.students);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
     fetchRule();
+    fetchStudents();
+    const liveInterval = setInterval(() => {
+      fetchRule();
+      fetchStudents();
+    }, 15 * 1000);
+    return () => clearInterval(liveInterval);
   }, [staffInfo]);
 
   // Clock Update
@@ -180,7 +215,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
     };
 
     updateTime();
-    const interval = setInterval(updateTime, 1000);
+    const interval = setInterval(updateTime, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -229,11 +264,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
         `Restriction schedule successfully applied to your class!\n\nClass: ${mentorClass}\nSchedule: ${startTime} – ${endTime}`,
       );
     } catch (err) {
-      setRestrictionStatus('ACTIVE');
-      Alert.alert(
-        'Restriction Policy Applied',
-        `Restriction schedule configured for ${startTime} – ${endTime}.\nPolicy status is now Active.`,
-      );
+      Alert.alert('Apply Failed', err.message || 'Failed to apply restriction policy. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -249,8 +280,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       setRestrictionStatus('PAUSED');
       Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused. Students can access apps now.');
     } catch (err) {
-      setRestrictionStatus('PAUSED');
-      Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused. Students can access apps now.');
+      Alert.alert('Pause Failed', err.message || 'Failed to pause restriction. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -266,61 +296,12 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       setRestrictionStatus('ACTIVE');
       Alert.alert('Restriction Resumed', 'Mobile restriction is active again. Apps are now blocked.');
     } catch (err) {
-      setRestrictionStatus('ACTIVE');
-      Alert.alert('Restriction Resumed', 'Mobile restriction is active again. Apps are now blocked.');
+      Alert.alert('Resume Failed', err.message || 'Failed to resume restriction. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRemoveRestriction = async () => {
-    const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
-    if (!classIdToQuery || !activeRule) return;
-
-    setLoading(true);
-    try {
-      const staffService = require('../../services/staffService').default;
-      const ruleResult = await staffService.sendClassRuleCommand(classIdToQuery, activeRule._id, 'stop');
-      setActiveRule(ruleResult);
-      setRestrictionStatus('IDLE');
-      Alert.alert('Restriction Removed', 'All restriction policies have been removed for your class.');
-    } catch (err) {
-      Alert.alert('Remove Failed', err.message || 'An error occurred.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEmergencyUnblock = () => {
-    Alert.alert(
-      '🚨 Emergency Unblock Confirmation',
-      'Are you sure you want to IMMEDIATELY UNBLOCK all mobile devices across ALL branches and classes?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Emergency Unblock All',
-          style: 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            try {
-              await staffService.emergencyUnblockAll();
-              setRestrictionStatus('IDLE');
-              Alert.alert(
-                'Emergency Unblock Executed',
-                'All mobile restrictions lifted immediately across ALL student devices.',
-              );
-            } catch (err) {
-              Alert.alert('Unblock Failed', err.message || 'An error occurred.');
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  // Helper to get status color
   const getStatusColor = () => {
     if (restrictionStatus === 'ACTIVE') return '#16A34A';
     if (restrictionStatus === 'PAUSED') return '#F59E0B';
@@ -361,7 +342,9 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <Text style={styles.fieldLabel}>Department</Text>
               <View style={styles.lockedBadge}>
                 <VectorIcon name="school" size={14} color="#475569" />
-                <Text style={styles.lockedBadgeText}>CSE</Text>
+                <Text style={styles.lockedBadgeText}>
+                  {staffInfo.department || 'CSE'}
+                </Text>
               </View>
             </View>
 
@@ -415,24 +398,107 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
             </TouchableOpacity>
 
             <View style={styles.secondaryControlsRow}>
-              {restrictionStatus === 'ACTIVE' ? (
-                <TouchableOpacity style={styles.pauseBtn} onPress={handlePauseRestriction}>
-                  <VectorIcon name="pause" size={16} color="#F59E0B" />
-                  <Text style={styles.pauseBtnText}>Pause</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={styles.resumeBtn} onPress={handleResumeRestriction}>
-                  <VectorIcon name="play" size={16} color="#16A34A" />
-                  <Text style={styles.resumeBtnText}>Resume</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
+                onPress={handlePauseRestriction}
+                disabled={restrictionStatus !== 'ACTIVE'}
+              >
+                <VectorIcon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#F59E0B'} />
+                <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>
+                  {restrictionStatus === 'ACTIVE' ? 'PAUSING...' : 'Pause'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
+                onPress={handleResumeRestriction}
+                disabled={restrictionStatus !== 'PAUSED'}
+              >
+                <VectorIcon name="play" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#16A34A'} />
+                <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>
+                  {restrictionStatus === 'PAUSED' ? 'RESUMED' : 'Resume'}
+                </Text>
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock}>
-              <VectorIcon name="alert-circle" size={18} color="#FFFFFF" />
-              <Text style={styles.emergencyBtnText}>Emergency Unblock All</Text>
-            </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Student Devices List */}
+        <View style={styles.deviceListSection}>
+          <View style={styles.listHeaderRow}>
+            <Text style={styles.listTitleText}>Student Devices</Text>
+            <Text style={styles.listCountText}>({liveStudents.length} Students)</Text>
+          </View>
+
+          {liveStudents.length === 0 ? (
+            <View style={styles.emptyDeviceContainer}>
+              <VectorIcon name="cellphone-off" size={40} color="#94A3B8" />
+              <Text style={styles.emptyDeviceTitle}>No Student Devices</Text>
+              <Text style={styles.emptyDeviceSubtitle}>No students are currently registered.</Text>
+            </View>
+          ) : (
+            liveStudents.map((student, index) => {
+              const isBlocked = student.deviceStatus === 'blocked';
+              const hasPerms = student.accessibilityEnabled && student.overlayEnabled;
+              const isLoggedIn = student.isOnline;
+
+              let badgeBgColor = '#DCFCE7';
+              let badgeTextColor = '#16A34A';
+              let badgeText = 'Unblocked';
+
+              if (!student.hasDevice) {
+                badgeBgColor = '#FEF3C7';
+                badgeTextColor = '#D97706';
+                badgeText = 'No Login';
+              } else if (!hasPerms) {
+                badgeBgColor = '#FEE2E2';
+                badgeTextColor = '#EF4444';
+                badgeText = 'No Perms';
+              } else if (isBlocked) {
+                badgeBgColor = '#FEE2E2';
+                badgeTextColor = '#EF4444';
+                badgeText = 'Blocked';
+              } else if (student.scheduleRestricted) {
+                badgeBgColor = '#FEF3C7';
+                badgeTextColor = '#D97706';
+                badgeText = 'Restricted';
+              } else if (!isLoggedIn) {
+                badgeBgColor = '#F1F5F9';
+                badgeTextColor = '#64748B';
+                badgeText = 'Offline';
+              }
+
+              return (
+                <View key={student.studentId || index} style={styles.studentDeviceRow}>
+                  <View style={styles.studentDeviceInfo}>
+                    <View style={[styles.studentIconWrapper, { backgroundColor: isBlocked ? '#FEE2E2' : '#DCFCE7' }]}>
+                      <VectorIcon name="cellphone" size={16} color={isBlocked ? '#EF4444' : '#16A34A'} />
+                    </View>
+                    <View style={styles.studentTextGroup}>
+                      <Text style={styles.studentDeviceName}>{student.name}</Text>
+                      <Text style={styles.studentDeviceMeta}>
+                        {student.deviceModel || 'Android'} · {student.rollNo || student.email}
+                      </Text>
+                      <View style={styles.permBadgeRow}>
+                        <View style={[styles.permBadge, { backgroundColor: student.accessibilityEnabled ? '#DCFCE7' : '#FEE2E2' }]}>
+                          <Text style={[styles.permBadgeText, { color: student.accessibilityEnabled ? '#16A34A' : '#DC2626' }]}>
+                            Access {student.accessibilityEnabled ? '✓' : '✗'}
+                          </Text>
+                        </View>
+                        <View style={[styles.permBadge, { backgroundColor: student.overlayEnabled ? '#DCFCE7' : '#FEE2E2' }]}>
+                          <Text style={[styles.permBadgeText, { color: student.overlayEnabled ? '#16A34A' : '#DC2626' }]}>
+                            Overlay {student.overlayEnabled ? '✓' : '✗'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={[styles.studentBadge, { backgroundColor: badgeBgColor }]}>
+                    <Text style={[styles.studentBadgeText, { color: badgeTextColor }]}>{badgeText}</Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
         </View>
       </ScrollView>
     </View>
@@ -671,10 +737,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
+  pauseBtnActive: {
+    backgroundColor: '#F59E0B',
+    borderColor: '#D97706',
+  },
   pauseBtnText: {
     fontSize: 13,
     fontWeight: '700',
     color: '#D97706',
+  },
+  pauseBtnTextActive: {
+    color: '#FFFFFF',
   },
   resumeBtn: {
     flex: 1,
@@ -688,41 +761,117 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
+  resumeBtnActive: {
+    backgroundColor: '#16A34A',
+    borderColor: '#15803D',
+  },
   resumeBtnText: {
     fontSize: 13,
     fontWeight: '700',
     color: '#16A34A',
   },
-  removeBtn: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    height: 44,
-    borderRadius: 10,
+  resumeBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  deviceListSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  listHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginBottom: 12,
+  },
+  listTitleText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  listCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  studentDeviceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  removeBtnText: {
+  studentDeviceInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  studentIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  studentTextGroup: {
+    flex: 1,
+  },
+  studentDeviceName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  studentDeviceMeta: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  permBadgeRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 4,
+  },
+  permBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  permBadgeText: {
+    fontSize: 8,
+    fontWeight: '700',
+  },
+  studentBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  studentBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  emptyDeviceContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  emptyDeviceTitle: {
     fontSize: 13,
     fontWeight: '700',
     color: '#475569',
+    marginTop: 8,
   },
-  emergencyBtn: {
-    backgroundColor: '#EF4444',
-    height: 44,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  emergencyBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  emptyDeviceSubtitle: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
   },
 });
 

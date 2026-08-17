@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import GetStartedScreen from './frontend/welcome/screens/GetStartedScreen';
@@ -7,12 +7,19 @@ import SetNewPasswordScreen from './frontend/login/set_new_password/SetNewPasswo
 import StudentDashboardScreen from './frontend/student_dashboard/screens/StudentDashboardScreen';
 import StaffDashboardScreen from './frontend/staff_dashboard/screens/StaffDashboardScreen';
 import AdminPanel from './frontend/admin_dashboard/AdminPanel';
+import syncService from './frontend/services/syncService';
 
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('welcome');
   const [userRole, setUserRole] = useState('student');
   const [tempToken, setTempToken] = useState('');
+
+  useEffect(() => {
+    // Keep the 09:00-16:00 restriction policy refreshed in the background.
+    syncService.startPeriodicSync();
+    return () => syncService.stopPeriodicSync();
+  }, []);
 
   const handleLogout = () => {
     setUserRole('student');

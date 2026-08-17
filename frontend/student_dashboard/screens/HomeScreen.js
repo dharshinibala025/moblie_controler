@@ -31,6 +31,19 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [progress, setProgress] = useState(0.5);
   const [permissions, setPermissions] = useState({ accessibilityEnabled: false, overlayEnabled: false });
+  const [scheduleStart, setScheduleStart] = useState('09:00');
+  const [scheduleEnd, setScheduleEnd] = useState('16:00');
+  const scheduleStartRef = useRef('09:00');
+  const scheduleEndRef = useRef('16:00');
+
+  const handleScheduleStartChange = (val) => {
+    setScheduleStart(val);
+    scheduleStartRef.current = val;
+  };
+  const handleScheduleEndChange = (val) => {
+    setScheduleEnd(val);
+    scheduleEndRef.current = val;
+  };
 
   // Custom Permission Modal State — one-by-one, no double popups
   const [permModalVisible, setPermModalVisible] = useState(false);
@@ -44,6 +57,14 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       await AsyncStorage.setItem('@focussync:permissionPrompted', 'true');
       permFlowDone.current = true;
     } catch (e) { /* ignore */ }
+  };
+
+  const formatTo12Hour = (time24) => {
+    if (!time24) return '09:00 AM';
+    const [h, m] = time24.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
   };
 
   const runPermissionFlow = async () => {
@@ -144,11 +165,25 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     // Run the one-by-one permission flow once on first launch
     runPermissionFlow();
 
+    // Load cached policy for dynamic schedule
+    syncService.getCachedPolicy().then((p) => {
+      if (p) {
+        if (p.scheduleStart) handleScheduleStartChange(p.scheduleStart);
+        if (p.scheduleEnd) handleScheduleEndChange(p.scheduleEnd);
+      }
+    }).catch(() => {});
+
     const subscription = AppState.addEventListener('change', async (nextState) => {
       if (nextState === 'active') {
-        // Reload permission status silently (update shield badge)
         const res = await syncService.checkPermissions().catch(() => null);
         if (res) setPermissions(res);
+
+        syncService.getCachedPolicy().then((p) => {
+          if (p) {
+            if (p.scheduleStart) handleScheduleStartChange(p.scheduleStart);
+            if (p.scheduleEnd) handleScheduleEndChange(p.scheduleEnd);
+          }
+        }).catch(() => {});
 
         // If user returned from Settings and a permission step was in progress,
         // check if it was granted and advance to next step (one-by-one, no re-trigger)
@@ -185,24 +220,23 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       const seconds = now.getSeconds();
       const currentSec = hours * 3600 + minutes * 60 + seconds;
 
-      const startSec = 9 * 3600; // 09:00:00 AM (32400s)
-      const endSec = 16 * 3600; // 04:00:00 PM (57600s)
-      const totalDuration = endSec - startSec; // 7 hours (25200s)
+      const [startH, startM] = scheduleStartRef.current.split(':').map(Number);
+      const [endH, endM] = scheduleEndRef.current.split(':').map(Number);
+      const startSec = startH * 3600 + startM * 60;
+      const endSec = endH * 3600 + endM * 60;
+      const totalDuration = endSec - startSec;
 
       if (currentSec >= startSec && currentSec < endSec) {
-        // Active between 09:00 AM and 04:00 PM
         const remaining = endSec - currentSec;
         const prog = remaining / totalDuration;
         setStatusMode('ACTIVE');
         setRemainingSeconds(remaining);
         setProgress(prog);
       } else if (currentSec >= endSec) {
-        // Completed after 04:00 PM
         setStatusMode('LIFTED');
         setRemainingSeconds(0);
         setProgress(1.0);
       } else {
-        // Upcoming before 09:00 AM
         const remaining = startSec - currentSec;
         const prog = remaining / startSec;
         setStatusMode('BEFORE');
@@ -303,7 +337,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
           />
 
           {/* 3. Restriction Schedule Info */}
-          <ScheduleInfo scheduleText="09:00 AM – 04:00 PM" />
+          <ScheduleInfo scheduleText={`${formatTo12Hour(scheduleStart)} – ${formatTo12Hour(scheduleEnd)}`} />
         </Animated.View>
       </ScrollView>
 

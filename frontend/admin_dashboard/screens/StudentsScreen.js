@@ -8,7 +8,6 @@ import {
   Modal,
   TextInput,
   Alert,
-  NativeModules,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 

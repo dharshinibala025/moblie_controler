@@ -14,6 +14,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
   const [totalStudents, setTotalStudents] = useState(0);
   const [onlineStudents, setOnlineStudents] = useState(0);
   const [blockedStudents, setBlockedStudents] = useState(0);
+  const [restrictedStudents, setRestrictedStudents] = useState(0);
   const [unblockedStudents, setUnblockedStudents] = useState(0);
   const [warningCount, setWarningCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -91,7 +92,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
     };
 
     updateTime();
-    const interval = setInterval(updateTime, 1000);
+    const interval = setInterval(updateTime, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -113,6 +114,9 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
 
           const blocked = students.filter(s => s.deviceStatus === 'blocked').length;
           setBlockedStudents(blocked);
+
+          const restricted = students.filter(s => s.scheduleRestricted).length;
+          setRestrictedStudents(restricted);
 
           const unblocked = students.filter(s => s.deviceStatus === 'online' || s.deviceStatus === 'active').length;
           setUnblockedStudents(unblocked);
@@ -141,7 +145,8 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
 
   const displayTotal = totalStudents || liveStudents.length;
   const displayBlocked = blockedStudents || liveStudents.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length;
-  const displayUnblocked = unblockedStudents || (displayTotal - displayBlocked);
+  const displayRestricted = restrictedStudents || liveStudents.filter((s) => s.scheduleRestricted).length;
+  const displayUnblocked = unblockedStudents || (displayTotal - displayBlocked - displayRestricted);
 
   // Sort students alphabetically by name
   const sortedStudents = [...liveStudents].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -208,6 +213,10 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
       badgeBgColor = '#FEE2E2';
       badgeTextColor = '#EF4444';
       badgeText = 'Blocked';
+    } else if (item.scheduleRestricted) {
+      badgeBgColor = '#FEF3C7';
+      badgeTextColor = '#D97706';
+      badgeText = 'Restricted';
     } else if (item.deviceStatus === 'offline') {
       badgeBgColor = '#F1F5F9';
       badgeTextColor = '#64748B';
@@ -259,7 +268,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
           </View>
         </View>
 
-        {/* 3 Executive Compact Stats Cards */}
+        {/* 4 Executive Compact Stats Cards */}
         <View style={styles.statsGrid}>
           {/* Card 1: Total Students */}
           <View style={styles.statCard}>
@@ -301,6 +310,22 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
             </View>
             <Text style={styles.statValue}>{displayBlocked}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Blocked</Text>
+          </View>
+
+          {/* Card 4: Restricted Students */}
+          <View style={styles.statCard}>
+            <View style={styles.statHeaderRow}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                <VectorIcon name="clock-outline" size={14} color="#D97706" />
+              </View>
+              {displayRestricted > 0 ? (
+                <Text style={[styles.badgeText, { color: '#D97706' }]}>
+                  {displayTotal ? Math.round((displayRestricted / displayTotal) * 100) : 0}%
+                </Text>
+              ) : null}
+            </View>
+            <Text style={styles.statValue}>{displayRestricted}</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>Restricted</Text>
           </View>
         </View>
 
@@ -458,15 +483,17 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     marginBottom: 16,
     width: '100%',
   },
   statCard: {
-    width: '31.5%',
-    marginHorizontal: '0.8%',
+    width: '47%',
+    marginHorizontal: '1.5%',
+    marginBottom: 8,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingVertical: 10,

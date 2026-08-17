@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,17 @@ import {
   TouchableOpacity,
   Platform,
   StatusBar,
+  NativeModules,
+  AppState,
 } from 'react-native';
-import { colors, borderRadius, shadows } from '../styles/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { colors } from '../styles/theme';
 import AppGridCard from '../components/AppGridCard';
 import VectorIcon from '../components/VectorIcon';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
+
+const APPS_CACHE_KEY = '@focussync:appsCache';
 
 const FILTER_TABS = [
   { key: 'all', label: 'All Apps' },
@@ -21,36 +26,177 @@ const FILTER_TABS = [
   { key: 'unblocked', label: 'Unblocked' },
 ];
 
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const toMinutes = (hhmm) => {
+  const [h, m] = String(hhmm || '00:00').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+const isWithinWindow = (policy, now) => {
+  if (!policy) return false;
+  const dayName = DAYS[now.getDay()];
+  const activeDays = policy.activeDays && policy.activeDays.length ? policy.activeDays : [];
+  if (activeDays.length > 0 && !activeDays.includes(dayName)) return false;
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return (
+    currentMinutes >= toMinutes(policy.scheduleStart) &&
+    currentMinutes < toMinutes(policy.scheduleEnd)
+  );
+};
+
+const format12Hour = (timeStr) => {
+  if (!timeStr) return '';
+  const parts = String(timeStr).split(':').map(Number);
+  if (parts.length < 2) return timeStr;
+  let hours = parts[0];
+  const minutes = parts[1];
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+};
+
 export const AppsScreen = ({ data }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [liveApps, setLiveApps] = useState([]);
+  const [policy, setPolicy] = useState(null);
+  const [tick, setTick] = useState(Date.now());
 
-  React.useEffect(() => {
-    let isMounted = true;
-    const fetchApps = async () => {
+  // Derived live restriction state recomputed on every tick (30s) + app resume.
+  const restriction = useMemo(() => {
+    const now = new Date(tick);
+    const p = policy || {};
+    const status = p.status || 'inactive';
+    const within = isWithinWindow(p, now);
+    const active = status === 'active' && within;
+    return {
+      active,
+      scheduleActive: within,
+      status,
+      reason: p.restrictionReason || '',
+      scheduleStart: p.scheduleStart || '09:00',
+      scheduleEnd: p.scheduleEnd || '16:00',
+      activeDays: p.activeDays || [],
+      source: p.source || 'default',
+      nextUnlockAt: p.nextUnlockAt || null,
+      blockedPackages: active ? p.blockedPackages || [] : [],
+      emergency: p.emergency === 'active',
+    };
+  }, [policy, tick]);
+
+  const loadPolicy = useCallback(async () => {
+    try {
+      const syncService = require('../../services/syncService').default;
+      const cached = await syncService.getCachedPolicy();
+      if (cached) {
+        setPolicy(cached);
+        return;
+      }
+    } catch (e) {
+      // fall through to props
+    }
+    // Fallback to dashboard props (older backend responses)
+    if (data && (data.restrictionStatus || data.scheduleStart)) {
+      setPolicy({
+        status: data.restrictionStatus === 'ACTIVE' || data.restrictionStatus === 'active' ? 'active' : 'inactive',
+        scheduleStart: data.scheduleStart || '09:00',
+        scheduleEnd: data.scheduleEnd || '16:00',
+        activeDays: data.activeDays || [],
+        restrictionReason: data.restrictionReason || '',
+        blockedPackages: data.blockedApps || [],
+        source: data.source || 'default',
+      });
+    }
+  }, [data]);
+
+  // Pull policy + server apps on mount, on app resume, and every 60s.
+  const refresh = useCallback(async () => {
+    let serverApps = null;
+
+    try {
+      const { apiFetch } = require('../../services/apiConfig');
+      const res = await apiFetch('/student/apps');
+      if (res && res.apps) {
+        serverApps = res.apps;
+      }
+    } catch (e) {
+      // network error - use fallbacks below
+    }
+
+    let sourceApps = null;
+    if (serverApps && serverApps.length > 0) {
+      sourceApps = serverApps;
+    } else {
       try {
-        // Trigger background sync with native scanner
-        const syncService = require('../../services/syncService').default;
-        await syncService.sync('apps_screen');
-
-        // Fetch live scanned apps from server
-        const { apiFetch } = require('../../services/apiConfig');
-        const res = await apiFetch('/student/apps');
-        if (isMounted && res && res.apps) {
-          setLiveApps(res.apps);
+        const cached = await AsyncStorage.getItem(APPS_CACHE_KEY);
+        if (cached) {
+          sourceApps = JSON.parse(cached);
         }
       } catch (e) {
-        // Fallback to parent prop data if network error
+        // ignore
+      }
+    }
+
+    if (!sourceApps || sourceApps.length === 0) {
+      const { AppScannerModule } = NativeModules;
+      if (AppScannerModule && AppScannerModule.getInstalledApps) {
+        try {
+          sourceApps = await AppScannerModule.getInstalledApps();
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
+    if (sourceApps && sourceApps.length > 0) {
+      setLiveApps(sourceApps);
+    }
+
+    await loadPolicy();
+  }, [loadPolicy]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const init = async () => {
+      try {
+        const syncService = require('../../services/syncService').default;
+        await syncService.sync('apps_screen');
+      } catch (e) {
+        // continue with local fallbacks
+      }
+      if (isMounted) {
+        await refresh();
       }
     };
-    fetchApps();
+    init();
+
+    const interval = setInterval(() => {
+      refresh();
+    }, 60 * 1000);
+
+    const ticker = setInterval(() => {
+      setTick(Date.now());
+    }, 30 * 1000);
+
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        setTick(Date.now());
+        refresh();
+      }
+    });
+
     return () => {
       isMounted = false;
+      clearInterval(interval);
+      clearInterval(ticker);
+      sub.remove();
     };
-  }, []);
+  }, [refresh]);
 
-  // Build unified apps list with per-app blocked property
+  // Build unified apps list with per-app blocked property computed live.
   const allApps = useMemo(() => {
     const source =
       liveApps && liveApps.length > 0
@@ -61,25 +207,28 @@ export const AppsScreen = ({ data }) => {
         ? data.blockedApps
         : [];
 
-    // Ensure every app has a "blocked" boolean field
-    return source.map((app) => ({
-      ...app,
-      name: app.name || app.appName || 'Application',
-      blocked: app.blocked !== undefined ? app.blocked : true,
-    }));
-  }, [liveApps, data]);
+    const blockedSet = new Set(restriction.blockedPackages || []);
+
+    return source.map((app) => {
+      const pkg = app.packageName || app.package;
+      const blocked = restriction.active ? blockedSet.has(pkg) : false;
+      return {
+        ...app,
+        name: app.name || app.appName || 'Application',
+        blocked,
+      };
+    });
+  }, [liveApps, data, restriction]);
 
   const filteredApps = useMemo(() => {
     let list = allApps;
 
-    // Filter by tab
     if (activeFilter === 'blocked') {
       list = list.filter((a) => a.blocked === true);
     } else if (activeFilter === 'unblocked') {
       list = list.filter((a) => a.blocked === false);
     }
 
-    // Filter by search (App Name, Package Name, or Category)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       list = list.filter(
@@ -102,13 +251,16 @@ export const AppsScreen = ({ data }) => {
     return unblockedCount;
   };
 
+  const isRestrictionActive = restriction.active;
+  const bannerColor = isRestrictionActive ? colors.blocked : colors.active;
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      {/* Sleek Mobile Screen Header */}
+      {/* Screen Header */}
       <View style={styles.screenHeader}>
         <View style={styles.headerTitleRow}>
           <Text style={styles.screenTitle}>Applications</Text>
@@ -117,8 +269,36 @@ export const AppsScreen = ({ data }) => {
           </View>
         </View>
         <Text style={styles.screenSubtitle}>
-          App restriction status during class hours (09:00 AM – 04:00 PM)
+          App restriction status during class hours ({format12Hour(restriction.scheduleStart)} –{' '}
+          {format12Hour(restriction.scheduleEnd)})
         </Text>
+      </View>
+
+      {/* Live Restriction Status Banner */}
+      <View
+        style={[
+          styles.statusBanner,
+          {
+            borderColor: isRestrictionActive ? '#FCA5A5' : '#86EFAC',
+            backgroundColor: isRestrictionActive ? '#FEF2F2' : '#F0FDF4',
+          },
+        ]}
+      >
+        <View style={[styles.statusDot, { backgroundColor: bannerColor }]} />
+        <View style={styles.statusBannerTextWrap}>
+          <Text style={[styles.statusBannerTitle, { color: bannerColor }]}>
+            {isRestrictionActive ? 'Restrictions Active' : 'Restrictions Inactive'}
+          </Text>
+          <Text style={styles.statusBannerSubtitle} numberOfLines={2}>
+            {isRestrictionActive
+              ? `${restriction.blockedPackages.length} apps blocked · Unlocks at ${format12Hour(
+                  restriction.scheduleEnd,
+                )}`
+              : restriction.emergency
+              ? 'Emergency unblock is active — all apps are accessible.'
+              : 'All apps are currently accessible.'}
+          </Text>
+        </View>
       </View>
 
       {/* Filter Tabs */}
@@ -176,7 +356,7 @@ export const AppsScreen = ({ data }) => {
         )}
       </View>
 
-      {/* Modern App List Container */}
+      {/* App List */}
       <AppGridCard apps={filteredApps} />
     </ScrollView>
   );
@@ -193,7 +373,7 @@ const styles = StyleSheet.create({
   },
   screenHeader: {
     paddingHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   headerTitleRow: {
     flexDirection: 'row',
@@ -226,8 +406,35 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 18,
   },
-
-  // Filter Tabs
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginBottom: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 10,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  statusBannerTextWrap: {
+    flex: 1,
+  },
+  statusBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  statusBannerSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#475569',
+    marginTop: 2,
+  },
   filterTabsRow: {
     flexDirection: 'row',
     marginHorizontal: 20,
@@ -290,7 +497,6 @@ const styles = StyleSheet.create({
   filterTabCountTextActive: {
     color: colors.primary,
   },
-
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -323,4 +529,3 @@ const styles = StyleSheet.create({
 });
 
 export default AppsScreen;
-

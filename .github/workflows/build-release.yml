@@ -41,6 +41,9 @@ jobs:
           yes | sdkmanager --licenses > /dev/null
           sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "platform-tools" > /dev/null
 
+      - name: Install npm dependencies
+        run: npm install
+
       - name: Build release APK
         run: |
           cd android

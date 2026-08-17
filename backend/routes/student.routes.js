@@ -8,6 +8,7 @@ const usageService = require("../services/usageService");
 const auditService = require("../services/auditService");
 const dispatchService = require("../services/dispatchService");
 const Session = require("../models/Session");
+const Device = require("../models/Device");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -32,8 +33,72 @@ router.post("/device/register", validate("registerDevice"), async (req, res, nex
   try {
     const { fcmToken, deviceInfo } = req.body;
     const deviceFingerprint = Session.generateDeviceFingerprint(deviceInfo);
+
+    // Check for permission revocation before updating device
+    const existingDevice = await Device.findOne({ userId: req.user.userId });
+    const prevAccess = existingDevice?.deviceInfo?.accessibilityEnabled === true;
+    const prevOverlay = existingDevice?.deviceInfo?.overlayEnabled === true;
+    const newAccess = deviceInfo?.accessibilityEnabled === true;
+    const newOverlay = deviceInfo?.overlayEnabled === true;
+
     const device = await deviceService.registerDevice(req.user.userId, fcmToken, deviceInfo, deviceFingerprint);
     const currentCommand = await dispatchService.getLatestCommand(req.user.classId);
+
+    // Create notifications if permissions were revoked
+    if ((prevAccess && !newAccess) || (prevOverlay && !newOverlay)) {
+      const User = require("../models/User");
+      const Notification = require("../models/Notification");
+      const StaffAssignment = require("../models/StaffAssignment");
+      const { emitToClass } = require("../config/socket");
+
+      const student = await User.findById(req.user.userId).select("name classId institutionId departmentId academicYearId sectionId");
+      if (student) {
+        const permissionName = (prevAccess && !newAccess) ? "Accessibility" : "Display Over Apps";
+
+        // Find all admins
+        const admins = await User.find({ role: "admin", institutionId: student.institutionId }).select("_id");
+
+        // Find assigned staff for this student's class
+        let staffIds = [];
+        const staffAssignments = await StaffAssignment.find({ classId: student.classId, isActive: true }).select("staffId");
+        staffIds = staffAssignments.map((a) => a.staffId.toString());
+
+        // Also include staff by department/section
+        const deptStaff = await User.find({
+          role: "staff",
+          departmentId: student.departmentId,
+          academicYearId: student.academicYearId,
+          sectionId: student.sectionId,
+        }).select("_id");
+        staffIds = [...new Set([...staffIds, ...deptStaff.map((s) => s._id.toString())])];
+
+        const recipientIds = [
+          ...admins.map((a) => a._id.toString()),
+          ...staffIds,
+        ];
+
+        if (recipientIds.length > 0) {
+          const notifications = recipientIds.map((recipientId) => ({
+            recipientId,
+            recipientRole: admins.some((a) => a._id.toString() === recipientId) ? "admin" : "staff",
+            title: "Student Permission Revoked",
+            message: `${student.name} has disabled ${permissionName} permission! Blocking may not work on their device.`,
+            type: "restriction",
+            read: false,
+            metadata: {
+              studentId: student._id,
+              studentName: student.name,
+              permission: permissionName.toLowerCase().includes("access") ? "accessibility" : "overlay",
+              action: "revoked",
+              classId: student.classId,
+            },
+          }));
+
+          await Notification.insertMany(notifications);
+          emitToClass("ALL", "notification:new", { timestamp: new Date() });
+        }
+      }
+    }
 
     res.status(201).json({
       deviceId: device._id,
@@ -100,11 +165,11 @@ router.post("/command/ack", verifyDevice, validate("commandAck"), async (req, re
 router.get("/dashboard", async (req, res, next) => {
   try {
     const User = require("../models/User");
-    const Rule = require("../models/Rule");
     const ScannedApp = require("../models/ScannedApp");
     const UsageLog = require("../models/UsageLog");
     const Device = require("../models/Device");
     const Notification = require("../models/Notification");
+    const autoBlockService = require("../services/autoBlockService");
 
     const student = await User.findById(req.user.userId).populate("departmentId sectionId academicYearId");
     if (!student) {
@@ -113,27 +178,11 @@ router.get("/dashboard", async (req, res, next) => {
 
     const device = await Device.findOne({ userId: req.user.userId }).sort({ updatedAt: -1 });
 
-    const activeRules = await Rule.find({
-      $or: [
-        { targetClassId: student.classId },
-        { "targetScope.type": "student", "targetScope.targetId": student._id.toString() },
-        { "targetScope.type": "class", "targetScope.targetId": student.classId },
-        { "targetScope.type": "institution", "targetScope.targetId": student.institutionId || "KSRCE" },
-      ],
-      status: "active",
-    }).sort({ updatedAt: -1 });
-
-    const { isRuleActiveNow } = require("../utils/scheduleHelper");
-    const activeRule = activeRules[0] || null;
-    const currentlyEnforcedRules = activeRules.filter((rule) => isRuleActiveNow(rule, new Date()));
-
-    const blockedAppsSet = new Set();
-    currentlyEnforcedRules.forEach((rule) => {
-      rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
-    });
+    const policy = await autoBlockService.getStudentPolicy({ student, device, now: new Date() });
+    const blockedSet = new Set(policy.blockedPackages);
 
     const scannedApps = await ScannedApp.find({ studentId: req.user.userId }).sort({ appName: 1 });
-    const blockedAppList = scannedApps.filter((app) => blockedAppsSet.has(app.packageName));
+    const blockedAppList = scannedApps.filter((app) => blockedSet.has(app.packageName));
 
     const recentLogs = await UsageLog.find({ studentId: req.user.userId })
       .sort({ timestamp: -1 })
@@ -152,23 +201,17 @@ router.get("/dashboard", async (req, res, next) => {
       read: false,
     });
 
-    let isActive = false;
+    const isActive = policy.scheduleActive;
     let remainingTime = "No active restriction window";
-
-    if (activeRule) {
-      const now = new Date();
-      isActive = isRuleActiveNow(activeRule, now);
-
-      if (isActive) {
-        const [endH, endM] = activeRule.scheduleEnd.split(":").map(Number);
-        const endTime = new Date(now).setHours(endH, endM, 0, 0);
-        const diffMs = Math.max(0, endTime - now);
-        const hours = Math.floor(diffMs / (1000 * 60 * 60));
-        const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-        remainingTime = `Remaining: ${hours} Hours ${mins} Minutes`;
-      } else {
-        remainingTime = `Schedule Window: ${activeRule.scheduleStart} – ${activeRule.scheduleEnd}`;
-      }
+    if (isActive) {
+      const [endH, endM] = policy.scheduleEnd.split(":").map(Number);
+      const endTime = new Date().setHours(endH, endM, 0, 0);
+      const diffMs = Math.max(0, endTime - Date.now());
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      remainingTime = `Remaining: ${hours} Hours ${mins} Minutes`;
+    } else if (policy.source === "default") {
+      remainingTime = `Schedule Window: ${policy.scheduleStart} – ${policy.scheduleEnd}`;
     }
 
     res.json({
@@ -184,10 +227,11 @@ router.get("/dashboard", async (req, res, next) => {
       restrictionStatus: {
         isActive,
         statusTitle: isActive ? "Restrictions Active" : "No Restrictions Active",
-        schedule: activeRule ? `${activeRule.scheduleStart} – ${activeRule.scheduleEnd}` : "09:00 – 16:00",
+        schedule: `${policy.scheduleStart} – ${policy.scheduleEnd}`,
         remainingTime,
-        reason: activeRule ? activeRule.reason : "",
-        noticeText: activeRule
+        reason: policy.restrictionReason,
+        source: policy.source,
+        noticeText: isActive
           ? `Controlled by Department Admin during class hours.`
           : `No policy currently applied.`,
       },
@@ -214,30 +258,18 @@ router.get("/dashboard", async (req, res, next) => {
 
 router.get("/apps", async (req, res, next) => {
   try {
-    const Rule = require("../models/Rule");
-    const ScannedApp = require("../models/ScannedApp");
     const User = require("../models/User");
-    const { isRuleActiveNow } = require("../utils/scheduleHelper");
+    const ScannedApp = require("../models/ScannedApp");
+    const Device = require("../models/Device");
+    const autoBlockService = require("../services/autoBlockService");
 
     const student = await User.findById(req.user.userId);
+    const device = await Device.findOne({ userId: req.user.userId }).sort({ updatedAt: -1 });
+
+    const policy = await autoBlockService.getStudentPolicy({ student, device, now: new Date() });
+    const blockedSet = new Set(policy.blockedPackages);
+
     const scannedApps = await ScannedApp.find({ studentId: req.user.userId, removedAt: null }).sort({ appName: 1 });
-
-    const activeRules = await Rule.find({
-      $or: [
-        { targetClassId: student.classId },
-        { "targetScope.type": "student", "targetScope.targetId": student._id.toString() },
-        { "targetScope.type": "class", "targetScope.targetId": student.classId },
-        { "targetScope.type": "institution", "targetScope.targetId": student.institutionId || "KSRCE" },
-      ],
-      status: "active",
-    });
-
-    const currentlyEnforcedRules = activeRules.filter((rule) => isRuleActiveNow(rule, new Date()));
-
-    const blockedAppsSet = new Set();
-    currentlyEnforcedRules.forEach((rule) => {
-      rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
-    });
 
     const appList = scannedApps.map((app) => ({
       id: app._id,
@@ -245,11 +277,19 @@ router.get("/apps", async (req, res, next) => {
       packageName: app.packageName,
       category: app.category,
       versionName: app.versionName,
-      blocked: blockedAppsSet.has(app.packageName),
+      blocked: blockedSet.has(app.packageName),
       scannedAt: app.scannedAt,
     }));
 
-    res.json({ apps: appList });
+    res.json({
+      apps: appList,
+      scheduleActive: policy.scheduleActive,
+      scheduleStart: policy.scheduleStart,
+      scheduleEnd: policy.scheduleEnd,
+      activeDays: policy.activeDays,
+      source: policy.source,
+      restrictionReason: policy.restrictionReason,
+    });
   } catch (err) {
     next(err);
   }
@@ -344,8 +384,8 @@ router.post("/blocked-attempt", async (req, res, next) => {
       student.institutionId || "KSRCE"
     );
 
-    // Fetch Admin users
-    const admins = await User.find({ role: "admin" }).select("_id");
+    // Fetch Admin users scoped to student's institution
+    const admins = await User.find({ role: "admin", institutionId: student.institutionId }).select("_id");
     const adminIds = admins.map((a) => a._id);
 
     // Fetch assigned Staff users for this class
@@ -359,7 +399,9 @@ router.post("/blocked-attempt", async (req, res, next) => {
     const resolvedAppName = appName || packageName;
 
     const notificationsToCreate = recipientIds.map((recId) => ({
-      studentId: recId,
+      recipientId: recId,
+      recipientRole: admins.some((a) => a._id.toString() === recId.toString()) ? "admin" : "staff",
+      studentId: student._id,
       title: "Unauthorized App Restriction Triggered",
       message: `High risk app (${resolvedAppName}) launched during restriction hours on ${modelName} (${displayName}).`,
       type: "restriction",
