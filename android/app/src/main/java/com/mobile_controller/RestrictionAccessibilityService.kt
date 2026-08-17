@@ -1,19 +1,21 @@
 package com.mobile_controller
 
 import android.accessibilityservice.AccessibilityService
+import android.app.ActivityOptions
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import java.util.Calendar
+import java.util.concurrent.ConcurrentHashMap
 
 class RestrictionAccessibilityService : AccessibilityService() {
 
     private var policyStorage: PolicyStorage? = null
 
     // Debounce map to avoid launching the overlay repeatedly for the same package.
-    private val lastBlockedAt = HashMap<String, Long>()
+    private val lastBlockedAt = ConcurrentHashMap<String, Long>()
 
     // Built-in offline fallback list so social media/games are still blocked during the
     // schedule window even if the server policy has not been synced yet.
@@ -181,8 +183,6 @@ class RestrictionAccessibilityService : AccessibilityService() {
 
     private fun launchBlockOverlay(packageName: String) {
         try {
-            // Android 10+ (API 29) restricts background activity starts. Only launch the
-            // overlay when we are allowed to draw overlays; otherwise skip gracefully.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
                 Log.w("RestrictionService", "Overlay permission missing, skipping block overlay for $packageName")
                 return
@@ -200,7 +200,15 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 putExtra("scheduleEnd", storage.getScheduleEnd())
                 putExtra("nextUnlockLabel", nextUnlockLabel())
             }
-            startActivity(intent)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val options = ActivityOptions.makeBasic().apply {
+                    launchDisplayId = 0
+                }
+                startActivity(intent, options.toBundle())
+            } else {
+                startActivity(intent)
+            }
         } catch (e: Exception) {
             Log.e("RestrictionService", "Failed to launch block overlay for $packageName", e)
         }

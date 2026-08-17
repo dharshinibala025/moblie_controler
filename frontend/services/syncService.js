@@ -60,7 +60,10 @@ class SyncService {
       }
 
       // 3. Scan installed apps
-      const installedApps = await AppScannerModule.getInstalledApps();
+      let installedApps = [];
+      if (AppScannerModule && AppScannerModule.getInstalledApps) {
+        installedApps = (await AppScannerModule.getInstalledApps().catch(() => [])) || [];
+      }
       const appsPayload = installedApps.map((app) => ({
         packageName: app.packageName,
         appName: app.appName,
@@ -94,17 +97,19 @@ class SyncService {
         const policyVersion = policy.policyVersion || 1;
         const status = policy.status || 'active';
         const emergency = policy.emergency === 'active';
-        await AppScannerModule.savePolicy(
-          policyVersion.toString(),
-          policy.blockedPackages || [],
-          policy.scheduleStart || '09:00',
-          policy.scheduleEnd || '16:00',
-          policy.activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-          policy.restrictionReason || 'Institutional restriction policy',
-          policyVersion,
-          status,
-          emergency
-        );
+        if (AppScannerModule && AppScannerModule.savePolicy) {
+          await AppScannerModule.savePolicy(
+            policyVersion.toString(),
+            policy.blockedPackages || [],
+            policy.scheduleStart || '09:00',
+            policy.scheduleEnd || '16:00',
+            policy.activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            policy.restrictionReason || 'Institutional restriction policy',
+            policyVersion,
+            status,
+            emergency
+          ).catch(() => null);
+        }
         await AsyncStorage.setItem(CACHE_KEYS.POLICY_VERSION, policyVersion.toString());
 
         // Cache the full policy envelope so the Apps screen can render live
@@ -183,13 +188,13 @@ class SyncService {
 
   openAccessibilitySettings() {
     if (AppScannerModule && AppScannerModule.openAccessibilitySettings) {
-      AppScannerModule.openAccessibilitySettings();
+      AppScannerModule.openAccessibilitySettings().catch(() => null);
     }
   }
 
   openOverlaySettings() {
     if (AppScannerModule && AppScannerModule.openOverlaySettings) {
-      AppScannerModule.openOverlaySettings();
+      AppScannerModule.openOverlaySettings().catch(() => null);
     }
   }
 
@@ -212,68 +217,6 @@ class SyncService {
     }
   }
 
-  async requestAllPermissions() {
-    try {
-      const { PermissionsAndroid, Platform, Alert } = require('react-native');
-      
-      // 1. Notification Permission (Android 13+)
-      if (Platform.OS === 'android' && Platform.Version >= 33) {
-        await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-          {
-            title: 'Notification Permission Required',
-            message: 'Allow Smart Classroom to send you alerts about your restriction status and important updates.',
-            buttonPositive: 'Allow',
-            buttonNegative: 'Don\'t Allow',
-          }
-        );
-      }
-
-      // 2. Check and prompt for Accessibility and Overlay
-      if (AppScannerModule && AppScannerModule.checkPermissions) {
-        const permissions = await AppScannerModule.checkPermissions();
-        
-        if (!permissions.accessibilityEnabled) {
-          Alert.alert(
-            'Accessibility Permission Required',
-            'Please turn on "Smart Classroom Protection Service" under Installed Services in your Accessibility settings to monitor application usage.',
-            [
-              {
-                text: 'Grant Permission',
-                onPress: () => {
-                  if (AppScannerModule.openAccessibilitySettings) {
-                    AppScannerModule.openAccessibilitySettings();
-                  }
-                }
-              },
-              { text: 'Cancel', style: 'cancel' }
-            ]
-          );
-          return;
-        }
-
-        if (!permissions.overlayEnabled) {
-          Alert.alert(
-            'Overlay Permission Required',
-            'Please enable "Display Over Other Apps" for Smart Classroom to enforce restrictions.',
-            [
-              {
-                text: 'Grant Permission',
-                onPress: () => {
-                  if (AppScannerModule.openOverlaySettings) {
-                    AppScannerModule.openOverlaySettings();
-                  }
-                }
-              },
-              { text: 'Cancel', style: 'cancel' }
-            ]
-          );
-        }
-      }
-    } catch (err) {
-      console.warn('FocusSync: Failed to prompt permissions:', err);
-    }
-  }
 }
 
 export default new SyncService();

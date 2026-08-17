@@ -24,7 +24,7 @@ class BlockOverlayActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var countdownTicker: Runnable? = null
-    private lateinit var countdownText: TextView
+    private var countdownText: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -229,10 +229,10 @@ class BlockOverlayActivity : AppCompatActivity() {
                     val hours = totalSeconds / 3600
                     val minutes = (totalSeconds % 3600) / 60
                     val seconds = totalSeconds % 60
-                    countdownText.text = String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                    countdownText?.text = String.format("%02d:%02d:%02d", hours, minutes, seconds)
                     handler.postDelayed(this, 1000)
                 } else {
-                    countdownText.text = "00:00:00"
+                    countdownText?.text = "00:00:00"
                 }
             }
         }
