@@ -451,9 +451,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.white,
   },
-    borderWidth: 1.5,
-    borderColor: colors.background,
-  },
   avatar: {
     width: 40,
     height: 40,
@@ -560,7 +557,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
+    paddingVertical: 6,
     fontSize: 13,
     color: colors.textPrimary,
   },
