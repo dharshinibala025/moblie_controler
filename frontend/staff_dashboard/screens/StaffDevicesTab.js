@@ -7,10 +7,14 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import staffService from '../../services/staffService';
+
+const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16;
 
 
 const parseTo24Hour = (timeStr) => {
