@@ -622,7 +622,7 @@ router.post("/override/pause", async (req, res, next) => {
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     const scopeClassIds = classId ? [classId] : targetClassIds;
 
-    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "pause" });
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "pause", actorId: req.user.userId });
     const { affectedClassIds, affectedRules } = result;
 
     for (const cid of affectedClassIds) {
@@ -654,7 +654,7 @@ router.post("/override/resume", async (req, res, next) => {
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     const scopeClassIds = classId ? [classId] : targetClassIds;
 
-    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "start" });
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "start", actorId: req.user.userId });
     const { affectedClassIds, affectedRules } = result;
 
     for (const cid of affectedClassIds) {

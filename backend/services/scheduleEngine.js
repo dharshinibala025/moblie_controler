@@ -56,7 +56,7 @@ const tick = async () => {
           if (activeRules.length > 0) {
             for (const rule of activeRules) {
               try {
-                await ruleService.sendCommand(rule._id, "pause", "Schedule window closed - auto-pause");
+                await ruleService.sendCommand(rule._id, "pause", "Schedule window closed - auto-pause", null, { notify: false });
               } catch (cmdErr) {
                 logger.error(`Auto-pause command failed for rule ${rule._id}: ${cmdErr.message}`);
               }
