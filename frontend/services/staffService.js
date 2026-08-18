@@ -107,12 +107,6 @@ export const resumeClassRestriction = async (classRoomId) => {
   });
 };
 
-export const emergencyUnblockAll = async () => {
-  return fetchWithRefresh('/staff/emergency-unblock-all', {
-    method: 'POST',
-  });
-};
-
 export const fetchStaffNotifications = async () => {
   return fetchWithRefresh('/staff/notifications');
 };
@@ -127,7 +121,6 @@ export default {
   sendClassRuleCommand,
   pauseClassRestriction,
   resumeClassRestriction,
-  emergencyUnblockAll,
   fetchStaffNotifications,
 };
 

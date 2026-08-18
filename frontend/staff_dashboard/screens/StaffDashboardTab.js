@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, Platform, StatusBar } from 'react-native';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
@@ -143,13 +143,24 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
 
   const mentorClass = staffInfo.assignedClass || staffInfo.classId || '';
 
-  const displayTotal = totalStudents || liveStudents.length;
-  const displayBlocked = blockedStudents || liveStudents.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length;
-  const displayRestricted = restrictedStudents || liveStudents.filter((s) => s.scheduleRestricted).length;
-  const displayUnblocked = unblockedStudents || (displayTotal - displayBlocked - displayRestricted);
+  const displayTotal = useMemo(() => totalStudents || liveStudents.length, [totalStudents, liveStudents]);
+
+  const displayBlocked = useMemo(() => {
+    return blockedStudents || liveStudents.filter((s) => s.status === 'blocked' || s.deviceStatus === 'blocked').length;
+  }, [blockedStudents, liveStudents]);
+
+  const displayRestricted = useMemo(() => {
+    return restrictedStudents || liveStudents.filter((s) => s.scheduleRestricted).length;
+  }, [restrictedStudents, liveStudents]);
+
+  const displayUnblocked = useMemo(() => {
+    return unblockedStudents || (displayTotal - displayBlocked - displayRestricted);
+  }, [unblockedStudents, displayTotal, displayBlocked, displayRestricted]);
 
   // Sort students alphabetically by name
-  const sortedStudents = [...liveStudents].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const sortedStudents = useMemo(() => {
+    return [...liveStudents].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [liveStudents]);
 
   // Helper to format assigned class name (e.g. "III CSE - A" -> "CSE - Section 3rd Year A")
   const formatClassDisplay = (assignedClass) => {

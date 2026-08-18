@@ -67,6 +67,80 @@ const initializeSocket = (httpServer) => {
       socket.join(`monitor:${user.institutionId}`);
     }
 
+    // Student requests their current policy state after connecting/reconnecting
+    socket.on("device:requestState", async () => {
+      try {
+        if (user.role !== "student") return;
+        const User = require("../models/User");
+        const Device = require("../models/Device");
+        const Rule = require("../models/Rule");
+        const { getEmergencyUnblock } = require("../utils/emergencyHelper");
+        const { getISTDate } = require("../utils/istTime");
+        const { isRuleActiveNow } = require("../utils/scheduleHelper");
+        const { buildScopeRuleQuery } = require("../services/autoBlockService");
+
+        const student = await User.findById(user.userId).select("classId academicYearId sectionId departmentId institutionId").lean();
+        if (!student || !student.classId) return;
+
+        // Stringify ObjectId fields for buildScopeRuleQuery
+        const studentForQuery = {
+          ...student,
+          departmentId: student.departmentId ? student.departmentId.toString() : null,
+          academicYearId: student.academicYearId ? student.academicYearId.toString() : null,
+          sectionId: student.sectionId ? student.sectionId.toString() : null,
+        };
+
+        const device = await Device.findOne({ userId: user.userId }).lean();
+        const deviceStatus = device ? device.status : "offline";
+
+        const emergencyActive = getEmergencyUnblock(student.classId);
+
+        const rules = await Rule.find({
+          ...buildScopeRuleQuery(studentForQuery),
+          status: { $in: ["active", "paused", "stopped"] },
+        }).sort({ updatedAt: -1 }).lean();
+
+        const activeRules = rules.filter((r) => r.status === "active");
+
+        let scheduleActive = false;
+        if (activeRules.length > 0) {
+          const istNow = getISTDate();
+          scheduleActive = activeRules.some((rule) => isRuleActiveNow(rule, istNow));
+        }
+
+        let action, blockedApps;
+        if (deviceStatus === "active") {
+          action = "pause";
+          blockedApps = [];
+        } else if (emergencyActive) {
+          action = "stop";
+          blockedApps = [];
+        } else if (scheduleActive) {
+          action = "start";
+          blockedApps = activeRules.flatMap((r) => r.blockedApps || []);
+        } else {
+          action = "stop";
+          blockedApps = [];
+        }
+
+        const maxVersion = rules.reduce((max, r) => Math.max(max, r.policyVersion || 1), 0);
+
+        socket.emit("rule:update", {
+          action,
+          blockedApps,
+          scheduleStart: rules[0]?.scheduleStart || "09:00",
+          scheduleEnd: rules[0]?.scheduleEnd || "16:00",
+          activeDays: rules[0]?.activeDays || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+          status: scheduleActive && deviceStatus !== "active" && !emergencyActive ? "active" : "paused",
+          policyVersion: maxVersion,
+          classId: student.classId,
+          emergency: emergencyActive ? "active" : "inactive",
+        });
+      } catch (err) {
+        logger.error("device:requestState handler error:", err);
+      }
+    });
+
     socket.on("disconnect", (reason) => {
       logger.info(`Socket disconnected: userId=${user.userId}, reason=${reason}`);
     });

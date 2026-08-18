@@ -149,6 +149,10 @@ async function dispatchRule(rule, action) {
   // Retrieve target devices
   const targetDevices = await Device.find({ userId: { $in: targetStudentIds } });
 
+  // Determine device status based on action
+  const deviceStatusMap = { start: "blocked", pause: "active", stop: "active" };
+  const newDeviceStatus = deviceStatusMap[action] || "active";
+
   // Broadcast using Socket class logic
   emitToClass(rule.targetClassId, "rule:update", {
     ruleId: rule._id,
@@ -168,6 +172,7 @@ async function dispatchRule(rule, action) {
       { _id: { $in: targetDeviceIds } },
       {
         $set: {
+          status: newDeviceStatus,
           lastKnownCommand: {
             ruleId: rule._id,
             action,

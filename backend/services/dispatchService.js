@@ -31,13 +31,21 @@ exports.dispatchCommand = async (classId, commandData) => {
     });
   }
 
-  for (const device of targetDevices) {
-    device.lastKnownCommand = {
-      ruleId: commandData.ruleId || null,
-      action: commandData.action,
-      serverTimestamp,
-    };
-    await device.save();
+  // Bulk update all target devices at once instead of sequential saves
+  const targetDeviceIds = targetDevices.map((d) => d._id);
+  if (targetDeviceIds.length > 0) {
+    await Device.updateMany(
+      { _id: { $in: targetDeviceIds } },
+      {
+        $set: {
+          lastKnownCommand: {
+            ruleId: commandData.ruleId || null,
+            action: commandData.action,
+            serverTimestamp,
+          },
+        },
+      }
+    );
   }
 
   logger.info(`Dispatched command '${commandData.action}' to class ${classId} (${targetDevices.length} devices)`);

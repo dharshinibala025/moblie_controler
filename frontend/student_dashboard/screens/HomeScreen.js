@@ -165,6 +165,12 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     // Run the one-by-one permission flow once on first launch
     runPermissionFlow();
 
+    // Start real-time Socket.io listener for instant blocking/unblocking
+    syncService.startRealtimeListener();
+
+    // Start periodic sync as fallback (30 seconds)
+    syncService.startPeriodicSync(30 * 1000);
+
     // Load cached policy for dynamic schedule
     syncService.getCachedPolicy().then((p) => {
       if (p) {
@@ -187,7 +193,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
         // If user returned from Settings and a permission step was in progress,
         // check if it was granted and advance to next step (one-by-one, no re-trigger)
-        if (!permFlowDone.current && !permFlowRunning.current) {
+        if (!permFlowDone.current && !permFlowRunning.current && !permModalVisible) {
           if (permStep === 'accessibility' && res?.accessibilityEnabled) {
             setPermModalVisible(false);
             if (!res.overlayEnabled) {
@@ -250,6 +256,8 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     return () => {
       clearInterval(interval);
       subscription?.remove();
+      syncService.stopRealtimeListener();
+      syncService.stopPeriodicSync();
     };
   }, [fadeAnim]);
 

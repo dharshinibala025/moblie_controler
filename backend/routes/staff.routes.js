@@ -219,11 +219,29 @@ router.post("/classes/:id/rules/:ruleId/command", verifyClassScope, async (req, 
 router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, next) => {
   try {
     const Rule = require("../models/Rule");
+    const Device = require("../models/Device");
+    const User = require("../models/User");
+    const { emitToClass } = require("../config/socket");
+
     const activeRules = await Rule.find({ targetClassId: req.params.id, status: "active" });
 
     for (const rule of activeRules) {
       await ruleService.sendCommand(rule._id, "pause", req.user.userId, req.user.institutionId);
     }
+
+    // Update device statuses for instant count reflection
+    const students = await User.find({ classId: req.params.id, role: "student" }).select("_id");
+    const studentIds = students.map((s) => s._id);
+    if (studentIds.length > 0) {
+      await Device.updateMany({ userId: { $in: studentIds } }, { $set: { status: "active" } });
+    }
+
+    // Emit to class for instant student device response
+    emitToClass(req.params.id, "rule:update", {
+      action: "pause",
+      status: "paused",
+      serverTimestamp: new Date().toISOString(),
+    });
 
     await auditService.logAction(
       req.user.userId,
@@ -250,6 +268,9 @@ router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, ne
 router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, next) => {
   try {
     const Rule = require("../models/Rule");
+    const Device = require("../models/Device");
+    const User = require("../models/User");
+    const { emitToClass } = require("../config/socket");
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     setClassEmergencyUnblock(req.params.id, false);
 
@@ -258,6 +279,20 @@ router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, n
     for (const rule of pausedRules) {
       await ruleService.sendCommand(rule._id, "start", req.user.userId, req.user.institutionId);
     }
+
+    // Update device statuses for instant count reflection
+    const students = await User.find({ classId: req.params.id, role: "student" }).select("_id");
+    const studentIds = students.map((s) => s._id);
+    if (studentIds.length > 0) {
+      await Device.updateMany({ userId: { $in: studentIds } }, { $set: { status: "blocked" } });
+    }
+
+    // Emit to class for instant student device response
+    emitToClass(req.params.id, "rule:update", {
+      action: "start",
+      status: "active",
+      serverTimestamp: new Date().toISOString(),
+    });
 
     await auditService.logAction(
       req.user.userId,
@@ -274,74 +309,6 @@ router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, n
       classId: req.params.id,
       affectedRules: pausedRules.length,
       timestamp: new Date().toISOString(),
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST: Emergency Unblock All (staff-scoped to their assigned classes only)
-router.post("/emergency-unblock-all", async (req, res, next) => {
-  try {
-    const User = require("../models/User");
-    const ClassRoom = require("../models/ClassRoom");
-    const Rule = require("../models/Rule");
-    const Device = require("../models/Device");
-    const StaffAssignment = require("../models/StaffAssignment");
-    const auditService = require("../services/auditService");
-    const { emitToClass } = require("../config/socket");
-    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
-
-    const staffUser = await User.findById(req.user.userId || req.user.id || req.user._id);
-    if (!staffUser || staffUser.role !== "staff") {
-      return res.status(403).json({ error: "Access denied: user is not a staff member" });
-    }
-
-    let classIds = [];
-    if (staffUser.academicYearId && staffUser.sectionId) {
-      const classrooms = await ClassRoom.find({
-        academicYearId: staffUser.academicYearId,
-        sectionId: staffUser.sectionId,
-      }).select("_id");
-      classIds = classrooms.map((c) => c._id.toString());
-    }
-    const assignments = await StaffAssignment.find({ staffId: staffUser._id, isActive: true }).select("classId");
-    classIds = [...new Set([...classIds, ...assignments.map((a) => a.classId), staffUser.classId].filter(Boolean))];
-
-    if (classIds.length === 0) {
-      return res.status(403).json({ error: "No assigned classes found for this staff member" });
-    }
-
-    for (const classId of classIds) {
-      setClassEmergencyUnblock(classId, true);
-    }
-
-    await Rule.updateMany({ targetClassId: { $in: classIds } }, { $set: { status: "paused" } });
-
-    const students = await User.find({ classId: { $in: classIds }, role: "student" }).select("_id");
-    const studentIds = students.map((s) => s._id);
-    if (studentIds.length > 0) {
-      await Device.updateMany({ userId: { $in: studentIds } }, { $set: { status: "active" } });
-    }
-
-    for (const classId of classIds) {
-      emitToClass(classId, "emergency:unblock_all", { timestamp: new Date(), scope: "class" });
-    }
-
-    await auditService.logAction(
-      req.user.userId,
-      req.user.role,
-      "emergency_unblock_all",
-      { scope: "ASSIGNED_CLASSES", classIds },
-      { status: "CLASS_DEVICES_UNBLOCKED_BY_STAFF" },
-      req.user.institutionId
-    );
-
-    res.json({
-      success: true,
-      message: `EMERGENCY UNBLOCK EXECUTED: Restrictions lifted for ${classIds.length} assigned class(es).`,
-      scope: "assigned-classes",
-      classIds,
     });
   } catch (err) {
     next(err);

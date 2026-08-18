@@ -49,7 +49,8 @@ const DevicesScreen = () => {
   // Schedule
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('04:00 PM');
-  const [restrictionStatus, setRestrictionStatus] = useState('ACTIVE');
+  const [restrictionStatus, setRestrictionStatus] = useState('IDLE');
+  const [actionLoading, setActionLoading] = useState(false);
 
   const yearDropdownOptions = useMemo(
     () => [
@@ -316,25 +317,54 @@ const DevicesScreen = () => {
     }
   };
 
+  // Compute target class IDs based on current filter selection
+  const computeTargetClassIds = useCallback(() => {
+    const yearChars = draftYear === 'All' ? ['1', '2', '3', '4'] : [draftYear.charAt(0)];
+    const sections = draftSection === 'All'
+      ? getSectionOptions(null)
+      : [draftSection];
+    const ids = [];
+    yearChars.forEach((yc) => {
+      sections.forEach((sec) => {
+        ids.push(`${selectedDept}-${yc}-${sec}`);
+      });
+    });
+    return ids;
+  }, [selectedDept, draftYear, draftSection]);
+
   const handlePauseRestriction = async () => {
+    const targetClassIds = computeTargetClassIds();
+    // Optimistic UI: instantly show paused
+    setRestrictionStatus('PAUSED');
+    setActionLoading(true);
     try {
-      await adminService.pauseRestriction();
-      setRestrictionStatus('PAUSED');
+      await adminService.pauseRestriction(targetClassIds);
       await loadRules();
-      Alert.alert('Restriction Paused', 'All blocked apps temporarily unblocked. Students can access apps now.');
+      await loadDevices();
+      Alert.alert('Restriction Paused', `All blocked apps temporarily unblocked for ${targetClassIds.length} class(es).`);
     } catch (err) {
+      setRestrictionStatus('ACTIVE');
       Alert.alert('Error', 'Failed to pause restriction: ' + err.message);
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleResumeRestriction = async () => {
+    const targetClassIds = computeTargetClassIds();
+    // Optimistic UI: instantly show active
+    setRestrictionStatus('ACTIVE');
+    setActionLoading(true);
     try {
-      await adminService.resumeRestriction();
-      setRestrictionStatus('ACTIVE');
+      await adminService.resumeRestriction(targetClassIds);
       await loadRules();
-      Alert.alert('Restriction Resumed', 'Mobile restriction is now active again. Apps are blocked.');
+      await loadDevices();
+      Alert.alert('Restriction Resumed', `Mobile restriction is now active for ${targetClassIds.length} class(es). Apps are blocked.`);
     } catch (err) {
+      setRestrictionStatus('PAUSED');
       Alert.alert('Error', 'Failed to resume restriction: ' + err.message);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -458,23 +488,23 @@ const DevicesScreen = () => {
               <TouchableOpacity
                 style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
                 onPress={handlePauseRestriction}
-                disabled={restrictionStatus !== 'ACTIVE'}
+                disabled={restrictionStatus !== 'ACTIVE' || actionLoading}
                 activeOpacity={0.8}
               >
                 <Icon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
                 <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>
-                  {restrictionStatus === 'ACTIVE' ? 'PAUSING...' : 'Pause'}
+                  Pause
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
                 onPress={handleResumeRestriction}
-                disabled={restrictionStatus !== 'PAUSED'}
+                disabled={restrictionStatus !== 'PAUSED' || actionLoading}
                 activeOpacity={0.8}
               >
                 <Icon name="play-arrow" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
                 <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>
-                  {restrictionStatus === 'PAUSED' ? 'RESUMED' : 'Resume'}
+                  Resume
                 </Text>
               </TouchableOpacity>
             </View>

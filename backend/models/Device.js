@@ -26,7 +26,7 @@ const deviceSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["online", "offline", "blocked", "revoked"],
+      enum: ["online", "offline", "blocked", "active", "revoked"],
       default: "offline",
     },
     lastKnownCommand: {
@@ -50,5 +50,6 @@ deviceSchema.index({ userId: 1, deviceFingerprint: 1 }, { unique: true, sparse: 
 deviceSchema.index({ userId: 1 });
 deviceSchema.index({ fcmToken: 1 });
 deviceSchema.index({ status: 1 });
+deviceSchema.index({ userId: 1, status: 1 });
 
 module.exports = mongoose.model("Device", deviceSchema);

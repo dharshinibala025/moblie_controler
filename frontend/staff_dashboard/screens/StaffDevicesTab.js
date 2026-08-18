@@ -93,11 +93,12 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   // State
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('04:00 PM');
-  const [restrictionStatus, setRestrictionStatus] = useState('IDLE'); // 'IDLE' | 'ACTIVE' | 'PAUSED'
+  const [restrictionStatus, setRestrictionStatus] = useState('IDLE');
   const [currentTime, setCurrentTime] = useState('');
   const [activeRule, setActiveRule] = useState(null);
   const [loading, setLoading] = useState(true);
   const [liveStudents, setLiveStudents] = useState([]);
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Helper to resolve staff class ID dynamically.
   // Rules and student matching are keyed by the human-readable class CODE
@@ -273,32 +274,36 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const handlePauseRestriction = async () => {
     const classIdToQuery = await getAssignedClassId();
 
-    setLoading(true);
+    // Optimistic UI: instantly show paused
+    setRestrictionStatus('PAUSED');
+    setActionLoading(true);
     try {
       const staffService = require('../../services/staffService').default;
       await staffService.pauseClassRestriction(classIdToQuery);
-      setRestrictionStatus('PAUSED');
       Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused. Students can access apps now.');
     } catch (err) {
+      setRestrictionStatus('ACTIVE');
       Alert.alert('Pause Failed', err.message || 'Failed to pause restriction. Please try again.');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   const handleResumeRestriction = async () => {
     const classIdToQuery = await getAssignedClassId();
 
-    setLoading(true);
+    // Optimistic UI: instantly show active
+    setRestrictionStatus('ACTIVE');
+    setActionLoading(true);
     try {
       const staffService = require('../../services/staffService').default;
       await staffService.resumeClassRestriction(classIdToQuery);
-      setRestrictionStatus('ACTIVE');
       Alert.alert('Restriction Resumed', 'Mobile restriction is active again. Apps are now blocked.');
     } catch (err) {
+      setRestrictionStatus('PAUSED');
       Alert.alert('Resume Failed', err.message || 'Failed to resume restriction. Please try again.');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -401,21 +406,21 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <TouchableOpacity
                 style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
                 onPress={handlePauseRestriction}
-                disabled={restrictionStatus !== 'ACTIVE'}
+                disabled={restrictionStatus !== 'ACTIVE' || actionLoading}
               >
                 <VectorIcon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#F59E0B'} />
                 <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>
-                  {restrictionStatus === 'ACTIVE' ? 'PAUSING...' : 'Pause'}
+                  Pause
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
                 onPress={handleResumeRestriction}
-                disabled={restrictionStatus !== 'PAUSED'}
+                disabled={restrictionStatus !== 'PAUSED' || actionLoading}
               >
                 <VectorIcon name="play" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#16A34A'} />
                 <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>
-                  {restrictionStatus === 'PAUSED' ? 'RESUMED' : 'Resume'}
+                  Resume
                 </Text>
               </TouchableOpacity>
             </View>

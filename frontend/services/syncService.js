@@ -1,6 +1,6 @@
 import { NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiFetch } from './apiConfig';
+import { apiFetch, BASE_URL } from './apiConfig';
 
 const { AppScannerModule } = NativeModules;
 
@@ -15,6 +15,8 @@ class SyncService {
   isSyncing = false;
   _intervalId = null;
   _appStateSubscription = null;
+  _socket = null;
+  _socketConnected = false;
 
   async sync(syncType = 'periodic') {
     if (this.isSyncing) return;
@@ -146,10 +148,9 @@ class SyncService {
   }
 
   /**
-   * Periodic background sync so the 09:00-16:00 restriction policy is refreshed
-   * even when the student is not actively opening the Apps screen.
+   * Periodic background sync — every 30 seconds so blocking is near-instant.
    */
-  startPeriodicSync(intervalMs = 15 * 60 * 1000) {
+  startPeriodicSync(intervalMs = 30 * 1000) {
     if (this._intervalId) return;
 
     const { AppState } = require('react-native');
@@ -172,6 +173,110 @@ class SyncService {
     if (this._appStateSubscription) {
       this._appStateSubscription.remove();
       this._appStateSubscription = null;
+    }
+  }
+
+  /**
+   * Real-time Socket.io listener for instant blocking/unblocking.
+   * When staff/admin pauses or resumes, student devices receive the
+   * event within 1-3 seconds instead of waiting for periodic sync.
+   */
+  async startRealtimeListener() {
+    if (this._socket && this._socketConnected) return;
+
+    try {
+      const io = require('socket.io-client');
+      const AsyncStorageModule = require('@react-native-async-storage/async-storage').default;
+      const token = await AsyncStorageModule.getItem('@focussync:accessToken');
+      if (!token) return;
+
+      this._socket = io(BASE_URL, {
+        auth: { token },
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionDelay: 2000,
+        reconnectionAttempts: Infinity,
+      });
+
+      this._socket.on('connect', () => {
+        this._socketConnected = true;
+        console.log('FocusSync: Real-time listener connected');
+        // Request latest state on connect
+        this._socket.emit('device:requestState');
+      });
+
+      this._socket.on('disconnect', () => {
+        this._socketConnected = false;
+      });
+
+      // Listen for rule updates (pause/start/stop) from staff or admin
+      this._socket.on('rule:update', async (data) => {
+        try {
+          console.log('FocusSync: Received rule:update', data.action);
+          const { action, blockedApps, scheduleStart, scheduleEnd, activeDays, status, policyVersion } = data;
+
+          if (AppScannerModule && AppScannerModule.savePolicy) {
+            if (action === 'pause' || action === 'stop') {
+              // Unblock: save empty blocked list with inactive status
+              await AppScannerModule.savePolicy(
+                (policyVersion || 0).toString(),
+                [],
+                scheduleStart || '09:00',
+                scheduleEnd || '16:00',
+                activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                '',
+                policyVersion || 0,
+                'paused',
+                false
+              ).catch(() => null);
+            } else if (action === 'start') {
+              // Block: save the blocked apps with active status
+              // Fetch full policy from server for accurate blocked list
+              const deviceId = await AsyncStorageModule.getItem(CACHE_KEYS.DEVICE_ID);
+              if (deviceId) {
+                const policy = await apiFetch(`/policy/latest?deviceId=${deviceId}&syncType=realtime`, { method: 'GET' });
+                if (policy) {
+                  await AppScannerModule.savePolicy(
+                    (policy.policyVersion || 1).toString(),
+                    policy.blockedPackages || [],
+                    policy.scheduleStart || '09:00',
+                    policy.scheduleEnd || '16:00',
+                    policy.activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                    policy.restrictionReason || '',
+                    policy.policyVersion || 1,
+                    policy.status || 'active',
+                    policy.emergency === 'active'
+                  ).catch(() => null);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('FocusSync: rule:update handling error:', e.message);
+        }
+      });
+
+      // Listen for emergency unblock (admin only)
+      this._socket.on('emergency:unblock_all', async () => {
+        try {
+          console.log('FocusSync: Emergency unblock received');
+          if (AppScannerModule && AppScannerModule.clearPolicy) {
+            await AppScannerModule.clearPolicy().catch(() => null);
+          }
+        } catch (e) {
+          console.warn('FocusSync: emergency:unblock handling error:', e.message);
+        }
+      });
+    } catch (e) {
+      console.warn('FocusSync: Socket connection error:', e.message);
+    }
+  }
+
+  stopRealtimeListener() {
+    if (this._socket) {
+      this._socket.disconnect();
+      this._socket = null;
+      this._socketConnected = false;
     }
   }
 
