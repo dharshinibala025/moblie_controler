@@ -16,8 +16,9 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
  */
 const PermissionModal = ({
   visible = false,
-  type = 'notification', // 'notification' | 'accessibility' | 'overlay'
+  type = 'notification', // 'restriction' | 'notification' | 'accessibility' | 'overlay'
   title,
+  description,
   primaryText,
   secondaryText,
   tertiaryText,
@@ -31,11 +32,19 @@ const PermissionModal = ({
   // Icon & Default Titles based on permission type
   let iconName = 'notifications';
   let defaultTitle = 'Allow ClassRoom to send you notifications?';
+  let defaultDescription = null;
   let defaultPrimaryText = 'Allow';
   let defaultSecondaryText = "Don't allow";
   let defaultTertiaryText = null;
 
-  if (type === 'accessibility') {
+  if (type === 'restriction') {
+    iconName = 'security';
+    defaultTitle = 'Allow restriction Settings?';
+    defaultDescription = 'To enforce your study schedule, apps and the Android Settings app will be blocked during class hours once you complete setup.';
+    defaultPrimaryText = 'Allow';
+    defaultSecondaryText = 'Ask later';
+    defaultTertiaryText = "Don't allow";
+  } else if (type === 'accessibility') {
     iconName = 'accessibility-new';
     defaultTitle = 'Grant Accessibility Permission for background app restriction enforcement?';
     defaultPrimaryText = 'Grant Permission';
@@ -50,6 +59,7 @@ const PermissionModal = ({
   }
 
   const finalTitle = title || defaultTitle;
+  const finalDescription = description !== undefined ? description : defaultDescription;
   const finalPrimaryText = primaryText || defaultPrimaryText;
   const finalSecondaryText = secondaryText !== undefined ? secondaryText : defaultSecondaryText;
   const finalTertiaryText = tertiaryText !== undefined ? tertiaryText : defaultTertiaryText;
@@ -70,6 +80,11 @@ const PermissionModal = ({
 
           {/* Question Title */}
           <Text style={styles.titleText}>{finalTitle}</Text>
+
+          {/* Optional Description */}
+          {finalDescription ? (
+            <Text style={styles.descriptionText}>{finalDescription}</Text>
+          ) : null}
 
           {/* Button Group */}
           <View style={styles.buttonGroup}>
@@ -148,6 +163,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 25,
     marginBottom: 24,
+    paddingHorizontal: 8,
+  },
+  descriptionText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
     paddingHorizontal: 8,
   },
   buttonGroup: {

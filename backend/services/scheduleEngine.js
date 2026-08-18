@@ -7,7 +7,7 @@ const { emitToClass } = require("../config/socket");
 const { getISTDate } = require("../utils/istTime");
 const logger = require("../utils/logger");
 
-const TICK_MS = 60 * 1000;
+const TICK_MS = 30 * 1000;
 
 const lastStates = new Map();
 let running = false;
@@ -72,22 +72,24 @@ const tick = async () => {
               serverTimestamp: new Date().toISOString(),
             });
 
-            await Device.updateMany(
-              {
-                userId: {
-                  $in: await User.find({ classId, role: "student" }).select("_id"),
-                },
-              },
-              {
-                $set: {
-                  lastKnownCommand: {
-                    ruleId: null,
-                    action: "stop",
-                    serverTimestamp: now,
+            // Auto-unblock: set Device.status to "active" for all students in this class
+            const studentUserIds = await User.find({ classId, role: "student" }).select("_id");
+            const userIds = studentUserIds.map((u) => u._id);
+            if (userIds.length > 0) {
+              await Device.updateMany(
+                { userId: { $in: userIds } },
+                {
+                  $set: {
+                    status: "active",
+                    lastKnownCommand: {
+                      ruleId: null,
+                      action: "stop",
+                      serverTimestamp: now,
+                    },
                   },
-                },
-              }
-            );
+                }
+              );
+            }
 
             logger.info(`Schedule engine: class ${classId} window closed -> auto-stopped (${activeRules.length} rules paused) [${window.source}]`);
           } else {

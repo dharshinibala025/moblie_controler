@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, shadows, borderRadius } from '../styles/theme';
 import VectorIcon from './VectorIcon';
 
-export const NotificationsCard = ({ notifications = [], onViewAll }) => {
+export const NotificationsCard = ({ notifications = [], onViewAll, onPressNotification }) => {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -54,6 +54,18 @@ export const NotificationsCard = ({ notifications = [], onViewAll }) => {
 
                 {/* Unread Dot Indicator */}
                 {!item.read && <View style={styles.unreadDot} />}
+
+                {/* Clear on read action */}
+                {onPressNotification && (
+                  <TouchableOpacity
+                    activeOpacity={0.6}
+                    onPress={() => onPressNotification(item)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={styles.clearButton}
+                  >
+                    <VectorIcon name="close-circle" size={18} color={colors.textMuted} />
+                  </TouchableOpacity>
+                )}
               </View>
             </React.Fragment>
           ))
@@ -140,6 +152,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.primary,
     marginLeft: 8,
+  },
+  clearButton: {
+    marginLeft: 8,
+    padding: 2,
   },
   emptyContainer: {
     paddingVertical: 24,

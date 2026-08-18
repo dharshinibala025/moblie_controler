@@ -118,7 +118,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
     private fun shouldLaunch(packageName: String): Boolean {
         val now = System.currentTimeMillis()
         val last = lastBlockedAt[packageName] ?: 0L
-        if (now - last < 5000) {
+        if (now - last < 1000) {
             return false
         }
         lastBlockedAt[packageName] = now

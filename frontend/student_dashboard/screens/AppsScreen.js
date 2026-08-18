@@ -65,11 +65,15 @@ export const AppsScreen = ({ data }) => {
   const [tick, setTick] = useState(Date.now());
 
   // Derived live restriction state recomputed on every tick (30s) + app resume.
+  // The server-computed scheduleActive (IST) takes priority so the banner stays
+  // consistent with the backend; device-local time is only a fallback for
+  // legacy payloads that lack scheduleActive.
   const restriction = useMemo(() => {
     const now = new Date(tick);
     const p = policy || {};
     const status = p.status || 'inactive';
-    const within = isWithinWindow(p, now);
+    const within =
+      typeof p.scheduleActive === 'boolean' ? p.scheduleActive : isWithinWindow(p, now);
     const active = status === 'active' && within;
     return {
       active,

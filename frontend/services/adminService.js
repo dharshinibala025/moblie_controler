@@ -120,6 +120,13 @@ class AdminService {
     });
   }
 
+  async applyRestrictionPolicyBulk(policyData) {
+    return await apiFetch('/admin/rules/bulk', {
+      method: 'POST',
+      body: JSON.stringify(policyData),
+    });
+  }
+
   async deleteActivity(activityId) {
     try {
       return await apiFetch(`/admin/activity/${activityId}`, {
@@ -145,15 +152,17 @@ class AdminService {
     }
   }
 
-  async pauseRestriction() {
+  async pauseRestriction(targetClassIds = []) {
     return await apiFetch('/admin/override/pause', {
       method: 'POST',
+      body: JSON.stringify({ targetClassIds }),
     });
   }
 
-  async resumeRestriction() {
+  async resumeRestriction(targetClassIds = []) {
     return await apiFetch('/admin/override/resume', {
       method: 'POST',
+      body: JSON.stringify({ targetClassIds }),
     });
   }
 

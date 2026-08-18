@@ -55,6 +55,11 @@ const CATEGORY_TO_PACKAGES = {
   entertainment: ENTERTAINMENT_PACKAGES,
 };
 
+// Android Settings app — blocked only while restrictions are active AND the
+// student has completed setup (both Accessibility + Overlay granted), so they
+// cannot revoke permissions mid-class. Never part of the always-on list.
+const SETTINGS_PACKAGE = "com.android.settings";
+
 // Rule blockedApps can contain tokens like "SocialMedia"/"Games" or raw package names.
 const TOKEN_TO_CATEGORY = {
   socialmedia: "social",
@@ -210,6 +215,19 @@ const getStudentPolicy = async ({ student, device = null, now }) => {
     ? await resolveBlockedPackages(student._id, activeRules)
     : [];
 
+  // Block the Android Settings app during an active restriction window, but
+  // only once the student has completed setup (both permissions granted).
+  if (
+    status === "active" &&
+    device &&
+    device.deviceInfo &&
+    device.deviceInfo.accessibilityEnabled === true &&
+    device.deviceInfo.overlayEnabled === true &&
+    !blockedPackages.includes(SETTINGS_PACKAGE)
+  ) {
+    blockedPackages.push(SETTINGS_PACKAGE);
+  }
+
   let maxPolicyVersion = 0;
   for (const rule of rules) {
     maxPolicyVersion = Math.max(maxPolicyVersion, rule.policyVersion || 1);
@@ -310,4 +328,5 @@ module.exports = {
   buildScopeRuleQuery,
   DEFAULT_WINDOW,
   AUTO_BLOCK_PACKAGES,
+  SETTINGS_PACKAGE,
 };

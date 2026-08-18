@@ -301,7 +301,10 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             reactContext.contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: ""
-        return enabledServices.contains(expectedService) || enabledServices.contains("RestrictionAccessibilityService")
+        // Check for exact match or partial package match for robustness
+        return enabledServices.contains(expectedService) ||
+               enabledServices.contains("${reactContext.packageName}:com.mobile_controller") ||
+               enabledServices.contains("com.mobile_controller/com.mobile_controller")
     }
 
     private fun canDrawOverlays(): Boolean {
