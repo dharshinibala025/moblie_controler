@@ -101,7 +101,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
             }
 
             if (blockedSet.contains(packageName)) {
-                if (isWithinSchedule()) {
+                if (shouldEnforceNow()) {
                     if (shouldLaunch(packageName)) {
                         Log.w("RestrictionService", "Blocking restricted package: $packageName")
                         launchBlockOverlay(packageName)
@@ -129,13 +129,14 @@ class RestrictionAccessibilityService : AccessibilityService() {
         return true
     }
 
-    private fun isWithinSchedule(): Boolean {
+    // Manual-start semantics: blocking begins the moment the policy is applied
+    // (the start time is NOT a gate). Auto-stop at the end time and the
+    // configured active days still limit enforcement as a phone-side safety.
+    private fun shouldEnforceNow(): Boolean {
         val storage = policyStorage ?: return true
-        val start = storage.getScheduleStart() // e.g. "09:00"
         val end = storage.getScheduleEnd()     // e.g. "16:00"
 
         try {
-            val startParts = start.split(":").map { it.toInt() }
             val endParts = end.split(":").map { it.toInt() }
 
             val cal = Calendar.getInstance()
@@ -155,11 +156,11 @@ class RestrictionAccessibilityService : AccessibilityService() {
             val currentMinute = cal.get(Calendar.MINUTE)
 
             val currentMinutesOfDay = currentHour * 60 + currentMinute
-            val startMinutesOfDay = startParts[0] * 60 + startParts[1]
             val endMinutesOfDay = endParts[0] * 60 + endParts[1]
 
-            // End-exclusive so the restriction lifts exactly at the end time.
-            return currentMinutesOfDay in startMinutesOfDay until endMinutesOfDay
+            // Only the end time gates enforcement: restrictions auto-lift at the
+            // end time but start immediately on apply, regardless of the clock.
+            return currentMinutesOfDay < endMinutesOfDay
         } catch (e: Exception) {
             return true // Default active if parse error occurs
         }

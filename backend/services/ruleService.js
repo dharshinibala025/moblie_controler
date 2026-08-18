@@ -3,6 +3,7 @@ const Device = require("../models/Device");
 const User = require("../models/User");
 const { emitToClass } = require("../config/socket");
 const fcmService = require("./fcmService");
+const autoBlockService = require("./autoBlockService");
 const logger = require("../utils/logger");
 const { NotFoundError, ValidationError, ForbiddenError } = require("../utils/AppError");
 
@@ -118,6 +119,25 @@ exports.sendCommand = async (ruleId, action, actorId, institutionId) => {
 
 const BATCH_SIZE = 5;
 
+const DEFAULT_ACTIVE_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Build the full policy data block sent over socket + FCM so a device can
+// update its local PolicyStorage in ONE message (no extra /policy/latest fetch).
+const buildPolicyData = (action, status, blockedPackages, rule, serverTimestamp) => ({
+  action,
+  status,
+  blockedPackages: JSON.stringify(blockedPackages || []),
+  scheduleStart: rule && rule.scheduleStart ? rule.scheduleStart : "09:00",
+  scheduleEnd: rule && rule.scheduleEnd ? rule.scheduleEnd : "16:00",
+  activeDays: JSON.stringify(
+    rule && rule.activeDays && rule.activeDays.length > 0 ? rule.activeDays : DEFAULT_ACTIVE_DAYS
+  ),
+  reason: rule && rule.reason ? rule.reason : "",
+  policyVersion: String(rule && rule.policyVersion ? rule.policyVersion : 1),
+  ruleId: rule && rule._id ? String(rule._id) : "",
+  serverTimestamp: serverTimestamp.toISOString(),
+});
+
 /**
  * Create a rule for a class, or update the latest existing rule for that class
  * (used by the admin bulk "Set Restriction Timing" flow so we don't stack
@@ -178,10 +198,24 @@ exports.batchRuleCommand = async ({ classIds = [], action }) => {
   }
 
   const affectedRules = await Rule.find(query)
-    .select("_id targetClassId reason")
+    .select("_id targetClassId reason blockedApps scheduleStart scheduleEnd activeDays policyVersion")
     .lean();
 
   const affectedClassIds = [...new Set(affectedRules.map((r) => r.targetClassId).filter(Boolean))];
+
+  // Group rules by class so we can send each class a complete, accurate
+  // blocked-package list (manual-start: start immediately from apply).
+  const rulesByClass = {};
+  for (const r of affectedRules) {
+    (rulesByClass[r.targetClassId] = rulesByClass[r.targetClassId] || []).push(r);
+  }
+  const blockedPackagesByClass = {};
+  for (const cid of Object.keys(rulesByClass)) {
+    blockedPackagesByClass[cid] =
+      action === "start"
+        ? autoBlockService.resolvePackagesFromRules(rulesByClass[cid])
+        : [];
+  }
 
   if (affectedRules.length > 0) {
     await Rule.updateMany(
@@ -196,9 +230,13 @@ exports.batchRuleCommand = async ({ classIds = [], action }) => {
   const serverTimestamp = new Date();
 
   const targetStudentIds = [];
+  const studentClassMap = new Map();
   if (affectedClassIds.length > 0) {
-    const students = await User.find({ role: "student", classId: { $in: affectedClassIds } }).select("_id");
-    for (const s of students) targetStudentIds.push(s._id);
+    const students = await User.find({ role: "student", classId: { $in: affectedClassIds } }).select("_id classId");
+    for (const s of students) {
+      targetStudentIds.push(s._id);
+      studentClassMap.set(s._id.toString(), s.classId);
+    }
   }
 
   if (targetStudentIds.length > 0) {
@@ -212,19 +250,31 @@ exports.batchRuleCommand = async ({ classIds = [], action }) => {
       }
     );
 
-    // Non-blocking FCM multicast for all affected devices in a single call.
+    // Per-class FCM multicast so every device gets the exact policy for its
+    // own class in a single data message (the native handler saves it directly).
     const devicesWithFcm = await Device.find({
       userId: { $in: targetStudentIds },
       fcmToken: { $ne: null },
-    }).select("fcmToken").lean();
-    const tokens = devicesWithFcm.map((d) => d.fcmToken).filter(Boolean);
-    if (tokens.length > 0) {
+    }).select("userId fcmToken").lean();
+    const tokensByClass = new Map();
+    for (const d of devicesWithFcm) {
+      if (!d.fcmToken) continue;
+      const classId = studentClassMap.get(d.userId.toString());
+      if (!classId) continue;
+      if (!tokensByClass.has(classId)) tokensByClass.set(classId, []);
+      tokensByClass.get(classId).push(d.fcmToken);
+    }
+    for (const [classId, tokens] of tokensByClass) {
+      if (tokens.length === 0) continue;
+      const payload = buildPolicyData(
+        action,
+        newStatus,
+        blockedPackagesByClass[classId] || [],
+        rulesByClass[classId] ? rulesByClass[classId][0] : null,
+        serverTimestamp
+      );
       fcmService
-        .sendToMultipleDevices(tokens, {
-          action,
-          status: newStatus,
-          serverTimestamp: serverTimestamp.toISOString(),
-        })
+        .sendToMultipleDevices(tokens, payload)
         .catch(() => {});
     }
 
@@ -262,7 +312,13 @@ exports.batchRuleCommand = async ({ classIds = [], action }) => {
     emitToClass(cid, "rule:update", {
       action,
       status: newStatus,
-      serverTimestamp: serverTimestamp.toISOString(),
+      ...buildPolicyData(
+        action,
+        newStatus,
+        blockedPackagesByClass[cid] || [],
+        rulesByClass[cid] ? rulesByClass[cid][0] : null,
+        serverTimestamp
+      ),
     });
   }
 
@@ -308,16 +364,17 @@ async function dispatchRule(rule, action) {
   const newDeviceStatus = deviceStatusMap[action] || "active";
 
   // Broadcast using Socket class logic
+  const policyData = buildPolicyData(
+    action,
+    rule.status,
+    action === "start" ? autoBlockService.resolvePackagesFromRules([rule.toObject()]) : [],
+    rule.toObject(),
+    serverTimestamp
+  );
   emitToClass(rule.targetClassId, "rule:update", {
     ruleId: rule._id,
     action,
-    blockedApps: rule.blockedApps,
-    scheduleStart: rule.scheduleStart,
-    scheduleEnd: rule.scheduleEnd,
-    activeDays: rule.activeDays,
-    status: rule.status,
-    policyVersion: rule.policyVersion,
-    serverTimestamp: serverTimestamp.toISOString(),
+    ...policyData,
   });
 
   if (targetDevices.length > 0) {
@@ -342,15 +399,8 @@ async function dispatchRule(rule, action) {
       Promise.allSettled(
         devicesWithFcm.map((device) =>
           fcmService.sendToDevice(device.fcmToken, {
+            ...policyData,
             ruleId: rule._id.toString(),
-            action,
-            blockedApps: JSON.stringify(rule.blockedApps),
-            scheduleStart: rule.scheduleStart,
-            scheduleEnd: rule.scheduleEnd,
-            activeDays: JSON.stringify(rule.activeDays),
-            status: rule.status,
-            policyVersion: String(rule.policyVersion || 1),
-            serverTimestamp: serverTimestamp.toISOString(),
           })
         )
       ).catch(() => {});

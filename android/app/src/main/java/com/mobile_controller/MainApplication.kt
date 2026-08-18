@@ -52,5 +52,13 @@ class MainApplication : Application(), ReactApplication {
     } catch (e: Exception) {
       Log.e("MobileController", "React Native init failed", e)
     }
+
+    // Background policy-sync fallback (refreshes policy even when the app is
+    // killed; FCM data messages provide the instant path).
+    try {
+      PolicySyncScheduler.schedule(this)
+    } catch (e: Exception) {
+      Log.e("MobileController", "WorkManager schedule failed", e)
+    }
   }
 }

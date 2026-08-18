@@ -35,6 +35,9 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const [scheduleEnd, setScheduleEnd] = useState('16:00');
   const scheduleStartRef = useRef('09:00');
   const scheduleEndRef = useRef('16:00');
+  // Server-truth: set true when a policy is active (admin/staff applied a rule).
+  // Used by the live clock so "Set Restriction Timing" = block NOW immediately.
+  const policyActiveRef = useRef(false);
 
   const handleScheduleStartChange = (val) => {
     setScheduleStart(val);
@@ -216,6 +219,8 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       if (p) {
         if (p.scheduleStart) handleScheduleStartChange(p.scheduleStart);
         if (p.scheduleEnd) handleScheduleEndChange(p.scheduleEnd);
+        policyActiveRef.current = p.status === 'active';
+        setStatusMode(p.status === 'active' ? 'ACTIVE' : statusMode);
       }
     }).catch(() => {});
 
@@ -228,6 +233,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
           if (p) {
             if (p.scheduleStart) handleScheduleStartChange(p.scheduleStart);
             if (p.scheduleEnd) handleScheduleEndChange(p.scheduleEnd);
+            policyActiveRef.current = p.status === 'active';
           }
         }).catch(() => {});
 
@@ -266,7 +272,15 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       const endSec = endH * 3600 + endM * 60;
       const totalDuration = endSec - startSec;
 
-      if (currentSec >= startSec && currentSec < endSec) {
+      // Manual-start: a server-active policy means "block NOW" regardless of
+      // the clock, so the live clock shows ACTIVE as soon as it is applied.
+      if (policyActiveRef.current) {
+        const remaining = Math.max(0, endSec - currentSec);
+        const prog = remaining / totalDuration;
+        setStatusMode('ACTIVE');
+        setRemainingSeconds(remaining);
+        setProgress(Math.min(1, Math.max(0, prog)));
+      } else if (currentSec >= startSec && currentSec < endSec) {
         const remaining = endSec - currentSec;
         const prog = remaining / totalDuration;
         setStatusMode('ACTIVE');
