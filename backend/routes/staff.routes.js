@@ -215,40 +215,68 @@ router.post("/classes/:id/rules/:ruleId/command", verifyClassScope, async (req, 
   }
 });
 
+// POST: Emergency unblock — class-scoped to the staff member's assigned classes
+router.post("/emergency-unblock-all", async (req, res, next) => {
+  try {
+    const User = require("../models/User");
+    const ClassRoom = require("../models/ClassRoom");
+    const { emitToClass } = require("../config/socket");
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+
+    const staffUser = await User.findById(req.user.userId || req.user.id || req.user._id);
+    if (!staffUser || staffUser.role !== "staff") {
+      return res.status(403).json({ error: "Access denied: user is not a staff member" });
+    }
+
+    const classIds = new Set();
+    if (staffUser.classId) classIds.add(staffUser.classId);
+    if (staffUser.classRoomId) classIds.add(staffUser.classRoomId.toString());
+    if (staffUser.academicYearId && staffUser.sectionId) {
+      const classrooms = await ClassRoom.find({
+        academicYearId: staffUser.academicYearId,
+        sectionId: staffUser.sectionId,
+      }).select("code");
+      classrooms.forEach((c) => classIds.add(c.code));
+    }
+    const scopedClassIds = [...classIds].filter(Boolean);
+
+    for (const cid of scopedClassIds) {
+      setClassEmergencyUnblock(cid, true);
+      await ruleService.batchRuleCommand({ classIds: [cid], action: "pause" });
+      emitToClass(cid, "emergency:unblock", { timestamp: new Date() });
+    }
+
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "emergency_unblock_all",
+      { scope: "assigned-classes" },
+      { classIds: scopedClassIds },
+      req.user.institutionId
+    );
+
+    res.json({
+      success: true,
+      scope: "assigned-classes",
+      classIds: scopedClassIds,
+      message: `Emergency unblock applied to ${scopedClassIds.length} assigned class(es).`,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST: Pause restriction for a class (unblock all apps for that class)
 router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, next) => {
   try {
-    const Rule = require("../models/Rule");
-    const Device = require("../models/Device");
-    const User = require("../models/User");
-    const { emitToClass } = require("../config/socket");
-
-    const activeRules = await Rule.find({ targetClassId: req.params.id, status: "active" });
-
-    for (const rule of activeRules) {
-      await ruleService.sendCommand(rule._id, "pause", req.user.userId, req.user.institutionId);
-    }
-
-    // Update device statuses for instant count reflection
-    const students = await User.find({ classId: req.params.id, role: "student" }).select("_id");
-    const studentIds = students.map((s) => s._id);
-    if (studentIds.length > 0) {
-      await Device.updateMany({ userId: { $in: studentIds } }, { $set: { status: "active" } });
-    }
-
-    // Emit to class for instant student device response
-    emitToClass(req.params.id, "rule:update", {
-      action: "pause",
-      status: "paused",
-      serverTimestamp: new Date().toISOString(),
-    });
+    const result = await ruleService.batchRuleCommand({ classIds: [req.params.id], action: "pause" });
 
     await auditService.logAction(
       req.user.userId,
       req.user.role,
       "rule.pause",
       { type: "class", id: req.params.id },
-      { reason: "Staff paused class restriction" },
+      { reason: "Staff paused class restriction", affectedRules: result.affectedRules },
       req.user.institutionId
     );
 
@@ -256,7 +284,7 @@ router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, ne
       success: true,
       override: "paused",
       classId: req.params.id,
-      affectedRules: activeRules.length,
+      affectedRules: result.affectedRules,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
@@ -267,39 +295,17 @@ router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, ne
 // POST: Resume restriction for a class (re-block apps for that class)
 router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, next) => {
   try {
-    const Rule = require("../models/Rule");
-    const Device = require("../models/Device");
-    const User = require("../models/User");
-    const { emitToClass } = require("../config/socket");
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     setClassEmergencyUnblock(req.params.id, false);
 
-    const pausedRules = await Rule.find({ targetClassId: req.params.id, status: "paused" });
-
-    for (const rule of pausedRules) {
-      await ruleService.sendCommand(rule._id, "start", req.user.userId, req.user.institutionId);
-    }
-
-    // Update device statuses for instant count reflection
-    const students = await User.find({ classId: req.params.id, role: "student" }).select("_id");
-    const studentIds = students.map((s) => s._id);
-    if (studentIds.length > 0) {
-      await Device.updateMany({ userId: { $in: studentIds } }, { $set: { status: "blocked" } });
-    }
-
-    // Emit to class for instant student device response
-    emitToClass(req.params.id, "rule:update", {
-      action: "start",
-      status: "active",
-      serverTimestamp: new Date().toISOString(),
-    });
+    const result = await ruleService.batchRuleCommand({ classIds: [req.params.id], action: "start" });
 
     await auditService.logAction(
       req.user.userId,
       req.user.role,
       "rule.start",
       { type: "class", id: req.params.id },
-      { reason: "Staff resumed class restriction" },
+      { reason: "Staff resumed class restriction", affectedRules: result.affectedRules },
       req.user.institutionId
     );
 
@@ -307,7 +313,7 @@ router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, n
       success: true,
       override: "resumed",
       classId: req.params.id,
-      affectedRules: pausedRules.length,
+      affectedRules: result.affectedRules,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

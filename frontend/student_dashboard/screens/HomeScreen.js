@@ -45,9 +45,22 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     scheduleEndRef.current = val;
   };
 
+  const formatTo12Hour = (time24) => {
+    if (!time24) return '09:00 AM';
+    const [h, m] = time24.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
   // Custom Permission Modal State — one-by-one, no double popups
   const [permModalVisible, setPermModalVisible] = useState(false);
-  const [permStep, setPermStep] = useState('accessibility'); // 'accessibility' | 'overlay'
+  const [permStep, setPermStep] = useState('restriction'); // 'restriction' | 'accessibility' | 'overlay'
+  // Refs keep the AppState listener reading live values without re-subscribing.
+  const permStepRef = useRef('restriction');
+  const permModalVisibleRef = useRef(false);
+  useEffect(() => { permStepRef.current = permStep; }, [permStep]);
+  useEffect(() => { permModalVisibleRef.current = permModalVisible; }, [permModalVisible]);
   // Guard: prevent re-showing permission flow when returning from Settings
   const permFlowRunning = useRef(false);
   const permFlowDone = useRef(false);
@@ -59,12 +72,51 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     } catch (e) { /* ignore */ }
   };
 
-  const formatTo12Hour = (time24) => {
-    if (!time24) return '09:00 AM';
-    const [h, m] = time24.split(':').map(Number);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hour12 = h % 12 || 12;
-    return `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+  const grantRestrictionConsent = async () => {
+    try {
+      await AsyncStorage.setItem('@focussync:restrictionConsent', 'true');
+    } catch (e) { /* ignore */ }
+  };
+
+  // Runs the native Notification step, then the Overlay step (in that order).
+  const continueAfterAccessibility = async () => {
+    // STEP: Notification — fire native Android OS popup directly (NO custom modal)
+    if (Platform.OS === 'android' && Platform.Version >= 33) {
+      try {
+        const { PermissionsAndroid } = require('react-native');
+        const hasNotif = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        if (!hasNotif) {
+          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+          // Wait 600ms for the native dialog to fully close before next step
+          await new Promise(resolve => setTimeout(resolve, 600));
+        }
+      } catch (e) {
+        console.warn('POST_NOTIFICATIONS request notice:', e.message);
+      }
+    }
+
+    // STEP: Overlay — show custom modal (no native popup exists for this)
+    const res = await syncService.checkPermissions();
+    setPermissions(res);
+    if (!res.overlayEnabled) {
+      setPermStep('overlay');
+      setPermModalVisible(true);
+    } else {
+      await markPermissionPrompted();
+    }
+  };
+
+  // Grants the restriction consent (non-blocking) and advances to Accessibility.
+  const advanceFromRestriction = async () => {
+    await grantRestrictionConsent();
+    const res = await syncService.checkPermissions();
+    setPermissions(res);
+    if (!res.accessibilityEnabled) {
+      setPermStep('accessibility');
+      setPermModalVisible(true);
+    } else {
+      await continueAfterAccessibility();
+    }
   };
 
   const runPermissionFlow = async () => {
@@ -78,21 +130,13 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         return;
       }
 
-      // STEP 1: Notification — fire native Android OS popup directly (NO custom modal)
-      // This prevents the double-popup bug where both our modal and system dialog appear.
-      if (Platform.OS === 'android' && Platform.Version >= 33) {
-        try {
-          const { PermissionsAndroid } = require('react-native');
-          const hasNotif = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-          if (!hasNotif) {
-            // Show only the single native Android popup — no custom modal
-            await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-            // Wait 600ms for the native dialog to fully close before next step
-            await new Promise(resolve => setTimeout(resolve, 600));
-          }
-        } catch (e) {
-          console.warn('POST_NOTIFICATIONS request notice:', e.message);
-        }
+      // STEP 1: Restriction consent — custom modal (no native permission).
+      const restrictionConsent = await AsyncStorage.getItem('@focussync:restrictionConsent');
+      if (restrictionConsent !== 'true') {
+        setPermStep('restriction');
+        setPermModalVisible(true);
+        permFlowRunning.current = false;
+        return;
       }
 
       // STEP 2: Accessibility — show custom modal (no native popup exists for this)
@@ -105,16 +149,8 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         return;
       }
 
-      // STEP 3: Overlay — show custom modal (no native popup exists for this)
-      if (!res.overlayEnabled) {
-        setPermStep('overlay');
-        setPermModalVisible(true);
-        permFlowRunning.current = false;
-        return;
-      }
-
-      // All granted — mark done
-      await markPermissionPrompted();
+      // STEP 3 + 4: Notification (native) then Overlay.
+      await continueAfterAccessibility();
     } catch (e) {
       console.warn('Permission flow notice:', e.message);
     }
@@ -133,7 +169,9 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const handlePrimaryPermissionAction = async () => {
     setPermModalVisible(false);
     await new Promise(resolve => setTimeout(resolve, 400));
-    if (permStep === 'accessibility') {
+    if (permStep === 'restriction') {
+      await advanceFromRestriction();
+    } else if (permStep === 'accessibility') {
       syncService.openAccessibilitySettings();
       // AppState will re-check when user returns from Settings
     } else if (permStep === 'overlay') {
@@ -144,18 +182,20 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
   const handleSecondaryPermissionAction = async () => {
     setPermModalVisible(false);
-    if (permStep === 'accessibility') {
-      // Skipped accessibility — still check overlay
-      const res = await syncService.checkPermissions();
-      setPermissions(res);
-      if (!res.overlayEnabled) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setPermStep('overlay');
-        setPermModalVisible(true);
-      }
+    if (permStep === 'restriction') {
+      // Consent is non-blocking — proceed to the next step regardless.
+      await advanceFromRestriction();
+    } else if (permStep === 'accessibility') {
+      // Skipped accessibility — still proceed to Notification + Overlay.
+      await continueAfterAccessibility();
     } else {
       await markPermissionPrompted();
     }
+  };
+
+  const handleTertiaryPermissionAction = async () => {
+    // "Don't allow" behaves like "Ask later" for the restriction consent.
+    await handleSecondaryPermissionAction();
   };
 
   // Fade-in animation on mount
@@ -193,17 +233,11 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
         // If user returned from Settings and a permission step was in progress,
         // check if it was granted and advance to next step (one-by-one, no re-trigger)
-        if (!permFlowDone.current && !permFlowRunning.current && !permModalVisible) {
-          if (permStep === 'accessibility' && res?.accessibilityEnabled) {
+        if (!permFlowDone.current && !permFlowRunning.current && !permModalVisibleRef.current) {
+          if (permStepRef.current === 'accessibility' && res?.accessibilityEnabled) {
             setPermModalVisible(false);
-            if (!res.overlayEnabled) {
-              await new Promise(resolve => setTimeout(resolve, 500));
-              setPermStep('overlay');
-              setPermModalVisible(true);
-            } else {
-              await markPermissionPrompted();
-            }
-          } else if (permStep === 'overlay' && res?.overlayEnabled) {
+            await continueAfterAccessibility();
+          } else if (permStepRef.current === 'overlay' && res?.overlayEnabled) {
             setPermModalVisible(false);
             await markPermissionPrompted();
           }
@@ -259,6 +293,10 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       syncService.stopRealtimeListener();
       syncService.stopPeriodicSync();
     };
+    // Mount-only effect: the permission flow runs once; the AppState listener
+    // reads live step state via refs (permStepRef/permModalVisibleRef), so
+    // re-subscribing on every step change is intentionally avoided.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fadeAnim]);
 
   const onRefresh = () => {
@@ -349,13 +387,13 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         </Animated.View>
       </ScrollView>
 
-      {/* Custom Permission Dialog — one-by-one, only for Accessibility & Overlay */}
+      {/* Custom Permission Dialog — one-by-one, only for Restriction, Accessibility & Overlay */}
       <PermissionModal
         visible={permModalVisible}
         type={permStep}
         onPrimary={handlePrimaryPermissionAction}
         onSecondary={handleSecondaryPermissionAction}
-        onTertiary={() => { setPermModalVisible(false); markPermissionPrompted(); }}
+        onTertiary={handleTertiaryPermissionAction}
         onDismiss={handleSecondaryPermissionAction}
       />
     </View>

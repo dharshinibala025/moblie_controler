@@ -511,6 +511,54 @@ router.post("/rules", validate("createRule"), async (req, res, next) => {
   }
 });
 
+// Bulk apply a restriction policy to many classes in a single request
+// (used by the admin "Set Restriction Timing" flow for all years/sections).
+router.post("/rules/bulk", async (req, res, next) => {
+  try {
+    const { targetClassIds = [], ...policyData } = req.body;
+    if (!Array.isArray(targetClassIds) || targetClassIds.length === 0) {
+      return res.status(400).json({ error: "targetClassIds array is required" });
+    }
+    if (!policyData.scheduleStart || !policyData.scheduleEnd) {
+      return res.status(400).json({ error: "scheduleStart and scheduleEnd are required" });
+    }
+
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+
+    if (req.scopeInstitutionId) {
+      policyData.institutionId = req.scopeInstitutionId;
+    }
+
+    const uniqueIds = [...new Set(targetClassIds)].filter(Boolean);
+    const results = await ruleService.applyBulkRulePolicy(uniqueIds, policyData, req.user.userId);
+
+    const succeeded = results.filter((r) => r.success);
+    await auditService.logAction(
+      req.user.userId,
+      req.user.role,
+      "rule.create",
+      { scope: "ADMIN" },
+      {
+        targetClassCount: uniqueIds.length,
+        created: succeeded.filter((r) => r.created).length,
+        updated: succeeded.filter((r) => r.updated).length,
+        failed: results.length - succeeded.length,
+      },
+      req.scopeInstitutionId || policyData.institutionId
+    );
+
+    res.status(200).json({
+      success: true,
+      results,
+      applied: succeeded.length,
+      total: uniqueIds.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/rules", async (req, res, next) => {
   try {
     const filters = {};
@@ -570,52 +618,21 @@ router.post("/rules/:id/command", validate("commandBody"), async (req, res, next
 // Admin Real-Time Emergency Overrides (Pause / Resume / Emergency Unlock)
 router.post("/override/pause", async (req, res, next) => {
   try {
-    const { targetClassIds = [], reason = "Administrator paused restrictions" } = req.body;
-    const Rule = require("../models/Rule");
-    const Device = require("../models/Device");
-    const User = require("../models/User");
-    const { emitToClass } = require("../config/socket");
-    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    const { targetClassIds = [], classId, reason = "Administrator paused restrictions" } = req.body;
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    const scopeClassIds = classId ? [classId] : targetClassIds;
 
-    setEmergencyUnblock(false);
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "pause" });
+    const { affectedClassIds, affectedRules } = result;
 
-    const query = { status: "active" };
-    if (targetClassIds.length > 0) {
-      query.targetClassId = { $in: targetClassIds };
-    }
-    const activeRules = await Rule.find(query);
-    const affectedClassIds = [...new Set(activeRules.map((r) => r.targetClassId))];
-
-    for (const rule of activeRules) {
-      await ruleService.sendCommand(rule._id, "pause", req.user.userId, req.scopeInstitutionId);
-      setClassEmergencyUnblock(rule.targetClassId, false);
-    }
-
-    // Also update device statuses for all affected classes so counts reflect instantly
-    if (affectedClassIds.length > 0) {
-      const allStudentIds = [];
-      for (const cid of affectedClassIds) {
-        const students = await User.find({ classId: cid, role: "student" }).select("_id");
-        allStudentIds.push(...students.map((s) => s._id));
-      }
-      if (allStudentIds.length > 0) {
-        await Device.updateMany({ userId: { $in: allStudentIds } }, { $set: { status: "active" } });
-      }
-
-      // Emit to each affected class so online student devices unblock instantly
-      for (const cid of affectedClassIds) {
-        emitToClass(cid, "rule:update", {
-          action: "pause",
-          status: "paused",
-          serverTimestamp: new Date().toISOString(),
-        });
-      }
+    for (const cid of affectedClassIds) {
+      setClassEmergencyUnblock(cid, false);
     }
 
     await auditService.logAction(
-      req.user.userId, req.user.role, "override.pause",
+      req.user.userId, req.user.role, "rule.pause",
       { scope: "ADMIN", affectedClassIds },
-      { reason, affectedRules: activeRules.length },
+      { reason, affectedRules },
       req.scopeInstitutionId
     );
 
@@ -623,7 +640,7 @@ router.post("/override/pause", async (req, res, next) => {
       success: true,
       override: "paused",
       affectedClassIds,
-      affectedRules: activeRules.length,
+      affectedRules,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
@@ -633,51 +650,21 @@ router.post("/override/pause", async (req, res, next) => {
 
 router.post("/override/resume", async (req, res, next) => {
   try {
-    const { targetClassIds = [] } = req.body;
-    const Rule = require("../models/Rule");
-    const Device = require("../models/Device");
-    const User = require("../models/User");
-    const { emitToClass } = require("../config/socket");
-    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    const { targetClassIds = [], classId } = req.body;
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    const scopeClassIds = classId ? [classId] : targetClassIds;
 
-    setEmergencyUnblock(false);
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "start" });
+    const { affectedClassIds, affectedRules } = result;
 
-    const query = { status: "paused" };
-    if (targetClassIds.length > 0) {
-      query.targetClassId = { $in: targetClassIds };
-    }
-    const pausedRules = await Rule.find(query);
-    const affectedClassIds = [...new Set(pausedRules.map((r) => r.targetClassId))];
-
-    for (const rule of pausedRules) {
-      await ruleService.sendCommand(rule._id, "start", req.user.userId, req.scopeInstitutionId);
-      setClassEmergencyUnblock(rule.targetClassId, false);
-    }
-
-    // Update device statuses and emit to classes for instant blocking
-    if (affectedClassIds.length > 0) {
-      const allStudentIds = [];
-      for (const cid of affectedClassIds) {
-        const students = await User.find({ classId: cid, role: "student" }).select("_id");
-        allStudentIds.push(...students.map((s) => s._id));
-      }
-      if (allStudentIds.length > 0) {
-        await Device.updateMany({ userId: { $in: allStudentIds } }, { $set: { status: "blocked" } });
-      }
-
-      for (const cid of affectedClassIds) {
-        emitToClass(cid, "rule:update", {
-          action: "start",
-          status: "active",
-          serverTimestamp: new Date().toISOString(),
-        });
-      }
+    for (const cid of affectedClassIds) {
+      setClassEmergencyUnblock(cid, false);
     }
 
     await auditService.logAction(
-      req.user.userId, req.user.role, "override.resume",
+      req.user.userId, req.user.role, "rule.start",
       { scope: "ADMIN", affectedClassIds },
-      { affectedRules: pausedRules.length },
+      { affectedRules },
       req.scopeInstitutionId
     );
 
@@ -685,7 +672,7 @@ router.post("/override/resume", async (req, res, next) => {
       success: true,
       override: "resumed",
       affectedClassIds,
-      affectedRules: pausedRules.length,
+      affectedRules,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

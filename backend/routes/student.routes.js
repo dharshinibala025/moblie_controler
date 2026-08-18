@@ -337,10 +337,15 @@ router.get("/notifications/unread-count", async (req, res, next) => {
 router.post("/notifications/:id/read", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
-    await Notification.updateOne(
-      { _id: req.params.id, studentId: req.user.userId },
-      { read: true }
-    );
+    // Mark as read, then auto-clear once the student has seen it.
+    // Only the owning student can clear the notification.
+    await Notification.deleteOne({
+      _id: req.params.id,
+      $or: [
+        { studentId: req.user.userId },
+        { recipientId: req.user.userId },
+      ],
+    });
     res.json({ success: true });
   } catch (err) {
     next(err);

@@ -120,6 +120,13 @@ class AdminService {
     });
   }
 
+  async applyRestrictionPolicyBulk(policyData) {
+    return await apiFetch('/admin/rules/bulk', {
+      method: 'POST',
+      body: JSON.stringify(policyData),
+    });
+  }
+
   async deleteActivity(activityId) {
     try {
       return await apiFetch(`/admin/activity/${activityId}`, {

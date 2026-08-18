@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator,
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -69,12 +70,12 @@ const DevicesScreen = () => {
     return [{ label: 'ALL Section', value: 'All' }, ...sectionOpts];
   }, [draftYear]);
 
-  const loadDevices = async () => {
+  const loadDevices = useCallback(async () => {
     const list = await adminService.getDevices();
     setDevices(list || []);
-  };
+  }, []);
 
-  const loadRules = async () => {
+  const loadRules = useCallback(async () => {
     try {
       const rules = await adminService.getRules();
       if (draftYear === 'All' || draftSection === 'All') {
@@ -106,12 +107,12 @@ const DevicesScreen = () => {
     } catch (err) {
       console.warn('Failed to load rules for class:', err.message);
     }
-  };
+  }, [selectedDept, draftYear, draftSection]);
 
   useEffect(() => {
     loadDevices();
     loadRules();
-  }, [selectedDept, draftYear, draftSection]);
+  }, [selectedDept, draftYear, draftSection, loadDevices, loadRules]);
 
   const filteredDevices = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -280,40 +281,47 @@ const DevicesScreen = () => {
       });
     });
 
-    const results = [];
-    for (const targetClassId of targetClassIds) {
+    setActionLoading(true);
+    try {
       const policyData = {
         blockedApps: ['SocialMedia'],
         scheduleStart: formatTimeForBackend(startTime),
         scheduleEnd: formatTimeForBackend(endTime),
         activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        targetClassId,
+        targetClassIds,
         status: 'active',
         reason: 'Classroom Policy Restriction',
       };
-      try {
-        await adminService.applyRestrictionPolicy(policyData);
-        results.push({ targetClassId, success: true });
-      } catch (err) {
-        results.push({ targetClassId, success: false, error: err.message });
+      const result = await adminService.applyRestrictionPolicyBulk(policyData);
+
+      const applied = result?.applied ?? 0;
+      const total = result?.total ?? targetClassIds.length;
+
+      if (applied > 0) {
+        setRestrictionStatus('ACTIVE');
+      } else {
+        setRestrictionStatus('IDLE');
       }
-    }
 
-    const successCount = results.filter(r => r.success).length;
-    setRestrictionStatus('ACTIVE');
-    await loadRules();
-    await loadDevices();
+      // Refresh rules + device list once, in parallel (single round-trip latency).
+      await Promise.all([loadRules(), loadDevices()]);
 
-    if (successCount === targetClassIds.length) {
-      Alert.alert(
-        'Mobile Restriction Applied',
-        `Restriction policy active for ${successCount} class(es)!\nSchedule: ${startTime} – ${endTime}`,
-      );
-    } else {
-      Alert.alert(
-        'Partial Success',
-        `Applied to ${successCount}/${targetClassIds.length} classes.\nSchedule: ${startTime} – ${endTime}`,
-      );
+      if (applied === total) {
+        Alert.alert(
+          'Mobile Restriction Applied',
+          `Restriction policy active for ${applied} class(es)!\nSchedule: ${startTime} – ${endTime}`,
+        );
+      } else {
+        Alert.alert(
+          'Partial Success',
+          `Applied to ${applied}/${total} classes.\nSchedule: ${startTime} – ${endTime}`,
+        );
+      }
+    } catch (err) {
+      setRestrictionStatus('IDLE');
+      Alert.alert('Apply Failed', err.message || 'Failed to apply restriction policy. Please try again.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -339,8 +347,7 @@ const DevicesScreen = () => {
     setActionLoading(true);
     try {
       await adminService.pauseRestriction(targetClassIds);
-      await loadRules();
-      await loadDevices();
+      await Promise.all([loadRules(), loadDevices()]);
       Alert.alert('Restriction Paused', `All blocked apps temporarily unblocked for ${targetClassIds.length} class(es).`);
     } catch (err) {
       setRestrictionStatus('ACTIVE');
@@ -357,8 +364,7 @@ const DevicesScreen = () => {
     setActionLoading(true);
     try {
       await adminService.resumeRestriction(targetClassIds);
-      await loadRules();
-      await loadDevices();
+      await Promise.all([loadRules(), loadDevices()]);
       Alert.alert('Restriction Resumed', `Mobile restriction is now active for ${targetClassIds.length} class(es). Apps are blocked.`);
     } catch (err) {
       setRestrictionStatus('PAUSED');
@@ -479,9 +485,20 @@ const DevicesScreen = () => {
           <View style={styles.divider} />
 
           <View style={styles.controlsGroup}>
-            <TouchableOpacity style={styles.applyBtn} onPress={handleApplyRestriction} activeOpacity={0.8}>
-              <Icon name="access-time" size={18} color={colors.white} />
-              <Text style={styles.applyBtnText}>Set Restriction Timing</Text>
+            <TouchableOpacity
+              style={[styles.applyBtn, actionLoading && styles.applyBtnDisabled]}
+              onPress={handleApplyRestriction}
+              disabled={actionLoading}
+              activeOpacity={0.8}
+            >
+              {actionLoading ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Icon name="access-time" size={18} color={colors.white} />
+              )}
+              <Text style={styles.applyBtnText}>
+                {actionLoading ? 'Applying…' : 'Set Restriction Timing'}
+              </Text>
             </TouchableOpacity>
 
             <View style={styles.secondaryControlsRow}>
@@ -491,7 +508,11 @@ const DevicesScreen = () => {
                 disabled={restrictionStatus !== 'ACTIVE' || actionLoading}
                 activeOpacity={0.8}
               >
-                <Icon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
+                ) : (
+                  <Icon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
+                )}
                 <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>
                   Pause
                 </Text>
@@ -502,14 +523,23 @@ const DevicesScreen = () => {
                 disabled={restrictionStatus !== 'PAUSED' || actionLoading}
                 activeOpacity={0.8}
               >
-                <Icon name="play-arrow" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
+                ) : (
+                  <Icon name="play-arrow" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
+                )}
                 <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>
                   Resume
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.emergencyBtn} onPress={handleEmergencyUnblock} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={[styles.emergencyBtn, actionLoading && styles.applyBtnDisabled]}
+              onPress={handleEmergencyUnblock}
+              disabled={actionLoading}
+              activeOpacity={0.8}
+            >
               <Icon name="warning" size={16} color={colors.white} />
               <Text style={styles.emergencyBtnText}>Emergency Unblock (All Classes)</Text>
             </TouchableOpacity>
@@ -578,6 +608,9 @@ const styles = StyleSheet.create({
     ...typography.button,
     color: colors.white,
     fontSize: 14,
+  },
+  applyBtnDisabled: {
+    opacity: 0.6,
   },
   secondaryControlsRow: {
     flexDirection: 'row',
