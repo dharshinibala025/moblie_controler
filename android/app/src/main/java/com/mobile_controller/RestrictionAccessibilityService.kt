@@ -4,7 +4,6 @@ import android.accessibilityservice.AccessibilityService
 import android.app.ActivityOptions
 import android.content.Intent
 import android.os.Build
-import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import java.util.Calendar
@@ -85,12 +84,14 @@ class RestrictionAccessibilityService : AccessibilityService() {
 
             // hasStoredPolicy reflects whether a server policy has EVER been synced.
             // Only the offline default-window fallback applies before the first sync.
-            val storedBlocked = storage.getBlockedApps()
-
             val blockedSet = if (storage.isConfigured()) {
-                // Only enforce the stored list while the policy is active.
+                // Only enforce while the policy is active. The enforced set is
+                // the union of the server list + every installed app the phone
+                // classifies as social/games/entertainment, so ALL social media
+                // blocks even if the server list is stale or the realtime sync
+                // has not reached the device yet.
                 if (storage.isPolicyActive()) {
-                    storedBlocked
+                    storage.getEnforcedApps()
                 } else {
                     emptySet()
                 }
@@ -184,11 +185,11 @@ class RestrictionAccessibilityService : AccessibilityService() {
 
     private fun launchBlockOverlay(packageName: String) {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                Log.w("RestrictionService", "Overlay permission missing, skipping block overlay for $packageName")
-                return
-            }
-
+            // No overlay-permission gate: BlockOverlayActivity is a normal
+            // full-screen Activity (not a system overlay window), and an enabled
+            // accessibility service is exempt from background-activity-launch
+            // restrictions. Gate the block on anything else and enforcement
+            // silently dies when "Display over other apps" is not granted.
             val storage = policyStorage ?: PolicyStorage(applicationContext).also {
                 policyStorage = it
             }

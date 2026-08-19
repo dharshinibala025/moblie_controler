@@ -24,6 +24,8 @@ import syncService from '../../services/syncService';
 
 const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 12;
 
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 export const HomeScreen = ({ data, onOpenProfile }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -36,9 +38,15 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const [scheduleEnd, setScheduleEnd] = useState('16:00');
   const scheduleStartRef = useRef('09:00');
   const scheduleEndRef = useRef('16:00');
+  // Mirrors the native accessibility service active-days gate so the clock
+  // only shows ACTIVE when the phone would actually enforce the block.
+  const activeDaysRef = useRef(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
   // Server-truth: set true when a policy is active (admin/staff applied a rule).
   // Used by the live clock so "Set Restriction Timing" = block NOW immediately.
   const policyActiveRef = useRef(false);
+
+  // Native enforcement diagnostics for the self-test panel.
+  const [enforcement, setEnforcement] = useState(null);
 
   const handleScheduleStartChange = (val) => {
     setScheduleStart(val);
@@ -170,6 +178,19 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     }
   };
 
+  const loadEnforcementState = async () => {
+    try {
+      const res = await syncService.getEnforcementState();
+      setEnforcement(res);
+    } catch (e) {
+      setEnforcement(null);
+    }
+  };
+
+  const runTestBlock = () => {
+    syncService.testBlockOverlay();
+  };
+
   const handlePrimaryPermissionAction = async () => {
     setPermModalVisible(false);
     await new Promise(resolve => setTimeout(resolve, 400));
@@ -220,10 +241,12 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       if (p) {
         if (p.scheduleStart) handleScheduleStartChange(p.scheduleStart);
         if (p.scheduleEnd) handleScheduleEndChange(p.scheduleEnd);
+        if (p.activeDays && p.activeDays.length) activeDaysRef.current = p.activeDays;
         policyActiveRef.current = p.status === 'active';
-        setStatusMode(p.status === 'active' ? 'ACTIVE' : statusMode);
       }
     }).catch(() => {});
+
+    loadEnforcementState();
 
     const subscription = AppState.addEventListener('change', async (nextState) => {
       if (nextState === 'active') {
@@ -237,9 +260,12 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
           if (p) {
             if (p.scheduleStart) handleScheduleStartChange(p.scheduleStart);
             if (p.scheduleEnd) handleScheduleEndChange(p.scheduleEnd);
+            if (p.activeDays && p.activeDays.length) activeDaysRef.current = p.activeDays;
             policyActiveRef.current = p.status === 'active';
           }
         }).catch(() => {});
+
+        loadEnforcementState();
 
         // If user returned from Settings and a permission step was in progress,
         // check if it was granted and advance to next step (one-by-one, no re-trigger)
@@ -276,24 +302,32 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       const endSec = endH * 3600 + endM * 60;
       const totalDuration = endSec - startSec;
 
-      // Manual-start: a server-active policy means "block NOW" regardless of
-      // the clock, so the live clock shows ACTIVE as soon as it is applied.
-      if (policyActiveRef.current) {
+      // Same gates as the native accessibility service: enforce only while the
+      // policy is active, today is an active day, and the clock is before the
+      // end time. After scheduleEnd the screen correctly shows LIFTED instead
+      // of "Restrictions Active" while the phone allows every app.
+      const dayName = DAYS[now.getDay()];
+      const dayOk =
+        activeDaysRef.current.length === 0 || activeDaysRef.current.includes(dayName);
+      const shouldEnforce =
+        policyActiveRef.current && dayOk && currentSec < endSec;
+
+      if (shouldEnforce) {
         const remaining = Math.max(0, endSec - currentSec);
         const prog = remaining / totalDuration;
         setStatusMode('ACTIVE');
         setRemainingSeconds(remaining);
         setProgress(Math.min(1, Math.max(0, prog)));
+      } else if (currentSec >= endSec || (policyActiveRef.current && !dayOk)) {
+        setStatusMode('LIFTED');
+        setRemainingSeconds(0);
+        setProgress(1.0);
       } else if (currentSec >= startSec && currentSec < endSec) {
         const remaining = endSec - currentSec;
         const prog = remaining / totalDuration;
         setStatusMode('ACTIVE');
         setRemainingSeconds(remaining);
         setProgress(prog);
-      } else if (currentSec >= endSec) {
-        setStatusMode('LIFTED');
-        setRemainingSeconds(0);
-        setProgress(1.0);
       } else {
         const remaining = startSec - currentSec;
         const prog = remaining / startSec;
@@ -315,6 +349,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         setPermissions(res);
         setAccessibilityBroken(res.accessibilityEnabled === false);
       }
+      loadEnforcementState();
     }, 60 * 1000);
 
     return () => {
@@ -436,6 +471,55 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
           {/* 3. Restriction Schedule Info */}
           <ScheduleInfo scheduleText={`${formatTo12Hour(scheduleStart)} – ${formatTo12Hour(scheduleEnd)}`} />
+
+          {/* 4. Enforcement self-test — live native state + one-tap block preview */}
+          <View style={styles.selfTestCard}>
+            <View style={styles.selfTestHeader}>
+              <MaterialCommunityIcons name="shield-search" size={20} color="#2563EB" />
+              <Text style={styles.selfTestTitle}>Enforcement Self-Test</Text>
+            </View>
+
+            {enforcement ? (
+              <View style={styles.selfTestRows}>
+                <View style={styles.selfTestRow}>
+                  <Text style={styles.selfTestLabel}>Accessibility</Text>
+                  <Text
+                    style={[styles.selfTestValue, enforcement.accessibilityEnabled ? styles.okText : styles.badText]}
+                  >
+                    {enforcement.accessibilityEnabled ? 'ON' : 'OFF'}
+                  </Text>
+                </View>
+                <View style={styles.selfTestRow}>
+                  <Text style={styles.selfTestLabel}>Overlay</Text>
+                  <Text style={[styles.selfTestValue, enforcement.overlayEnabled ? styles.okText : styles.badText]}>
+                    {enforcement.overlayEnabled ? 'ON' : 'OFF'}
+                  </Text>
+                </View>
+                <View style={styles.selfTestRow}>
+                  <Text style={styles.selfTestLabel}>Native policy</Text>
+                  <Text
+                    style={[
+                      styles.selfTestValue,
+                      String(enforcement.status).toLowerCase() === 'active' ? styles.okText : styles.mutedText,
+                    ]}
+                  >
+                    {enforcement.status} · {enforcement.blockedAppCount} + {enforcement.categoryAppCount} categories
+                  </Text>
+                </View>
+                <View style={styles.selfTestRow}>
+                  <Text style={styles.selfTestLabel}>Unlocks at</Text>
+                  <Text style={styles.selfTestValue}>{enforcement.scheduleEnd}</Text>
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.selfTestEmpty}>Pull down to refresh enforcement state</Text>
+            )}
+
+            <TouchableOpacity activeOpacity={0.8} style={styles.testBlockButton} onPress={runTestBlock}>
+              <MaterialCommunityIcons name="block-helper" size={18} color="#FFFFFF" />
+              <Text style={styles.testBlockButtonText}>Test Block — preview the block screen</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </ScrollView>
 
@@ -632,6 +716,73 @@ const styles = StyleSheet.create({
   enableButtonText: {
     color: '#FFFFFF',
     fontSize: 12,
+    fontWeight: '700',
+  },
+  selfTestCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginTop: 12,
+  },
+  selfTestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  selfTestTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  selfTestRows: {
+    gap: 6,
+  },
+  selfTestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selfTestLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  selfTestValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#334155',
+  },
+  okText: {
+    color: '#16A34A',
+  },
+  badText: {
+    color: '#DC2626',
+  },
+  mutedText: {
+    color: '#94A3B8',
+  },
+  selfTestEmpty: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginBottom: 6,
+  },
+  testBlockButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563EB',
+    borderRadius: 10,
+    paddingVertical: 11,
+    marginTop: 10,
+  },
+  testBlockButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '700',
   },
 });

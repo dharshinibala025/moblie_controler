@@ -33,16 +33,18 @@ const toMinutes = (hhmm) => {
   return (h || 0) * 60 + (m || 0);
 };
 
+// Mirrors the native accessibility service (RestrictionAccessibilityService.
+// shouldEnforceNow): blocking begins the moment the policy is applied and
+// auto-lifts at the end time. The start time is NOT a gate — only the end
+// time and the configured active days limit enforcement. This keeps the Apps
+// screen honest: after scheduleEnd the banner never says "Restrictions Active".
 const isWithinWindow = (policy, now) => {
   if (!policy) return false;
   const dayName = DAYS[now.getDay()];
   const activeDays = policy.activeDays && policy.activeDays.length ? policy.activeDays : [];
   if (activeDays.length > 0 && !activeDays.includes(dayName)) return false;
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  return (
-    currentMinutes >= toMinutes(policy.scheduleStart) &&
-    currentMinutes < toMinutes(policy.scheduleEnd)
-  );
+  return currentMinutes < toMinutes(policy.scheduleEnd);
 };
 
 const format12Hour = (timeStr) => {
@@ -65,15 +67,14 @@ export const AppsScreen = ({ data }) => {
   const [tick, setTick] = useState(Date.now());
 
   // Derived live restriction state recomputed on every tick (30s) + app resume.
-  // The server-computed scheduleActive (IST) takes priority so the banner stays
-  // consistent with the backend; device-local time is only a fallback for
-  // legacy payloads that lack scheduleActive.
+  // The local end-time/day check mirrors native enforcement so the banner and
+  // blocked badges never disagree with what the accessibility service actually
+  // does on the phone.
   const restriction = useMemo(() => {
     const now = new Date(tick);
     const p = policy || {};
     const status = p.status || 'inactive';
-    const within =
-      typeof p.scheduleActive === 'boolean' ? p.scheduleActive : isWithinWindow(p, now);
+    const within = isWithinWindow(p, now);
     const active = status === 'active' && within;
     return {
       active,

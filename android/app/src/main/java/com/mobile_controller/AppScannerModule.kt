@@ -32,6 +32,11 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             // Collect user-facing (launcher) packages first, resolving launchers robustly.
             val launcherPackages = resolveLauncherPackages()
 
+            // Auto-enforce categories: while a policy is active, every installed
+            // app the device classifies into one of these is blocked natively.
+            val autoBlockCategories = setOf("social", "games", "entertainment")
+            val categoryEnforcedPackages = mutableListOf<String>()
+
             // Sort by app label for a stable, predictable order.
             val sortedApps = appsList.sortedWith(
                 compareBy { appInfo ->
@@ -92,12 +97,21 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     appMap.putBoolean("isSocial", isSocial)
                     appMap.putString("category", category)
 
+                    if (category.lowercase() in autoBlockCategories) {
+                        categoryEnforcedPackages.add(packageName)
+                    }
+
                     resultArray.pushMap(appMap)
                 } catch (e: Exception) {
                     // Skip a single problematic package instead of failing the whole scan.
                     Log.w("AppScanner", "Skipped package due to error: ${appInfo.packageName}", e)
                 }
             }
+
+            // Persist the device-classified social/games/entertainment packages
+            // natively so the accessibility service enforces them whenever a
+            // policy is active — even if the server/scan payload is stale.
+            PolicyStorage(reactContext).saveCategoryEnforcedPackages(categoryEnforcedPackages)
 
             promise.resolve(resultArray)
         } catch (e: Exception) {
@@ -389,6 +403,55 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    /**
+     * One-tap self-test: launches the block screen directly so the student can
+     * verify the native overlay works without waiting for a real restriction.
+     */
+    @ReactMethod
+    fun testBlockOverlay() {
+        try {
+            val policyStorage = PolicyStorage(reactContext)
+            val intent = Intent(reactContext, BlockOverlayActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra("packageName", "com.example.test.blocked")
+                putExtra(
+                    "reason",
+                    if (policyStorage.getReason().isBlank()) "Self-test · block screen preview" else policyStorage.getReason()
+                )
+                putExtra("scheduleStart", policyStorage.getScheduleStart())
+                putExtra("scheduleEnd", policyStorage.getScheduleEnd())
+                putExtra("nextUnlockLabel", policyStorage.getScheduleEnd())
+            }
+            reactContext.startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * Live diagnostic of the native enforcement chain: permission state, stored
+     * policy status and how many packages the accessibility service would block.
+     */
+    @ReactMethod
+    fun getEnforcementState(promise: Promise) {
+        try {
+            val policyStorage = PolicyStorage(reactContext)
+            val result = Arguments.createMap()
+            result.putBoolean("accessibilityEnabled", isAccessibilityServiceEnabled())
+            result.putBoolean("overlayEnabled", canDrawOverlays())
+            result.putString("status", policyStorage.getStatus())
+            result.putBoolean("configured", policyStorage.isConfigured())
+            result.putBoolean("emergency", policyStorage.getEmergency())
+            result.putInt("blockedAppCount", policyStorage.getBlockedApps().size)
+            result.putInt("categoryAppCount", policyStorage.getCategoryEnforcedPackages().size)
+            result.putString("scheduleStart", policyStorage.getScheduleStart())
+            result.putString("scheduleEnd", policyStorage.getScheduleEnd())
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("ENFORCEMENT_STATE_ERROR", e.localizedMessage, e)
         }
     }
 }

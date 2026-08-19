@@ -430,6 +430,27 @@ class SyncService {
     }
   }
 
+  async getEnforcementState() {
+    if (AppScannerModule && AppScannerModule.getEnforcementState) {
+      try {
+        return await AppScannerModule.getEnforcementState();
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  testBlockOverlay() {
+    if (AppScannerModule && AppScannerModule.testBlockOverlay) {
+      try {
+        AppScannerModule.testBlockOverlay();
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
   async reportBlockedAttempt(packageName, appName, policyVersion) {
     try {
       const serverDeviceId = await AsyncStorage.getItem(CACHE_KEYS.DEVICE_ID);

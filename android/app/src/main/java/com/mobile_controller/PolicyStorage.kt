@@ -84,6 +84,38 @@ class PolicyStorage(context: Context) {
         return set
     }
 
+    fun saveCategoryEnforcedPackages(packages: List<String>) {
+        val jsonArray = JSONArray(packages)
+        prefs.edit()
+            .putString("category_enforced_apps", jsonArray.toString())
+            .apply()
+    }
+
+    fun getCategoryEnforcedPackages(): Set<String> {
+        val raw = prefs.getString("category_enforced_apps", "[]") ?: "[]"
+        val set = mutableSetOf<String>()
+        try {
+            val jsonArray = JSONArray(raw)
+            for (i in 0 until jsonArray.length()) {
+                set.add(jsonArray.getString(i))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return set
+    }
+
+    // Union of the explicit policy list + every installed app the phone
+    // classifies as social/games/entertainment. The accessibility service
+    // enforces this union while the policy is active, so ALL social media
+    // blocks even if the server list is stale or the realtime sync has not
+    // reached the device yet.
+    fun getEnforcedApps(): Set<String> {
+        val enforced = getBlockedApps().toMutableSet()
+        enforced.addAll(getCategoryEnforcedPackages())
+        return enforced
+    }
+
     fun getScheduleStart(): String = prefs.getString("schedule_start", "09:00") ?: "09:00"
     fun getScheduleEnd(): String = prefs.getString("schedule_end", "16:00") ?: "16:00"
     fun getReason(): String = prefs.getString("reason", "") ?: ""
