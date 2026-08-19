@@ -111,6 +111,9 @@ const resolvePackagesFromRules = (rules) => {
       }
     }
   }
+  // Settings is always part of an active restriction policy so permission
+  // revocation is impossible mid-class (time-bounded by the end time).
+  blocked.add(SETTINGS_PACKAGE);
   return Array.from(blocked);
 };
 
@@ -255,14 +258,12 @@ const getStudentPolicy = async ({ student, device = null, now }) => {
     ? await resolveBlockedPackages(student._id, activeRules)
     : [];
 
-  // Block the Android Settings app during an active restriction window, but
-  // only once the student has completed setup (both permissions granted).
+  // Block the Android Settings app during an active restriction window so the
+  // student cannot revoke permissions mid-class. Always applied while active
+  // (enforcement is time-bounded: after the end time the overlay auto-stops and
+  // Settings becomes usable again).
   if (
     status === "active" &&
-    device &&
-    device.deviceInfo &&
-    device.deviceInfo.accessibilityEnabled === true &&
-    device.deviceInfo.overlayEnabled === true &&
     !blockedPackages.includes(SETTINGS_PACKAGE)
   ) {
     blockedPackages.push(SETTINGS_PACKAGE);

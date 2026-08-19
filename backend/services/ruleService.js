@@ -148,20 +148,26 @@ const resolveActorLabel = async (actorId) => {
 
 // Build the full policy data block sent over socket + FCM so a device can
 // update its local PolicyStorage in ONE message (no extra /policy/latest fetch).
-const buildPolicyData = (action, status, blockedPackages, rule, serverTimestamp) => ({
-  action,
-  status,
-  blockedPackages: JSON.stringify(blockedPackages || []),
-  scheduleStart: rule && rule.scheduleStart ? rule.scheduleStart : "09:00",
-  scheduleEnd: rule && rule.scheduleEnd ? rule.scheduleEnd : "16:00",
-  activeDays: JSON.stringify(
-    rule && rule.activeDays && rule.activeDays.length > 0 ? rule.activeDays : DEFAULT_ACTIVE_DAYS
-  ),
-  reason: rule && rule.reason ? rule.reason : "",
-  policyVersion: String(rule && rule.policyVersion ? rule.policyVersion : 1),
-  ruleId: rule && rule._id ? String(rule._id) : "",
-  serverTimestamp: serverTimestamp.toISOString(),
-});
+// Socket emissions carry blockedPackages as a REAL array (the JS client checks
+// Array.isArray); FCM data messages keep it JSON-stringified because FCM data
+// fields only accept string values.
+const buildPolicyData = (action, status, blockedPackages, rule, serverTimestamp, options = {}) => {
+  const isFcm = options.fcm === true;
+  return {
+    action,
+    status,
+    blockedPackages: isFcm ? JSON.stringify(blockedPackages || []) : blockedPackages || [],
+    scheduleStart: rule && rule.scheduleStart ? rule.scheduleStart : "09:00",
+    scheduleEnd: rule && rule.scheduleEnd ? rule.scheduleEnd : "16:00",
+    activeDays: JSON.stringify(
+      rule && rule.activeDays && rule.activeDays.length > 0 ? rule.activeDays : DEFAULT_ACTIVE_DAYS
+    ),
+    reason: rule && rule.reason ? rule.reason : "",
+    policyVersion: String(rule && rule.policyVersion ? rule.policyVersion : 1),
+    ruleId: rule && rule._id ? String(rule._id) : "",
+    serverTimestamp: serverTimestamp.toISOString(),
+  };
+};
 
 /**
  * Create a rule for a class, or update the latest existing rule for that class
@@ -296,7 +302,8 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
         newStatus,
         blockedPackagesByClass[classId] || [],
         rulesByClass[classId] ? rulesByClass[classId][0] : null,
-        serverTimestamp
+        serverTimestamp,
+        { fcm: true }
       );
       fcmService
         .sendToMultipleDevices(tokens, payload)
@@ -387,18 +394,29 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
   const deviceStatusMap = { start: "blocked", pause: "active", stop: "active" };
   const newDeviceStatus = deviceStatusMap[action] || "active";
 
-  // Broadcast using Socket class logic
-  const policyData = buildPolicyData(
+  // Broadcast using Socket class logic (socket carries a real array; FCM keeps
+  // the JSON-string form since FCM data fields only accept string values).
+  const resolvedPackages =
+    action === "start" ? autoBlockService.resolvePackagesFromRules([rule.toObject()]) : [];
+  const socketPolicyData = buildPolicyData(
     action,
     rule.status,
-    action === "start" ? autoBlockService.resolvePackagesFromRules([rule.toObject()]) : [],
+    resolvedPackages,
     rule.toObject(),
     serverTimestamp
+  );
+  const fcmPolicyData = buildPolicyData(
+    action,
+    rule.status,
+    resolvedPackages,
+    rule.toObject(),
+    serverTimestamp,
+    { fcm: true }
   );
   emitToClass(rule.targetClassId, "rule:update", {
     ruleId: rule._id,
     action,
-    ...policyData,
+    ...socketPolicyData,
   });
 
   if (targetDevices.length > 0) {
@@ -423,7 +441,7 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
       Promise.allSettled(
         devicesWithFcm.map((device) =>
           fcmService.sendToDevice(device.fcmToken, {
-            ...policyData,
+            ...fcmPolicyData,
             ruleId: rule._id.toString(),
           })
         )

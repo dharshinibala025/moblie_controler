@@ -267,9 +267,23 @@ class SyncService {
                 }),
               ).catch(() => {});
             } else if (action === 'start') {
-              // Block: use the full payload pushed by the server when present
-              // (no extra /policy/latest fetch needed, avoids 429 throttling).
-              let packages = Array.isArray(blockedPackages) ? blockedPackages : null;
+              // Block: parse the payload pushed by the server (socket sends a
+              // real array, FCM sends a JSON-encoded string). Only fall back to
+              // /policy/latest when no packages were provided, and if that
+              // refetch fails keep the last-known list instead of wiping
+              // enforcement to zero ("Restrictions Active · 0 apps blocked").
+              let packages = Array.isArray(blockedPackages)
+                ? blockedPackages
+                : null;
+              if (packages === null && typeof blockedPackages === 'string' && blockedPackages.trim()) {
+                try {
+                  const parsed = JSON.parse(blockedPackages);
+                  if (Array.isArray(parsed)) packages = parsed;
+                } catch (e) {
+                  packages = null;
+                }
+              }
+              if (packages !== null && !Array.isArray(packages)) packages = null;
               let policy = null;
 
               if (!packages) {
@@ -278,6 +292,17 @@ class SyncService {
                   policy = await apiFetch(`/policy/latest?deviceId=${deviceId}&syncType=realtime`, { method: 'GET' })
                     .catch(() => null);
                   packages = policy && Array.isArray(policy.blockedPackages) ? policy.blockedPackages : [];
+                }
+                if (!packages || packages.length === 0) {
+                  const prev = await AsyncStorage.getItem(CACHE_KEYS.POLICY_CACHE).catch(() => null);
+                  if (prev) {
+                    try {
+                      const prevPolicy = JSON.parse(prev);
+                      if (prevPolicy && Array.isArray(prevPolicy.blockedPackages) && prevPolicy.blockedPackages.length > 0) {
+                        packages = prevPolicy.blockedPackages;
+                      }
+                    } catch (e) { /* ignore */ }
+                  }
                 }
               } else {
                 policy = {

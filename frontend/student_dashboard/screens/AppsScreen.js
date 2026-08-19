@@ -109,7 +109,9 @@ export const AppsScreen = ({ data }) => {
         scheduleEnd: data.scheduleEnd || '16:00',
         activeDays: data.activeDays || [],
         restrictionReason: data.restrictionReason || '',
-        blockedPackages: data.blockedApps || [],
+        blockedPackages: (data.blockedApps || [])
+          .map((a) => (typeof a === 'string' ? a : a.packageName || a.package))
+          .filter(Boolean),
         source: data.source || 'default',
       });
     }
@@ -295,7 +297,7 @@ export const AppsScreen = ({ data }) => {
           </Text>
           <Text style={styles.statusBannerSubtitle} numberOfLines={2}>
             {isRestrictionActive
-              ? `${restriction.blockedPackages.length} apps blocked · Unlocks at ${format12Hour(
+              ? `${blockedCount} apps blocked · Unlocks at ${format12Hour(
                   restriction.scheduleEnd,
                 )}`
               : restriction.emergency

@@ -75,9 +75,7 @@ const initializeSocket = (httpServer) => {
         const Device = require("../models/Device");
         const Rule = require("../models/Rule");
         const { getEmergencyUnblock } = require("../utils/emergencyHelper");
-        const { getISTDate } = require("../utils/istTime");
-        const { isRuleActiveNow } = require("../utils/scheduleHelper");
-        const { buildScopeRuleQuery } = require("../services/autoBlockService");
+        const { buildScopeRuleQuery, resolvePackagesFromRules } = require("../services/autoBlockService");
 
         const student = await User.findById(user.userId).select("classId academicYearId sectionId departmentId institutionId").lean();
         if (!student || !student.classId) return;
@@ -102,22 +100,22 @@ const initializeSocket = (httpServer) => {
 
         const activeRules = rules.filter((r) => r.status === "active");
 
-        let scheduleActive = false;
-        if (activeRules.length > 0) {
-          const istNow = getISTDate();
-          scheduleActive = activeRules.some((rule) => isRuleActiveNow(rule, istNow));
-        }
+        // Manual-start semantics (matches getStudentPolicy): any active rule
+        // means the policy is being enforced right now, regardless of the clock.
+        const scheduleActive = activeRules.length > 0;
 
+        // Resolved package names (never raw category tokens) so the device can
+        // match them against real installed packages and enforce them.
         let action, blockedApps;
-        if (deviceStatus === "active") {
-          action = "pause";
-          blockedApps = [];
-        } else if (emergencyActive) {
+        if (emergencyActive) {
           action = "stop";
           blockedApps = [];
         } else if (scheduleActive) {
           action = "start";
-          blockedApps = activeRules.flatMap((r) => r.blockedApps || []);
+          blockedApps = resolvePackagesFromRules(activeRules);
+        } else if (deviceStatus === "active") {
+          action = "pause";
+          blockedApps = [];
         } else {
           action = "stop";
           blockedApps = [];

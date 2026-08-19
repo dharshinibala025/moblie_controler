@@ -31,6 +31,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [progress, setProgress] = useState(0.5);
   const [permissions, setPermissions] = useState({ accessibilityEnabled: false, overlayEnabled: false });
+  const [accessibilityBroken, setAccessibilityBroken] = useState(false);
   const [scheduleStart, setScheduleStart] = useState('09:00');
   const [scheduleEnd, setScheduleEnd] = useState('16:00');
   const scheduleStartRef = useRef('09:00');
@@ -227,7 +228,10 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     const subscription = AppState.addEventListener('change', async (nextState) => {
       if (nextState === 'active') {
         const res = await syncService.checkPermissions().catch(() => null);
-        if (res) setPermissions(res);
+        if (res) {
+          setPermissions(res);
+          setAccessibilityBroken(res.accessibilityEnabled === false);
+        }
 
         syncService.getCachedPolicy().then((p) => {
           if (p) {
@@ -301,8 +305,21 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
     updateState();
     const interval = setInterval(updateState, 1000);
+
+    // Health check: if accessibility gets disabled (OS kill / force-stop /
+    // battery optimization), surface a re-enable banner so enforcement doesn't
+    // silently stop ("Not working - App info" in Settings).
+    const healthInterval = setInterval(async () => {
+      const res = await syncService.checkPermissions().catch(() => null);
+      if (res) {
+        setPermissions(res);
+        setAccessibilityBroken(res.accessibilityEnabled === false);
+      }
+    }, 60 * 1000);
+
     return () => {
       clearInterval(interval);
+      clearInterval(healthInterval);
       subscription?.remove();
       syncService.stopRealtimeListener();
       syncService.stopPeriodicSync();
@@ -385,6 +402,27 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
               <Text style={styles.protectionActiveBadgeText}>
                 App Blocking Protection Active & Enforced
               </Text>
+            </View>
+          ) : null}
+
+          {/* Accessibility health warning: the service may have been disabled
+              by the OS (battery optimization / force-stop) -> re-enable prompt */}
+          {accessibilityBroken ? (
+            <View style={styles.accessBrokenBanner}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#DC2626" />
+              <View style={styles.accessBrokenTextWrap}>
+                <Text style={styles.accessBrokenTitle}>Accessibility is off</Text>
+                <Text style={styles.accessBrokenSubtitle}>
+                  App blocking may not work — re-enable it.
+                </Text>
+              </View>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.accessBrokenButton}
+                onPress={() => syncService.openAccessibilitySettings()}
+              >
+                <Text style={styles.accessBrokenButtonText}>Re-enable</Text>
+              </TouchableOpacity>
             </View>
           ) : null}
 
@@ -503,6 +541,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#16A34A',
+  },
+  accessBrokenBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginVertical: 10,
+    gap: 8,
+    width: '100%',
+  },
+  accessBrokenTextWrap: {
+    flex: 1,
+  },
+  accessBrokenTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  accessBrokenSubtitle: {
+    fontSize: 11,
+    color: '#B91C1C',
+    marginTop: 1,
+  },
+  accessBrokenButton: {
+    backgroundColor: '#DC2626',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  accessBrokenButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   protectionWarningBadge: {
     flexDirection: 'row',
