@@ -338,14 +338,25 @@ class SyncService {
                 };
               }
 
-              // Enrich with locally-classified social/games/entertainment apps
-              // so native enforcement matches what the Apps screen shows, even
-              // if the server list is stale or empty.
+              // Refresh the device-classified set at apply time so native
+              // enforcement (getInstalledApps persists social/games/entertainment
+              // into PolicyStorage) and the Apps screen are both fresh right now.
               let installedApps = [];
               try {
-                const cachedApps = await AsyncStorage.getItem(CACHE_KEYS.APPS_CACHE);
-                if (cachedApps) installedApps = JSON.parse(cachedApps) || [];
+                if (AppScannerModule && AppScannerModule.getInstalledApps) {
+                  installedApps = (await AppScannerModule.getInstalledApps().catch(() => [])) || [];
+                }
               } catch (e) { /* ignore */ }
+              if (installedApps.length) {
+                try {
+                  await AsyncStorage.setItem(CACHE_KEYS.APPS_CACHE, JSON.stringify(installedApps));
+                } catch (e) { /* ignore */ }
+              } else {
+                try {
+                  const cachedApps = await AsyncStorage.getItem(CACHE_KEYS.APPS_CACHE);
+                  if (cachedApps) installedApps = JSON.parse(cachedApps) || [];
+                } catch (e) { /* ignore */ }
+              }
               const enriched = enrichBlockedPackages(packages || [], installedApps);
               packages = enriched;
 

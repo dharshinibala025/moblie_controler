@@ -1,11 +1,14 @@
 package com.mobile_controller
 
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import android.view.accessibility.AccessibilityManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -116,6 +119,56 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             promise.resolve(resultArray)
         } catch (e: Exception) {
             promise.reject("SCAN_ERROR", e.localizedMessage, e)
+        }
+    }
+
+    /**
+     * Lightweight re-scan that only refreshes the auto-enforce category set
+     * (social/games/entertainment) into PolicyStorage. Called from the realtime
+     * rule:update handler so the accessibility service's enforced union is fresh
+     * the moment staff/admin apply restrictions.
+     */
+    @ReactMethod
+    fun refreshEnforcedCategories(promise: Promise) {
+        try {
+            val pm = reactContext.packageManager
+            val launcherPackages = resolveLauncherPackages()
+            val autoBlockCategories = setOf("social", "games", "entertainment")
+            val categoryEnforcedPackages = mutableListOf<String>()
+            val appsList: List<ApplicationInfo> = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+
+            for (appInfo in appsList) {
+                try {
+                    val packageName = appInfo.packageName
+                    val hasLaunchIntent = launcherPackages.contains(packageName) ||
+                        pm.getLaunchIntentForPackage(packageName) != null
+                    if (!hasLaunchIntent) continue
+
+                    val appName = pm.getApplicationLabel(appInfo).toString()
+                    val flagIsGame = (appInfo.flags and 0x00400000) != 0
+                    val categoryIsGame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        appInfo.category == ApplicationInfo.CATEGORY_GAME
+                    } else {
+                        false
+                    }
+                    val isGame = flagIsGame || categoryIsGame
+                    val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    val category = AppClassifier.classify(packageName, appName, isGame, isSystemApp)
+                    if (category.lowercase() in autoBlockCategories) {
+                        categoryEnforcedPackages.add(packageName)
+                    }
+                } catch (e: Exception) {
+                    // skip a single problematic package
+                }
+            }
+
+            PolicyStorage(reactContext).saveCategoryEnforcedPackages(categoryEnforcedPackages)
+
+            val result = Arguments.createMap()
+            result.putInt("count", categoryEnforcedPackages.size)
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("REFRESH_CATEGORIES_ERROR", e.localizedMessage, e)
         }
     }
 
@@ -357,6 +410,35 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                enabledServices.contains("com.mobile_controller/com.mobile_controller")
     }
 
+    /**
+     * True liveness check: returns true only when the accessibility service is
+     * actually BOUND/RUNNING right now (not just enabled in the settings list).
+     * A service can be enabled-but-dead ("Not working") — that is the #1 silent
+     * cause of "accessibility is ON but apps are not blocked".
+     */
+    private fun isAccessibilityServiceRunning(): Boolean {
+        try {
+            val am = reactContext.getSystemService(AccessibilityManager::class.java)
+                ?: return isAccessibilityServiceEnabled()
+            val runningServices = am.getEnabledAccessibilityServiceList(
+                AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+            )
+            for (info in runningServices) {
+                val id = info.resolveInfo?.serviceInfo
+                if (id == null) continue
+                val candidate = id.packageName + "/" + id.name
+                if (candidate.contains(reactContext.packageName) &&
+                    candidate.contains("RestrictionAccessibilityService")
+                ) {
+                    return true
+                }
+            }
+            return false
+        } catch (e: Exception) {
+            return isAccessibilityServiceEnabled()
+        }
+    }
+
     private fun canDrawOverlays(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Settings.canDrawOverlays(reactContext)
@@ -370,6 +452,7 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
         try {
             val result = Arguments.createMap()
             result.putBoolean("accessibilityEnabled", isAccessibilityServiceEnabled())
+            result.putBoolean("accessibilityRunning", isAccessibilityServiceRunning())
             result.putBoolean("overlayEnabled", canDrawOverlays())
             promise.resolve(result)
         } catch (e: Exception) {
@@ -441,6 +524,7 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             val policyStorage = PolicyStorage(reactContext)
             val result = Arguments.createMap()
             result.putBoolean("accessibilityEnabled", isAccessibilityServiceEnabled())
+            result.putBoolean("accessibilityRunning", isAccessibilityServiceRunning())
             result.putBoolean("overlayEnabled", canDrawOverlays())
             result.putString("status", policyStorage.getStatus())
             result.putBoolean("configured", policyStorage.isConfigured())

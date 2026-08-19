@@ -32,7 +32,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const [statusMode, setStatusMode] = useState('ACTIVE'); // 'ACTIVE' | 'LIFTED' | 'BEFORE'
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [progress, setProgress] = useState(0.5);
-  const [permissions, setPermissions] = useState({ accessibilityEnabled: false, overlayEnabled: false });
+  const [permissions, setPermissions] = useState({ accessibilityEnabled: false, accessibilityRunning: false, overlayEnabled: false });
   const [accessibilityBroken, setAccessibilityBroken] = useState(false);
   const [scheduleStart, setScheduleStart] = useState('09:00');
   const [scheduleEnd, setScheduleEnd] = useState('16:00');
@@ -253,7 +253,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         const res = await syncService.checkPermissions().catch(() => null);
         if (res) {
           setPermissions(res);
-          setAccessibilityBroken(res.accessibilityEnabled === false);
+          setAccessibilityBroken(res.accessibilityRunning === false || res.accessibilityEnabled === false);
         }
 
         syncService.getCachedPolicy().then((p) => {
@@ -347,7 +347,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       const res = await syncService.checkPermissions().catch(() => null);
       if (res) {
         setPermissions(res);
-        setAccessibilityBroken(res.accessibilityEnabled === false);
+        setAccessibilityBroken(res.accessibilityRunning === false || res.accessibilityEnabled === false);
       }
       loadEnforcementState();
     }, 60 * 1000);
@@ -384,6 +384,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
   const studentName = data?.student?.name || '';
   const studentDept = data?.student?.fullDepartment || data?.student?.department || '';
   const isProtectionComplete = permissions.accessibilityEnabled && permissions.overlayEnabled;
+  const accIsDead = permissions.accessibilityEnabled && !permissions.accessibilityRunning;
 
   return (
     <View style={styles.container}>
@@ -446,9 +447,13 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
             <View style={styles.accessBrokenBanner}>
               <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#DC2626" />
               <View style={styles.accessBrokenTextWrap}>
-                <Text style={styles.accessBrokenTitle}>Accessibility is off</Text>
+                <Text style={styles.accessBrokenTitle}>
+                  {accIsDead ? 'Accessibility not running' : 'Accessibility is off'}
+                </Text>
                 <Text style={styles.accessBrokenSubtitle}>
-                  App blocking may not work — re-enable it.
+                  {accIsDead
+                    ? 'It is enabled but the service is dead — apps will NOT block. Tap to re-enable.'
+                    : 'App blocking may not work — re-enable it.'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -484,9 +489,16 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
                 <View style={styles.selfTestRow}>
                   <Text style={styles.selfTestLabel}>Accessibility</Text>
                   <Text
-                    style={[styles.selfTestValue, enforcement.accessibilityEnabled ? styles.okText : styles.badText]}
+                    style={[
+                      styles.selfTestValue,
+                      enforcement.accessibilityRunning ? styles.okText : styles.badText,
+                    ]}
                   >
-                    {enforcement.accessibilityEnabled ? 'ON' : 'OFF'}
+                    {enforcement.accessibilityRunning
+                      ? 'RUNNING'
+                      : enforcement.accessibilityEnabled
+                        ? 'ON · not running'
+                        : 'OFF'}
                   </Text>
                 </View>
                 <View style={styles.selfTestRow}>
