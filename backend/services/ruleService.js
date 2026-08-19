@@ -315,11 +315,17 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
     if (notify !== false && targetStudentIds.length > 0) {
       const Notification = require("../models/Notification");
       const actorLabel = await resolveActorLabel(actorId);
-      const title = action === "pause" ? "Policy Restriction Paused" : "Restriction Resumed";
-      const reason = affectedRules[0]?.reason;
-      const message = reason
-        ? `${actorLabel} Instruction: ${reason}`
-        : `Classroom restriction rule ${action}ed.`;
+      const rule0 = affectedRules[0];
+      const start = rule0?.scheduleStart || "09:00";
+      const end   = rule0?.scheduleEnd   || "16:00";
+      const fmt   = (t) => { const [h, m] = t.split(":"); const hr = parseInt(h, 10); return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`; };
+      const reason = rule0?.reason;
+      const title = action === "pause"
+        ? "📴 Restriction Paused - Apps temporarily unblocked"
+        : "▶️ Restriction Resumed";
+      const message = action === "pause"
+        ? `${actorLabel} paused class restrictions (${fmt(start)} – ${fmt(end)}). Apps are temporarily accessible.`
+        : `${actorLabel} resumed class restrictions (${fmt(start)} – ${fmt(end)}). Restricted apps are now blocked.`;
 
       await Notification.deleteMany({
         studentId: { $in: targetStudentIds },
@@ -453,17 +459,27 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
     const Notification = require("../models/Notification");
     const actorLabel = await resolveActorLabel(actorId);
     const reason = rule.reason;
+    const ruleObj = rule.toObject ? rule.toObject() : rule;
+    const start   = ruleObj.scheduleStart || "09:00";
+    const end     = ruleObj.scheduleEnd   || "16:00";
+    const fmt     = (t) => { const [h, m] = t.split(":"); const hr = parseInt(h, 10); return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`; };
+    const blockedCount = (action === "start" || transition === "resume") ? resolvedPackages.length : 0;
     const notificationTitle =
       transition === "resume"
-        ? "Restriction Resumed"
+        ? `▶️ Restriction Resumed - ${blockedCount} app${blockedCount !== 1 ? "s" : ""} blocked`
         : action === "start"
-          ? "Classroom Restriction Activated"
+          ? `🔒 Restriction Started - ${blockedCount} app${blockedCount !== 1 ? "s" : ""} blocked`
           : action === "pause"
-            ? "Policy Restriction Paused"
-            : "Classroom Policy Stopped";
-    const notificationMsg = reason
-      ? `${actorLabel} Instruction: ${reason}`
-      : `Classroom restriction rule ${action}ed.`;
+            ? "📴 Restriction Paused - Apps temporarily unblocked"
+            : "✅ Restriction Stopped";
+    const notificationMsg =
+      action === "start" || transition === "resume"
+        ? `${actorLabel} activated class restrictions (${fmt(start)} – ${fmt(end)}). ${blockedCount} restricted app${blockedCount !== 1 ? "s are" : " is"} now blocked.`
+        : action === "pause"
+          ? `${actorLabel} paused class restrictions (${fmt(start)} – ${fmt(end)}). Apps are temporarily accessible.`
+          : reason
+            ? `${actorLabel} stopped restrictions: ${reason}`
+            : `${actorLabel} stopped class restrictions. All apps are accessible.`;
 
     // Stacking fix: replace any prior unread restriction card with the newest
     // state so the student list never accumulates duplicate restriction cards.

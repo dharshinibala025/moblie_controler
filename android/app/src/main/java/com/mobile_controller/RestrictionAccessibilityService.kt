@@ -278,23 +278,21 @@ class RestrictionAccessibilityService : AccessibilityService() {
         }
         val appLabel = resolveAppLabel(packageName)
         val scheduleEnd = storage.getScheduleEnd()
-        val reason = storage.getReason().ifBlank { "Institutional policy during class hours." }
+        val reason = storage.getReason().ifBlank { "During class hours to support focused learning." }
 
+        // ── Outer full-screen background (light, non-intrusive) ─────────────
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#0B1220"))
-            setPadding(dp(24), dp(32), dp(24), dp(32))
-            // Focusable so it receives key events (Back interception below).
+            setBackgroundColor(Color.parseColor("#F1F5F9"))
+            setPadding(dp(24), dp(40), dp(24), dp(40))
             isFocusable = true
             isFocusableInTouchMode = true
-            isClickable = true  // consume touches so they don't pass through
+            isClickable = true
         }
         overlayRoot = root
 
-        // Intercept the Back button: swallow it so the student cannot escape
-        // the block screen via hardware/gesture back.  They must use the
-        // "Return to Home Screen" button.
+        // Intercept Back button so the student cannot escape via hardware back
         root.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
                 goHome()
@@ -304,123 +302,158 @@ class RestrictionAccessibilityService : AccessibilityService() {
             }
         }
 
-        // ── Frosted lock icon circle ──────────────────────────────────────────
-        val iconCircle = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(96), dp(96)).apply {
-                bottomMargin = dp(24)
+        // ── Card container (white, rounded, elevated shadow) ─────────────────
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(28), dp(36), dp(28), dp(32))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(24).toFloat()
+                setColor(Color.WHITE)
+                setStroke(dp(1), Color.parseColor("#E2E8F0"))
             }
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(Color.parseColor("#7C3AED"), Color.parseColor("#6D28D9"))
-            ).apply { cornerRadius = dp(48).toFloat() }
+            elevation = dp(6).toFloat()
         }
-        val lockText = TextView(this).apply {
+
+        // ── Lock icon circle ─────────────────────────────────────────────────
+        val iconCircle = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(80), dp(80)).apply {
+                bottomMargin = dp(20)
+            }
+            background = GradientDrawable().apply {
+                cornerRadius = dp(40).toFloat()
+                setColor(Color.parseColor("#EEF2FF"))
+                setStroke(dp(2), Color.parseColor("#C7D2FE"))
+            }
+        }
+        val lockEmoji = TextView(this).apply {
             text = "\uD83D\uDD12"
-            textSize = 40f
+            textSize = 34f
             gravity = Gravity.CENTER
         }
-        iconCircle.addView(lockText, FrameLayout.LayoutParams(
+        iconCircle.addView(lockEmoji, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ))
-        root.addView(iconCircle)
+        card.addView(iconCircle)
 
+        // ── Title ─────────────────────────────────────────────────────────────
         val titleText = TextView(this).apply {
             text = "Application Restricted"
-            textSize = 24f
-            setTextColor(Color.WHITE)
+            textSize = 22f
+            setTextColor(Color.parseColor("#0F172A"))
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, dp(6))
         }
-        root.addView(titleText)
+        card.addView(titleText)
 
+        // ── App name label ────────────────────────────────────────────────────
         overlayPackageLabel = TextView(this).apply {
             text = appLabel
             textSize = 14f
-            setTextColor(Color.parseColor("#C4B5FD"))
+            setTextColor(Color.parseColor("#4F46E5"))
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, dp(14))
         }
-        root.addView(overlayPackageLabel)
+        card.addView(overlayPackageLabel)
 
+        // ── Body text ─────────────────────────────────────────────────────────
         val bodyText = TextView(this).apply {
-            text = "$appLabel is locked during study hours to help you stay focused on learning."
-            textSize = 14f
-            setTextColor(Color.parseColor("#CBD5E1"))
+            text = "$appLabel is restricted during class hours. $reason"
+            textSize = 13f
+            setTextColor(Color.parseColor("#475569"))
             gravity = Gravity.CENTER
-            setLineSpacing(0f, 1.25f)
-            setPadding(0, 0, 0, dp(18))
+            setLineSpacing(0f, 1.3f)
+            setPadding(0, 0, 0, dp(20))
         }
-        root.addView(bodyText)
+        card.addView(bodyText)
 
-        // ── Live countdown chip ───────────────────────────────────────────────
+        // ── Live countdown chip (light blue) ──────────────────────────────────
         val chip = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(18), dp(12), dp(18), dp(12))
+            setPadding(dp(20), dp(14), dp(20), dp(14))
             background = GradientDrawable().apply {
-                cornerRadius = dp(16).toFloat()
-                setColor(Color.parseColor("#1A0F172A"))
-                setStroke(dp(1), Color.parseColor("#2A38BDF8"))
+                cornerRadius = dp(14).toFloat()
+                setColor(Color.parseColor("#EFF6FF"))
+                setStroke(dp(1), Color.parseColor("#BFDBFE"))
             }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(4) }
         }
         val unlockLabel = TextView(this).apply {
-            text = "Unlocks at ${nextUnlockLabel().ifBlank { formatTimeLabel(scheduleEnd) }}"
-            textSize = 12f
-            setTextColor(Color.parseColor("#93C5FD"))
+            text = "Unlocks at ${formatTimeLabel(scheduleEnd)}"
+            textSize = 11f
+            setTextColor(Color.parseColor("#2563EB"))
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
+            letterSpacing = 0.04f
         }
         chip.addView(unlockLabel)
 
         countdownText = TextView(this).apply {
-            textSize = 30f
-            setTextColor(Color.WHITE)
+            textSize = 32f
+            setTextColor(Color.parseColor("#0F172A"))
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setPadding(0, dp(2), 0, 0)
+            setPadding(0, dp(4), 0, 0)
         }
         chip.addView(countdownText)
-        root.addView(chip)
+        card.addView(chip)
 
+        // ── Reason/info small text ────────────────────────────────────────────
         val reasonText = TextView(this).apply {
-            text = "Reason · $reason"
-            textSize = 12f
+            text = "Administered by your institution · Contact staff for assistance"
+            textSize = 11f
             setTextColor(Color.parseColor("#94A3B8"))
             gravity = Gravity.CENTER
-            setPadding(0, dp(18), 0, 0)
+            setPadding(0, dp(16), 0, dp(16))
         }
-        root.addView(reasonText)
+        card.addView(reasonText)
 
-        // ── Return to Home button ─────────────────────────────────────────────
+        // ── Divider ───────────────────────────────────────────────────────────
+        val divider = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(1)
+            ).apply { bottomMargin = dp(16) }
+            setBackgroundColor(Color.parseColor("#F1F5F9"))
+        }
+        card.addView(divider)
+
+        // ── Return to Home Screen button ──────────────────────────────────────
         val homeButton = Button(this).apply {
             text = "Return to Home Screen"
             setTextColor(Color.WHITE)
             isAllCaps = false
             textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(Color.parseColor("#7C3AED"), Color.parseColor("#5B21B6"))
-            ).apply { cornerRadius = dp(16).toFloat() }
+            background = GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(Color.parseColor("#2563EB"))
+            }
+            setPadding(0, 0, 0, 0)
             setOnClickListener {
                 goHome()
                 dismissBlockOverlay()
             }
         }
-        val buttonWrap = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(0, dp(24), 0, 0)
-        }
         val buttonParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            dp(54)
+            dp(52)
         )
-        buttonWrap.addView(homeButton, buttonParams)
-        root.addView(buttonWrap)
+        card.addView(homeButton, buttonParams)
+
+        // Add the card into root
+        val cardParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        root.addView(card, cardParams)
 
         return root
     }

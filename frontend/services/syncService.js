@@ -1,4 +1,4 @@
-import { NativeModules } from 'react-native';
+import { NativeModules, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch, BASE_URL } from './apiConfig';
 
@@ -149,8 +149,6 @@ class SyncService {
         const policyVersion = policy.policyVersion || 1;
         const status = policy.status || 'active';
         const emergency = policy.emergency === 'active';
-        // Enrich with locally-classified social/games/entertainment apps so the
-        // native service enforces the same set the Apps screen shows.
         const blockedPackages = enrichBlockedPackages(policy.blockedPackages || [], installedApps);
         if (AppScannerModule && AppScannerModule.savePolicy) {
           await AppScannerModule.savePolicy(
@@ -165,18 +163,36 @@ class SyncService {
             emergency
           ).catch(() => null);
         }
-        await AsyncStorage.setItem(CACHE_KEYS.POLICY_VERSION, policyVersion.toString());
 
-        // Cache the full policy envelope so the Apps screen can render live
-        // badges and schedule info even while offline.
+        // Batch all AsyncStorage writes into a single native bridge call
+        const policyEnvelope = JSON.stringify({ ...policy, blockedPackages });
+        const pairs = [
+          [CACHE_KEYS.POLICY_VERSION, policyVersion.toString()],
+          [CACHE_KEYS.POLICY_CACHE, policyEnvelope],
+        ];
+        if (serverDeviceId) {
+          pairs.push([CACHE_KEYS.DEVICE_ID, serverDeviceId]);
+        }
+        if (installedApps && installedApps.length > 0) {
+          pairs.push([CACHE_KEYS.APPS_CACHE, JSON.stringify(installedApps)]);
+        }
         try {
-          await AsyncStorage.setItem(
-            CACHE_KEYS.POLICY_CACHE,
-            JSON.stringify({ ...policy, blockedPackages })
-          );
+          await AsyncStorage.multiSet(pairs);
         } catch (e) {
           // ignore cache failures
         }
+
+        // Emit policy change event so screens can update without heavy polling
+        try {
+          DeviceEventEmitter.emit('FocusSync:policyChanged', {
+            policyVersion,
+            status,
+            blockedPackages,
+            scheduleStart: policy.scheduleStart || '09:00',
+            scheduleEnd: policy.scheduleEnd || '16:00',
+            activeDays: policy.activeDays || [],
+          });
+        } catch (e) { /* ignore */ }
       }
     } catch (error) {
       console.warn('FocusSync: Background Synchronization failed:', error.message);
@@ -273,7 +289,6 @@ class SyncService {
 
           if (AppScannerModule && AppScannerModule.savePolicy) {
             if (action === 'pause' || action === 'stop') {
-              // Unblock: save empty blocked list with inactive status
               const pausedDays = normalizeDays(activeDays) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
               await AppScannerModule.savePolicy(
                 (policyVersion || 0).toString(),
@@ -287,36 +302,31 @@ class SyncService {
                 false
               ).catch(() => null);
 
-              // Update the policy cache so the Apps screen reflects the change
-              await AsyncStorage.setItem(
-                CACHE_KEYS.POLICY_CACHE,
-                JSON.stringify({
-                  policyVersion: policyVersion || 0,
-                  blockedPackages: [],
-                  status: 'inactive',
-                  scheduleStart: scheduleStart || '09:00',
-                  scheduleEnd: scheduleEnd || '16:00',
-                  activeDays: pausedDays,
-                  scheduleActive: false,
-                  source: 'realtime',
-                }),
-              ).catch(() => {});
+              // Batch cache write + emit event
+              const pausedPolicy = {
+                policyVersion: policyVersion || 0,
+                blockedPackages: [],
+                status: 'inactive',
+                scheduleStart: scheduleStart || '09:00',
+                scheduleEnd: scheduleEnd || '16:00',
+                activeDays: pausedDays,
+                scheduleActive: false,
+                source: 'realtime',
+              };
+              try {
+                await AsyncStorage.setItem(CACHE_KEYS.POLICY_CACHE, JSON.stringify(pausedPolicy));
+              } catch (e) { /* ignore */ }
+
+              try {
+                DeviceEventEmitter.emit('FocusSync:policyChanged', pausedPolicy);
+              } catch (e) { /* ignore */ }
             } else if (action === 'start') {
-              // Block: parse the payload pushed by the server (socket sends a
-              // real array, FCM sends a JSON-encoded string). Only fall back to
-              // /policy/latest when no packages were provided, and if that
-              // refetch fails keep the last-known list instead of wiping
-              // enforcement to zero ("Restrictions Active · 0 apps blocked").
-              let packages = Array.isArray(blockedPackages)
-                ? blockedPackages
-                : null;
+              let packages = Array.isArray(blockedPackages) ? blockedPackages : null;
               if (packages === null && typeof blockedPackages === 'string' && blockedPackages.trim()) {
                 try {
                   const parsed = JSON.parse(blockedPackages);
                   if (Array.isArray(parsed)) packages = parsed;
-                } catch (e) {
-                  packages = null;
-                }
+                } catch (e) { packages = null; }
               }
               if (packages !== null && !Array.isArray(packages)) packages = null;
               let policy = null;
@@ -350,25 +360,13 @@ class SyncService {
                 };
               }
 
-              // Refresh the device-classified set at apply time so native
-              // enforcement (getInstalledApps persists social/games/entertainment
-              // into PolicyStorage) and the Apps screen are both fresh right now.
               let installedApps = [];
               try {
                 if (AppScannerModule && AppScannerModule.getInstalledApps) {
                   installedApps = (await AppScannerModule.getInstalledApps().catch(() => [])) || [];
                 }
               } catch (e) { /* ignore */ }
-              if (installedApps.length) {
-                try {
-                  await AsyncStorage.setItem(CACHE_KEYS.APPS_CACHE, JSON.stringify(installedApps));
-                } catch (e) { /* ignore */ }
-              } else {
-                try {
-                  const cachedApps = await AsyncStorage.getItem(CACHE_KEYS.APPS_CACHE);
-                  if (cachedApps) installedApps = JSON.parse(cachedApps) || [];
-                } catch (e) { /* ignore */ }
-              }
+
               const enriched = enrichBlockedPackages(packages || [], installedApps);
               packages = enriched;
 
@@ -385,21 +383,29 @@ class SyncService {
                 policy?.emergency === 'active'
               ).catch(() => null);
 
-              // Update the policy cache so the Apps screen reflects the change
-              await AsyncStorage.setItem(
-                CACHE_KEYS.POLICY_CACHE,
-                JSON.stringify({
-                  policyVersion: policyVersion || 1,
-                  blockedPackages: packages,
-                  status: policy?.status || 'active',
-                  scheduleStart: scheduleStart || '09:00',
-                  scheduleEnd: scheduleEnd || '16:00',
-                  activeDays: startDays,
-                  scheduleActive: true,
-                  source: 'realtime',
-                  restrictionReason: policy?.restrictionReason || '',
-                }),
-              ).catch(() => {});
+              // Batch cache writes + emit event
+              const activePolicy = {
+                policyVersion: policyVersion || 1,
+                blockedPackages: packages,
+                status: policy?.status || 'active',
+                scheduleStart: scheduleStart || '09:00',
+                scheduleEnd: scheduleEnd || '16:00',
+                activeDays: startDays,
+                scheduleActive: true,
+                source: 'realtime',
+                restrictionReason: policy?.restrictionReason || '',
+              };
+              const pairs = [[CACHE_KEYS.POLICY_CACHE, JSON.stringify(activePolicy)]];
+              if (installedApps && installedApps.length > 0) {
+                pairs.push([CACHE_KEYS.APPS_CACHE, JSON.stringify(installedApps)]);
+              }
+              try {
+                await AsyncStorage.multiSet(pairs);
+              } catch (e) { /* ignore */ }
+
+              try {
+                DeviceEventEmitter.emit('FocusSync:policyChanged', activePolicy);
+              } catch (e) { /* ignore */ }
             }
           }
         } catch (e) {

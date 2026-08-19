@@ -35,9 +35,11 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             // Collect user-facing (launcher) packages first, resolving launchers robustly.
             val launcherPackages = resolveLauncherPackages()
 
-            // Auto-enforce categories: while a policy is active, every installed
-            // app the device classifies into one of these is blocked natively.
-            val autoBlockCategories = setOf("social", "games", "entertainment")
+            // Auto-enforce categories: while a policy is active, ONLY social
+            // media apps are blocked natively. Games and entertainment are NOT
+            // auto-blocked to avoid interfering with educational content.
+            // System apps are always excluded.
+            val autoBlockCategories = setOf("social")
             val categoryEnforcedPackages = mutableListOf<String>()
 
             // Sort by app label for a stable, predictable order.
@@ -100,7 +102,8 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     appMap.putBoolean("isSocial", isSocial)
                     appMap.putString("category", category)
 
-                    if (category.lowercase() in autoBlockCategories) {
+                    // Only auto-block social media user-installed apps; never block system apps
+                    if (category.lowercase() in autoBlockCategories && !isSystemApp) {
                         categoryEnforcedPackages.add(packageName)
                     }
 
@@ -133,7 +136,8 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
         try {
             val pm = reactContext.packageManager
             val launcherPackages = resolveLauncherPackages()
-            val autoBlockCategories = setOf("social", "games", "entertainment")
+            // Only social media apps are auto-blocked; games/entertainment are excluded
+            val autoBlockCategories = setOf("social")
             val categoryEnforcedPackages = mutableListOf<String>()
             val appsList: List<ApplicationInfo> = pm.getInstalledApplications(PackageManager.GET_META_DATA)
 
@@ -154,7 +158,8 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                     val isGame = flagIsGame || categoryIsGame
                     val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
                     val category = AppClassifier.classify(packageName, appName, isGame, isSystemApp)
-                    if (category.lowercase() in autoBlockCategories) {
+                    // Never block system apps; only block user-installed social media apps
+                    if (category.lowercase() in autoBlockCategories && !isSystemApp) {
                         categoryEnforcedPackages.add(packageName)
                     }
                 } catch (e: Exception) {

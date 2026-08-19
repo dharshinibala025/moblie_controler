@@ -10,7 +10,6 @@ import {
   Animated,
   Platform,
   StatusBar,
-  AppState,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -233,9 +232,6 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     // Start real-time Socket.io listener for instant blocking/unblocking
     syncService.startRealtimeListener();
 
-    // Start periodic sync as fallback (30 seconds)
-    syncService.startPeriodicSync(30 * 1000);
-
     // Load cached policy for dynamic schedule
     syncService.getCachedPolicy().then((p) => {
       if (p) {
@@ -250,22 +246,13 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
     const subscription = AppState.addEventListener('change', async (nextState) => {
       if (nextState === 'active') {
+        // Lightweight: only check permissions for the one-by-one permission flow.
+        // Policy sync + enforcement state are handled by syncService's own listener.
         const res = await syncService.checkPermissions().catch(() => null);
         if (res) {
           setPermissions(res);
           setAccessibilityBroken(res.accessibilityRunning === false || res.accessibilityEnabled === false);
         }
-
-        syncService.getCachedPolicy().then((p) => {
-          if (p) {
-            if (p.scheduleStart) handleScheduleStartChange(p.scheduleStart);
-            if (p.scheduleEnd) handleScheduleEndChange(p.scheduleEnd);
-            if (p.activeDays && p.activeDays.length) activeDaysRef.current = p.activeDays;
-            policyActiveRef.current = p.status === 'active';
-          }
-        }).catch(() => {});
-
-        loadEnforcementState();
 
         // If user returned from Settings and a permission step was in progress,
         // check if it was granted and advance to next step (one-by-one, no re-trigger)
@@ -338,7 +325,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     };
 
     updateState();
-    const interval = setInterval(updateState, 1000);
+    const interval = setInterval(updateState, 5000);
 
     // Health check: if accessibility gets disabled (OS kill / force-stop /
     // battery optimization), surface a re-enable banner so enforcement doesn't
@@ -357,7 +344,6 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       clearInterval(healthInterval);
       subscription?.remove();
       syncService.stopRealtimeListener();
-      syncService.stopPeriodicSync();
     };
     // Mount-only effect: the permission flow runs once; the AppState listener
     // reads live step state via refs (permStepRef/permModalVisibleRef), so

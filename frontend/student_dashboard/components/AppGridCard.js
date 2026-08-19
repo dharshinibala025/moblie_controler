@@ -41,7 +41,7 @@ const resolveAppIcon = (app) => {
   return 'cellphone';
 };
 
-export const AppCard = ({ app, isLast }) => {
+export const AppCard = ({ app, isLast, showStatusBadge = true }) => {
   // Use per-app blocked status; default to Allowed when not defined
   const isBlocked = app.blocked !== undefined ? app.blocked : false;
   const iconName = resolveAppIcon(app);
@@ -64,28 +64,30 @@ export const AppCard = ({ app, isLast }) => {
         </Text>
       </View>
 
-      {/* Status Badge */}
-      <View
-        style={[
-          styles.statusBadge,
-          isBlocked ? styles.statusBadgeBlocked : styles.statusBadgeUnblocked,
-        ]}
-      >
+      {/* Status Badge — only shown on filtered tabs, not on "All Apps" */}
+      {showStatusBadge && (
         <View
           style={[
-            styles.statusDot,
-            { backgroundColor: isBlocked ? colors.blocked : colors.active },
-          ]}
-        />
-        <Text
-          style={[
-            styles.statusText,
-            { color: isBlocked ? colors.blocked : colors.active },
+            styles.statusBadge,
+            isBlocked ? styles.statusBadgeBlocked : styles.statusBadgeUnblocked,
           ]}
         >
-          {isBlocked ? 'Blocked' : 'Allowed'}
-        </Text>
-      </View>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: isBlocked ? colors.blocked : colors.active },
+            ]}
+          />
+          <Text
+            style={[
+              styles.statusText,
+              { color: isBlocked ? colors.blocked : colors.active },
+            ]}
+          >
+            {isBlocked ? 'Blocked' : 'Accessible'}
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -94,7 +96,7 @@ export const AppCard = ({ app, isLast }) => {
  * AppGridCard Component
  * Renders a unified, professional list container for applications on mobile.
  */
-export const AppGridCard = ({ apps = [], blockedApps, statusMode }) => {
+export const AppGridCard = ({ apps = [], blockedApps, statusMode, showStatusBadge = true }) => {
   let displayApps = apps;
 
   // Legacy fallback support
@@ -122,6 +124,7 @@ export const AppGridCard = ({ apps = [], blockedApps, statusMode }) => {
           key={app.id || idx}
           app={app}
           isLast={idx === displayApps.length - 1}
+          showStatusBadge={showStatusBadge}
         />
       ))}
     </View>

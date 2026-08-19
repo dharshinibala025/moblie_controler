@@ -1,12 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Animated, StatusBar, SafeAreaView, AppState } from 'react-native';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { View, StyleSheet, Animated, StatusBar, SafeAreaView } from 'react-native';
 import HomeScreen from './HomeScreen';
 import AppsScreen from './AppsScreen';
 import NotificationsScreen from './NotificationsScreen';
 import ProfileScreen from './ProfileScreen';
 import BottomNavBar from '../components/BottomNavBar';
 import { fetchDashboard, fetchApps, fetchNotifications } from '../../services/studentService';
-import syncService from '../../services/syncService';
 
 export const StudentDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('home');
@@ -18,51 +17,47 @@ export const StudentDashboardScreen = ({ onLogout }) => {
     notifications: [],
   });
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const isMountedRef = useRef(true);
+
+  const loadData = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    try {
+      const [dash, apps, notifs] = await Promise.all([
+        fetchDashboard().catch(() => null),
+        fetchApps().catch(() => null),
+        fetchNotifications().catch(() => null),
+      ]);
+
+      if (isMountedRef.current) {
+        const backendBlocked = apps?.apps || dash?.blockedApps || [];
+        const realNotifications = notifs?.notifications || dash?.notifications || [];
+
+        setDashboardData({
+          student: dash?.student || null,
+          restrictionStatus: dash?.restrictionStatus || null,
+          blockedApps: backendBlocked,
+          recentActivity: dash?.recentActivity || [],
+          notifications: realNotifications,
+        });
+      }
+    } catch (err) {
+      if (err?.status === 401 || err?.status === 403) {
+        onLogout && onLogout();
+      }
+    }
+  }, [onLogout]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadData = async () => {
-      try {
-        syncService.sync('login').catch(() => null);
-        const [dash, apps, notifs] = await Promise.all([
-          fetchDashboard().catch(() => null),
-          fetchApps().catch(() => null),
-          fetchNotifications().catch(() => null),
-        ]);
-
-        if (isMounted) {
-          const backendBlocked = apps?.apps || dash?.blockedApps || [];
-          const realNotifications = notifs?.notifications || dash?.notifications || [];
-
-          setDashboardData({
-            student: dash?.student || null,
-            restrictionStatus: dash?.restrictionStatus || null,
-            blockedApps: backendBlocked,
-            recentActivity: dash?.recentActivity || [],
-            notifications: realNotifications,
-          });
-        }
-      } catch (err) {
-        if (err?.status === 401 || err?.status === 403) {
-          onLogout && onLogout();
-        }
-      }
-    };
-
+    isMountedRef.current = true;
     loadData();
 
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        loadData();
-      }
-    });
+    const interval = setInterval(loadData, 60 * 1000);
 
     return () => {
-      isMounted = false;
-      subscription?.remove();
+      isMountedRef.current = false;
+      clearInterval(interval);
     };
-  }, [onLogout]);
+  }, [loadData]);
 
   const handleTabChange = (newTab) => {
     if (newTab === activeTab) return;
@@ -83,27 +78,28 @@ export const StudentDashboardScreen = ({ onLogout }) => {
     setActiveTab(newTab);
   };
 
-  const renderActiveScreen = () => {
-    const currentData = dashboardData;
+  const handleOpenProfile = useCallback(() => handleTabChange('profile'), [handleTabChange]);
+
+  const renderActiveScreen = useMemo(() => {
     switch (activeTab) {
       case 'home':
         return (
           <HomeScreen
             key="home"
-            data={currentData}
+            data={dashboardData}
             onNavigateTab={handleTabChange}
-            onOpenProfile={() => handleTabChange('profile')}
+            onOpenProfile={handleOpenProfile}
           />
         );
       case 'apps':
-        return <AppsScreen key="apps" data={currentData} />;
+        return <AppsScreen key="apps" data={dashboardData} />;
       case 'notifications':
-        return <NotificationsScreen key="notifications" data={currentData} />;
+        return <NotificationsScreen key="notifications" data={dashboardData} />;
       case 'profile':
         return (
           <ProfileScreen
             key="profile"
-            student={currentData.student}
+            student={dashboardData.student}
             onLogout={onLogout}
           />
         );
@@ -111,15 +107,18 @@ export const StudentDashboardScreen = ({ onLogout }) => {
         return (
           <HomeScreen
             key="default"
-            data={currentData}
+            data={dashboardData}
             onNavigateTab={handleTabChange}
-            onOpenProfile={() => handleTabChange('profile')}
+            onOpenProfile={handleOpenProfile}
           />
         );
     }
-  };
+  }, [activeTab, dashboardData, onLogout, handleTabChange, handleOpenProfile]);
 
-  const unreadNotificationsCount = (dashboardData?.notifications || []).filter((n) => !n.read).length;
+  const unreadNotificationsCount = useMemo(
+    () => (dashboardData?.notifications || []).filter((n) => !n.read).length,
+    [dashboardData?.notifications],
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -127,7 +126,7 @@ export const StudentDashboardScreen = ({ onLogout }) => {
 
       <View style={styles.container}>
         <Animated.View style={[styles.screenContainer, { opacity: fadeAnim }]}>
-          {renderActiveScreen()}
+          {renderActiveScreen}
         </Animated.View>
 
         <BottomNavBar

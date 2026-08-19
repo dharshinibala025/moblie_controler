@@ -424,6 +424,42 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                 </Text>
               </TouchableOpacity>
             </View>
+            <TouchableOpacity
+              style={styles.removeRestrictionBtn}
+              onPress={() => {
+                Alert.alert(
+                  'Remove Restriction',
+                  'Are you sure you want to remove the restriction for this class?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Remove',
+                      style: 'destructive',
+                      onPress: async () => {
+                        const classIdToQuery = await getAssignedClassId();
+                        setActionLoading(true);
+                        try {
+                          const staffService = require('../../services/staffService').default;
+                          await staffService.updateClassRule(classIdToQuery, activeRule._id, { status: 'stopped' });
+                          setRestrictionStatus('IDLE');
+                          setActiveRule(null);
+                          Alert.alert('Restriction Removed', 'Class restriction has been removed successfully.');
+                        } catch (err) {
+                          Alert.alert('Remove Failed', err.message || 'Failed to remove restriction. Please try again.');
+                        } finally {
+                          setActionLoading(false);
+                        }
+                      },
+                    },
+                  ],
+                );
+              }}
+              disabled={restrictionStatus === 'IDLE' || actionLoading}
+              activeOpacity={0.8}
+            >
+              <VectorIcon name="close-circle-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.removeRestrictionBtnText}>Remove Restriction</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -446,37 +482,44 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               const hasPerms = student.accessibilityEnabled && student.overlayEnabled;
               const isLoggedIn = student.isOnline;
 
+              // Clean status badges — no "RESTRICTED" label
               let badgeBgColor = '#DCFCE7';
               let badgeTextColor = '#16A34A';
-              let badgeText = 'Unblocked';
+              let badgeText = 'Active';
+              let cellphoneColor = '#16A34A';
+              let cellphoneBg = '#DCFCE7';
 
               if (!student.hasDevice) {
+                badgeBgColor = '#F1F5F9';
+                badgeTextColor = '#64748B';
+                badgeText = 'No Login';
+                cellphoneColor = '#94A3B8';
+                cellphoneBg = '#F1F5F9';
+              } else if (!hasPerms) {
                 badgeBgColor = '#FEF3C7';
                 badgeTextColor = '#D97706';
-                badgeText = 'No Login';
-              } else if (!hasPerms) {
-                badgeBgColor = '#FEE2E2';
-                badgeTextColor = '#EF4444';
-                badgeText = 'No Perms';
+                badgeText = 'Setup Needed';
+                cellphoneColor = '#D97706';
+                cellphoneBg = '#FEF3C7';
               } else if (isBlocked) {
                 badgeBgColor = '#FEE2E2';
                 badgeTextColor = '#EF4444';
                 badgeText = 'Blocked';
-              } else if (student.scheduleRestricted) {
-                badgeBgColor = '#FEF3C7';
-                badgeTextColor = '#D97706';
-                badgeText = 'Restricted';
+                cellphoneColor = '#EF4444';
+                cellphoneBg = '#FEE2E2';
               } else if (!isLoggedIn) {
                 badgeBgColor = '#F1F5F9';
                 badgeTextColor = '#64748B';
                 badgeText = 'Offline';
+                cellphoneColor = '#94A3B8';
+                cellphoneBg = '#F1F5F9';
               }
 
               return (
                 <View key={student.studentId || index} style={styles.studentDeviceRow}>
                   <View style={styles.studentDeviceInfo}>
-                    <View style={[styles.studentIconWrapper, { backgroundColor: isBlocked ? '#FEE2E2' : '#DCFCE7' }]}>
-                      <VectorIcon name="cellphone" size={16} color={isBlocked ? '#EF4444' : '#16A34A'} />
+                    <View style={[styles.studentIconWrapper, { backgroundColor: cellphoneBg }]}>
+                      <VectorIcon name="cellphone" size={16} color={cellphoneColor} />
                     </View>
                     <View style={styles.studentTextGroup}>
                       <Text style={styles.studentDeviceName}>{student.name}</Text>
@@ -486,12 +529,12 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                       <View style={styles.permBadgeRow}>
                         <View style={[styles.permBadge, { backgroundColor: student.accessibilityEnabled ? '#DCFCE7' : '#FEE2E2' }]}>
                           <Text style={[styles.permBadgeText, { color: student.accessibilityEnabled ? '#16A34A' : '#DC2626' }]}>
-                            Access {student.accessibilityEnabled ? '✓' : '✗'}
+                            Access {student.accessibilityEnabled ? 'ON' : 'OFF'}
                           </Text>
                         </View>
                         <View style={[styles.permBadge, { backgroundColor: student.overlayEnabled ? '#DCFCE7' : '#FEE2E2' }]}>
                           <Text style={[styles.permBadgeText, { color: student.overlayEnabled ? '#16A34A' : '#DC2626' }]}>
-                            Overlay {student.overlayEnabled ? '✓' : '✗'}
+                            Overlay {student.overlayEnabled ? 'ON' : 'OFF'}
                           </Text>
                         </View>
                       </View>
@@ -776,6 +819,23 @@ const styles = StyleSheet.create({
     color: '#16A34A',
   },
   resumeBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  removeRestrictionBtn: {
+    backgroundColor: '#DC2626',
+    height: 44,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#B91C1C',
+    marginTop: 6,
+  },
+  removeRestrictionBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
   deviceListSection: {

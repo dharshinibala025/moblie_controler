@@ -18,6 +18,7 @@ import SelectDropdown from '../components/SelectDropdown';
 import StatusBadge from '../components/StatusBadge';
 import SearchBar from '../components/SearchBar';
 import FilterChipGroup from '../components/FilterChipGroup';
+import RestrictionActionModal from '../components/RestrictionActionModal';
 import adminService from '../../services/adminService';
 
 import colors from '../styles/colors';
@@ -52,6 +53,13 @@ const DevicesScreen = () => {
   const [endTime, setEndTime] = useState('04:00 PM');
   const [restrictionStatus, setRestrictionStatus] = useState('IDLE');
   const [actionLoading, setActionLoading] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState({ type: 'success', title: '', message: '' });
+
+  const showRestrictionModal = (type, title, message) => {
+    setModalConfig({ type, title, message });
+    setModalVisible(true);
+  };
 
   const yearDropdownOptions = useMemo(
     () => [
@@ -307,19 +315,21 @@ const DevicesScreen = () => {
       await Promise.all([loadRules(), loadDevices()]);
 
       if (applied === total) {
-        Alert.alert(
+        showRestrictionModal(
+          'success',
           'Mobile Restriction Applied',
           `Restriction policy active for ${applied} class(es)!\nSchedule: ${startTime} – ${endTime}`,
         );
       } else {
-        Alert.alert(
+        showRestrictionModal(
+          'warning',
           'Partial Success',
           `Applied to ${applied}/${total} classes.\nSchedule: ${startTime} – ${endTime}`,
         );
       }
     } catch (err) {
       setRestrictionStatus('IDLE');
-      Alert.alert('Apply Failed', err.message || 'Failed to apply restriction policy. Please try again.');
+      showRestrictionModal('error', 'Apply Failed', err.message || 'Failed to apply restriction policy. Please try again.');
     } finally {
       setActionLoading(false);
     }
@@ -348,10 +358,10 @@ const DevicesScreen = () => {
     try {
       await adminService.pauseRestriction(targetClassIds);
       await Promise.all([loadRules(), loadDevices()]);
-      Alert.alert('Restriction Paused', `All blocked apps temporarily unblocked for ${targetClassIds.length} class(es).`);
+      showRestrictionModal('success', 'Restriction Paused', `All blocked apps temporarily unblocked for ${targetClassIds.length} class(es).`);
     } catch (err) {
       setRestrictionStatus('ACTIVE');
-      Alert.alert('Error', 'Failed to pause restriction: ' + err.message);
+      showRestrictionModal('error', 'Pause Failed', 'Failed to pause restriction: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -365,10 +375,10 @@ const DevicesScreen = () => {
     try {
       await adminService.resumeRestriction(targetClassIds);
       await Promise.all([loadRules(), loadDevices()]);
-      Alert.alert('Restriction Resumed', `Mobile restriction is now active for ${targetClassIds.length} class(es). Apps are blocked.`);
+      showRestrictionModal('success', 'Restriction Resumed', `Mobile restriction is now active for ${targetClassIds.length} class(es). Apps are blocked.`);
     } catch (err) {
       setRestrictionStatus('PAUSED');
-      Alert.alert('Error', 'Failed to resume restriction: ' + err.message);
+      showRestrictionModal('error', 'Resume Failed', 'Failed to resume restriction: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -388,9 +398,9 @@ const DevicesScreen = () => {
               await adminService.emergencyUnblockAll();
               setRestrictionStatus('IDLE');
               setDevices((prev) => prev.map((d) => ({ ...d, isBlocked: false })));
-              Alert.alert('Emergency Unblock Executed', 'All mobile restrictions lifted immediately across ALL student devices.');
+              showRestrictionModal('success', 'Emergency Unblock Executed', 'All mobile restrictions lifted immediately across ALL student devices.');
             } catch (err) {
-              Alert.alert('Emergency Unblock Failed', err.message || 'Failed to execute emergency unblock. Please try again.');
+              showRestrictionModal('error', 'Emergency Unblock Failed', err.message || 'Failed to execute emergency unblock. Please try again.');
             }
           },
         },
@@ -571,6 +581,14 @@ const DevicesScreen = () => {
           ))
         )}
       </View>
+
+      <RestrictionActionModal
+        visible={modalVisible}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        onDismiss={() => setModalVisible(false)}
+      />
     </ScrollView>
   );
 };

@@ -1492,15 +1492,56 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
   try {
     const Rule = require("../models/Rule");
     const Device = require("../models/Device");
+    const Notification = require("../models/Notification");
     const auditService = require("../services/auditService");
     const { emitToClass } = require("../config/socket");
     const { setEmergencyUnblock } = require("../utils/emergencyHelper");
 
     setEmergencyUnblock(true);
 
+    // Pause all active rules
     await Rule.updateMany({}, { $set: { status: "paused", startedAt: null } });
+    // Unblock all devices
     await Device.updateMany({}, { $set: { status: "active" } });
 
+    // Collect all student IDs and their class mappings for targeted socket + FCM
+    const students = await User.find({ role: "student", status: "active" })
+      .select("_id classId").lean();
+    const studentIds = students.map((s) => s._id);
+    const classIds = [...new Set(students.map((s) => s.classId).filter(Boolean))];
+
+    // Delete any prior unread restriction card so this replaces it cleanly
+    if (studentIds.length > 0) {
+      await Notification.deleteMany({
+        studentId: { $in: studentIds },
+        type: "restriction",
+        read: false,
+      });
+
+      // Send one clear emergency notification to every student
+      await Notification.insertMany(
+        studentIds.map((sId) => ({
+          studentId: sId,
+          title: "🔓 Emergency Access Granted",
+          message:
+            "Admin has unlocked all apps. All class restrictions have been lifted immediately.",
+          type: "restriction",
+          read: false,
+        }))
+      );
+    }
+
+    // Broadcast socket event per class so apps unblock in real-time
+    for (const cid of classIds) {
+      emitToClass(cid, "rule:update", {
+        action: "stop",
+        status: "paused",
+        blockedPackages: [],
+        emergency: true,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    // Also hit the ALL channel for any stragglers
     emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
 
     await auditService.logAction(
@@ -1508,13 +1549,14 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
       req.user.role,
       "emergency_unblock_all",
       { scope: "GLOBAL" },
-      { status: "ALL_DEVICES_UNBLOCKED" },
+      { status: "ALL_DEVICES_UNBLOCKED", affectedStudents: studentIds.length },
       req.scopeInstitutionId
     );
 
     res.json({
       success: true,
       message: "EMERGENCY UNBLOCK EXECUTED: All mobile restrictions lifted immediately across all devices.",
+      affectedStudents: studentIds.length,
     });
   } catch (err) {
     next(err);

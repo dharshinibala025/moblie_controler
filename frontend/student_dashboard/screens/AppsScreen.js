@@ -9,7 +9,7 @@ import {
   Platform,
   StatusBar,
   NativeModules,
-  AppState,
+  DeviceEventEmitter,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../styles/theme';
@@ -167,29 +167,22 @@ export const AppsScreen = ({ data }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const init = async () => {
-      try {
-        const syncService = require('../../services/syncService').default;
-        await syncService.sync('apps_screen');
-      } catch (e) {
-        // continue with local fallbacks
-      }
-      if (isMounted) {
-        await refresh();
-      }
-    };
-    init();
+    // Initial load only (sync is handled by syncService globally)
+    refresh();
 
+    // 60s polling for fresh app list from server
     const interval = setInterval(() => {
       refresh();
     }, 60 * 1000);
 
+    // 30s ticker for live restriction badge updates
     const ticker = setInterval(() => {
       setTick(Date.now());
     }, 30 * 1000);
 
-    const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
+    // Listen for policy changes from syncService (replaces AppState listener)
+    const sub = DeviceEventEmitter.addListener('FocusSync:policyChanged', () => {
+      if (isMounted) {
         setTick(Date.now());
         refresh();
       }
@@ -208,6 +201,12 @@ export const AppsScreen = ({ data }) => {
   // cause duplicates). Respect the server's per-app blocked flag as authoritative
   // when available; fall back to local category-based blocking during active
   // restriction windows.
+  //
+  // BLOCKING RULES:
+  //   - System apps are NEVER blocked (camera, phone, calculator, calendar, etc.)
+  //   - ONLY 'social' category apps are auto-blocked (WhatsApp, Instagram, etc.)
+  //   - Games and Entertainment are NOT auto-blocked from this screen
+  //   - Settings app (com.android.settings) is blocked during active restriction
   const allApps = useMemo(() => {
     const rawSource =
       liveApps && liveApps.length > 0
@@ -231,11 +230,33 @@ export const AppsScreen = ({ data }) => {
 
     const blockedSet = new Set(restriction.blockedPackages || []);
 
-    const AUTO_BLOCK_CATEGORIES = ['social', 'games', 'entertainment'];
+    // Only auto-block social media (not games/entertainment)
+    const AUTO_BLOCK_CATEGORIES = ['social'];
+
+    // System apps that must NEVER be blocked
+    const PROTECTED_SYSTEM_PREFIXES = [
+      'com.android.phone', 'com.android.dialer', 'com.android.contacts',
+      'com.android.camera', 'com.android.calculator', 'com.android.calendar',
+      'com.android.deskclock', 'com.android.clock', 'com.android.systemui',
+      'com.android.launcher', 'com.android.inputmethod', 'com.google.android.dialer',
+      'com.google.android.contacts', 'com.miui.home', 'com.coloros.launcher',
+      'com.samsung.android.app.telephony', 'com.samsung.android.dialer',
+    ];
 
     return source.map((app) => {
-      const pkg = app.packageName || app.package;
+      const pkg = app.packageName || app.package || '';
       const category = String(app.category || '').toLowerCase();
+      const isSystemApp = app.isSystemApp === true;
+
+      // Never block protected system apps
+      const isProtectedSystem =
+        isSystemApp &&
+        PROTECTED_SYSTEM_PREFIXES.some((prefix) => pkg.startsWith(prefix));
+
+      if (isProtectedSystem) {
+        return { ...app, name: app.name || app.appName || 'Application', blocked: false };
+      }
+
       const categoryBlocked = AUTO_BLOCK_CATEGORIES.includes(category);
       const blocked =
         app.blocked === true ||
@@ -385,7 +406,7 @@ export const AppsScreen = ({ data }) => {
       </View>
 
       {/* App List */}
-      <AppGridCard apps={filteredApps} />
+      <AppGridCard apps={filteredApps} showStatusBadge={activeFilter !== 'all'} />
     </ScrollView>
   );
 };
