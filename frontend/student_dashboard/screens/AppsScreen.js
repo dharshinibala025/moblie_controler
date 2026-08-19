@@ -204,8 +204,12 @@ export const AppsScreen = ({ data }) => {
   }, [refresh]);
 
   // Build unified apps list with per-app blocked property computed live.
+  // Dedupe by packageName (stale server rows from old device registrations can
+  // cause duplicates). Respect the server's per-app blocked flag as authoritative
+  // when available; fall back to local category-based blocking during active
+  // restriction windows.
   const allApps = useMemo(() => {
-    const source =
+    const rawSource =
       liveApps && liveApps.length > 0
         ? liveApps
         : data?.apps && data.apps.length > 0
@@ -214,19 +218,28 @@ export const AppsScreen = ({ data }) => {
         ? data.blockedApps
         : [];
 
+    // Dedupe by packageName — keep the latest entry.
+    const seenPkgs = new Set();
+    const source = [];
+    for (let i = rawSource.length - 1; i >= 0; i--) {
+      const pkg = rawSource[i]?.packageName || rawSource[i]?.package;
+      if (pkg && !seenPkgs.has(pkg)) {
+        seenPkgs.add(pkg);
+        source.unshift(rawSource[i]);
+      }
+    }
+
     const blockedSet = new Set(restriction.blockedPackages || []);
 
-    // While restrictions are active, any installed app the phone classifies as
-    // social/games/entertainment is blocked even if it is not (yet) in the
-    // server's package list. This guarantees social media apps are blocked and
-    // shown locally regardless of scan/staleness on the backend.
     const AUTO_BLOCK_CATEGORIES = ['social', 'games', 'entertainment'];
 
     return source.map((app) => {
       const pkg = app.packageName || app.package;
       const category = String(app.category || '').toLowerCase();
       const categoryBlocked = AUTO_BLOCK_CATEGORIES.includes(category);
-      const blocked = restriction.active ? (blockedSet.has(pkg) || categoryBlocked) : false;
+      const blocked =
+        app.blocked === true ||
+        (restriction.active && (blockedSet.has(pkg) || categoryBlocked));
       return {
         ...app,
         name: app.name || app.appName || 'Application',

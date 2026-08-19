@@ -17,6 +17,17 @@ const CACHE_KEYS = {
 // Apps screen consistent with each other.
 const AUTO_BLOCK_CATEGORIES = ['social', 'games', 'entertainment'];
 
+const normalizeDays = (d) => {
+  if (Array.isArray(d)) return d;
+  if (typeof d === 'string') {
+    try {
+      const p = JSON.parse(d);
+      if (Array.isArray(p)) return p;
+    } catch (e) { /* ignore */ }
+  }
+  return null;
+};
+
 const enrichBlockedPackages = (packages, installedApps) => {
   const blocked = new Set(Array.isArray(packages) ? packages : []);
   for (const app of installedApps || []) {
@@ -263,12 +274,13 @@ class SyncService {
           if (AppScannerModule && AppScannerModule.savePolicy) {
             if (action === 'pause' || action === 'stop') {
               // Unblock: save empty blocked list with inactive status
+              const pausedDays = normalizeDays(activeDays) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
               await AppScannerModule.savePolicy(
                 (policyVersion || 0).toString(),
                 [],
                 scheduleStart || '09:00',
                 scheduleEnd || '16:00',
-                activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                pausedDays,
                 '',
                 policyVersion || 0,
                 'paused',
@@ -284,7 +296,7 @@ class SyncService {
                   status: 'inactive',
                   scheduleStart: scheduleStart || '09:00',
                   scheduleEnd: scheduleEnd || '16:00',
-                  activeDays: activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                  activeDays: pausedDays,
                   scheduleActive: false,
                   source: 'realtime',
                 }),
@@ -360,12 +372,13 @@ class SyncService {
               const enriched = enrichBlockedPackages(packages || [], installedApps);
               packages = enriched;
 
+              const startDays = normalizeDays(activeDays) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
               await AppScannerModule.savePolicy(
                 (policyVersion || 1).toString(),
                 packages,
                 scheduleStart || '09:00',
                 scheduleEnd || '16:00',
-                activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                startDays,
                 policy?.restrictionReason || '',
                 policyVersion || 1,
                 policy?.status || 'active',
@@ -381,7 +394,7 @@ class SyncService {
                   status: policy?.status || 'active',
                   scheduleStart: scheduleStart || '09:00',
                   scheduleEnd: scheduleEnd || '16:00',
-                  activeDays: activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                  activeDays: startDays,
                   scheduleActive: true,
                   source: 'realtime',
                   restrictionReason: policy?.restrictionReason || '',

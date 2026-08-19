@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -29,6 +30,12 @@ class RestrictionAccessibilityService : AccessibilityService() {
     // Debounce map to avoid re-showing the overlay repeatedly for the same package.
     private val lastBlockedAt = ConcurrentHashMap<String, Long>()
 
+    // Anti-flicker: suppress re-show for the same package for ~1s after a
+    // dismiss. Prevents the "popup shows twice" caused by transient systemui
+    // events during app launch transitions.
+    private var lastDismissedAt: Long = 0L
+    private val DISMISS_GUARD_MS = 1000L
+
     // ── Accessibility overlay window (the guaranteed block screen) ──────────
     // TYPE_ACCESSIBILITY_OVERLAY windows are ALWAYS allowed while this service is
     // bound: no SYSTEM_ALERT_WINDOW permission, no background-activity-launch
@@ -41,6 +48,14 @@ class RestrictionAccessibilityService : AccessibilityService() {
     private var overlayTicker: Runnable? = null
     private val overlayHandler = Handler(Looper.getMainLooper())
     private var cachedHomePackage: String? = null
+
+    // ── Periodic re-evaluation loop ─────────────────────────────────────────
+    // Polls every 2s to: dismiss the overlay when the policy is paused/inactive,
+    // show it if the foreground app is blocked (resume-while-inside), and free
+    // a stuck overlay that no window event dismissed.
+    private val POLICY_EVAL_INTERVAL_MS = 2000L
+    private var periodicHandler: Handler? = null
+    private var periodicRunnable: Runnable? = null
 
     // Built-in offline fallback list so social media/games are still blocked during the
     // schedule window even if the server policy has not been synced yet.
@@ -76,14 +91,18 @@ class RestrictionAccessibilityService : AccessibilityService() {
     override fun onCreate() {
         super.onCreate()
         policyStorage = PolicyStorage(applicationContext)
+        startPeriodicEval()
         Log.i("RestrictionService", "RestrictionAccessibilityService created")
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         policyStorage = PolicyStorage(applicationContext)
+        startPeriodicEval()
         Log.i("RestrictionService", "RestrictionAccessibilityService connected")
     }
+
+    // ── Event handler ───────────────────────────────────────────────────────
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         try {
@@ -91,11 +110,9 @@ class RestrictionAccessibilityService : AccessibilityService() {
 
             val packageName = event.packageName?.toString() ?: return
 
-            // Ignore system UI, launcher and own package
-            if (packageName == "com.mobile_controller" ||
-                packageName.startsWith("com.android.systemui") ||
-                packageName == "com.android.launcher"
-            ) {
+            // ── Own package: dismiss overlay if showing, then bail out ─────
+            if (packageName == "com.mobile_controller") {
+                if (blockOverlay != null) dismissBlockOverlay()
                 return
             }
 
@@ -103,18 +120,22 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 policyStorage = it
             }
 
-            // Emergency unblock always wins: never enforce the overlay during an emergency.
+            // ── System UI: ignore — these are transient transition artifacts,
+            // not real user navigation.  Previously this caused the overlay to
+            // be dismissed during app-launch transitions and re-shown by the
+            // app's second activity window, producing the "popup twice" bug.
+            if (packageName.startsWith("com.android.systemui")) {
+                return
+            }
+
+            // ── Emergency unblock always wins ──────────────────────────────
             if (storage.getEmergency()) {
                 dismissBlockOverlay()
                 return
             }
 
+            // ── Compute the enforced set ──────────────────────────────────
             val blockedSet = if (storage.isConfigured()) {
-                // Only enforce while the policy is active. The enforced set is
-                // the union of the server list + every installed app the phone
-                // classifies as social/games/entertainment, so ALL social media
-                // blocks even if the server list is stale or the realtime sync
-                // has not reached the device yet.
                 if (storage.isPolicyActive()) {
                     storage.getEnforcedApps()
                 } else {
@@ -124,15 +145,16 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 fallbackBlockedPackages
             }
 
-            // If the student left the blocked app (home / our own app), lift the
-            // overlay so they can navigate; re-opening a blocked app re-shows it.
+            // ── Dismiss the overlay when the student navigates to ANY
+            //    non-blocked app (including home/launcher).  No longer
+            //    restricted to home only — the old guard left the overlay
+            //    stuck over allowed apps.
             if (blockOverlay != null && !blockedSet.contains(packageName)) {
-                if (packageName == homePackage() || packageName.startsWith("com.android.systemui")) {
-                    dismissBlockOverlay()
-                    return
-                }
+                dismissBlockOverlay()
+                return
             }
 
+            // ── Show the overlay for blocked apps ─────────────────────────
             if (blockedSet.contains(packageName)) {
                 if (shouldEnforceNow()) {
                     if (shouldLaunch(packageName)) {
@@ -150,15 +172,12 @@ class RestrictionAccessibilityService : AccessibilityService() {
 
     private fun shouldLaunch(packageName: String): Boolean {
         val now = System.currentTimeMillis()
+        // Anti-flicker: suppress re-show within the dismiss guard window
+        if (now - lastDismissedAt < DISMISS_GUARD_MS) return false
         val last = lastBlockedAt[packageName] ?: 0L
-        if (now - last < 1000) {
-            return false
-        }
+        if (now - last < 1000) return false
         lastBlockedAt[packageName] = now
-        // Keep the map bounded
-        if (lastBlockedAt.size > 64) {
-            lastBlockedAt.clear()
-        }
+        if (lastBlockedAt.size > 64) lastBlockedAt.clear()
         return true
     }
 
@@ -167,41 +186,32 @@ class RestrictionAccessibilityService : AccessibilityService() {
     // configured active days still limit enforcement as a phone-side safety.
     private fun shouldEnforceNow(): Boolean {
         val storage = policyStorage ?: return true
-        val end = storage.getScheduleEnd()     // e.g. "16:00"
+        val end = storage.getScheduleEnd()
 
         try {
             val endParts = end.split(":").map { it.toInt() }
-
             val cal = Calendar.getInstance()
 
-            // Active-days check (e.g. "Mon".."Sat"); default when nothing stored.
             val activeDays = storage.getActiveDays()
             val dayName = cal.getDisplayName(
                 Calendar.DAY_OF_WEEK,
                 Calendar.SHORT,
                 java.util.Locale.US
             )?.substring(0, 3) ?: ""
-            if (activeDays.isNotEmpty() && !activeDays.contains(dayName)) {
-                return false
-            }
+            if (activeDays.isNotEmpty() && !activeDays.contains(dayName)) return false
 
-            val currentHour = cal.get(Calendar.HOUR_OF_DAY)
-            val currentMinute = cal.get(Calendar.MINUTE)
-
-            val currentMinutesOfDay = currentHour * 60 + currentMinute
+            val currentMinutesOfDay = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
             val endMinutesOfDay = endParts[0] * 60 + endParts[1]
 
-            // Only the end time gates enforcement: restrictions auto-lift at the
-            // end time but start immediately on apply, regardless of the clock.
             return currentMinutesOfDay < endMinutesOfDay
         } catch (e: Exception) {
-            return true // Default active if parse error occurs
+            return true
         }
     }
 
     private fun nextUnlockLabel(): String {
         val storage = policyStorage ?: return ""
-        val end = storage.getScheduleEnd() // e.g. "16:00"
+        val end = storage.getScheduleEnd()
         return try {
             val parts = end.split(":").map { it.toInt() }
             val hour = parts[0]
@@ -210,9 +220,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
             var displayHour = hour % 12
             if (displayHour == 0) displayHour = 12
             String.format("%02d:%02d %s", displayHour, minute, ampm)
-        } catch (e: Exception) {
-            ""
-        }
+        } catch (e: Exception) { "" }
     }
 
     // ── Block screen as an accessibility overlay window ──────────────────────
@@ -234,13 +242,14 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 WindowManager.LayoutParams.TYPE_PHONE
             }
 
+            // FOCUSABLE: by omitting FLAG_NOT_FOCUSABLE the overlay receives
+            // all key events including Back so the student cannot back out.
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 layoutType,
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 android.graphics.PixelFormat.TRANSLUCENT
             )
             params.gravity = Gravity.TOP or Gravity.START
@@ -248,6 +257,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
             wm.addView(overlay, params)
             windowManager = wm
             blockOverlay = overlay
+            overlay.requestFocus()
             startOverlayCountdown()
             Log.i("RestrictionService", "Block overlay shown for $packageName")
         } catch (e: Exception) {
@@ -259,9 +269,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
         try {
             val label = resolveAppLabel(packageName)
             overlayPackageLabel?.text = label
-        } catch (e: Exception) {
-            // ignore
-        }
+        } catch (e: Exception) { /* ignore */ }
     }
 
     private fun buildOverlayView(packageName: String): View {
@@ -277,8 +285,24 @@ class RestrictionAccessibilityService : AccessibilityService() {
             gravity = Gravity.CENTER
             setBackgroundColor(Color.parseColor("#0B1220"))
             setPadding(dp(24), dp(32), dp(24), dp(32))
+            // Focusable so it receives key events (Back interception below).
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isClickable = true  // consume touches so they don't pass through
         }
         overlayRoot = root
+
+        // Intercept the Back button: swallow it so the student cannot escape
+        // the block screen via hardware/gesture back.  They must use the
+        // "Return to Home Screen" button.
+        root.setOnKeyListener { _, keyCode, event ->
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                goHome()
+                true
+            } else {
+                false
+            }
+        }
 
         // ── Frosted lock icon circle ──────────────────────────────────────────
         val iconCircle = FrameLayout(this).apply {
@@ -288,9 +312,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(Color.parseColor("#7C3AED"), Color.parseColor("#6D28D9"))
-            ).apply {
-                cornerRadius = dp(48).toFloat()
-            }
+            ).apply { cornerRadius = dp(48).toFloat() }
         }
         val lockText = TextView(this).apply {
             text = "\uD83D\uDD12"
@@ -382,9 +404,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(Color.parseColor("#7C3AED"), Color.parseColor("#5B21B6"))
-            ).apply {
-                cornerRadius = dp(16).toFloat()
-            }
+            ).apply { cornerRadius = dp(16).toFloat() }
             setOnClickListener {
                 goHome()
                 dismissBlockOverlay()
@@ -404,6 +424,8 @@ class RestrictionAccessibilityService : AccessibilityService() {
 
         return root
     }
+
+    // ── Countdown ───────────────────────────────────────────────────────────
 
     private fun startOverlayCountdown() {
         overlayTicker?.let { overlayHandler.removeCallbacks(it) }
@@ -445,8 +467,75 @@ class RestrictionAccessibilityService : AccessibilityService() {
             overlayRoot = null
             countdownText = null
             overlayPackageLabel = null
+            lastDismissedAt = System.currentTimeMillis()
         }
     }
+
+    // ── Periodic re-evaluation (2s) ─────────────────────────────────────────
+    // Covers three cases no single window event can handle:
+    //   1. Pause/unblock while the overlay is showing (no event fires).
+    //   2. Resume/block while the student is already inside a blocked app.
+    //   3. Missed events or the overlay was stuck by a race.
+
+    private fun startPeriodicEval() {
+        stopPeriodicEval()
+        periodicHandler = Handler(Looper.getMainLooper())
+        val runnable = object : Runnable {
+            override fun run() {
+                periodicallyReevaluate()
+                periodicHandler?.postDelayed(this, POLICY_EVAL_INTERVAL_MS)
+            }
+        }
+        periodicRunnable = runnable
+        periodicHandler?.postDelayed(runnable, POLICY_EVAL_INTERVAL_MS)
+    }
+
+    private fun stopPeriodicEval() {
+        periodicRunnable?.let { periodicHandler?.removeCallbacks(it) }
+        periodicRunnable = null
+        periodicHandler = null
+    }
+
+    private fun periodicallyReevaluate() {
+        try {
+            val storage = policyStorage ?: return
+
+            // 1. If the overlay is showing but enforcement is over → dismiss
+            //    (handles: admin/staff paused, end-time passed, emergency).
+            if (blockOverlay != null && !storage.isPolicyActive()) {
+                dismissBlockOverlay()
+                return
+            }
+            if (blockOverlay != null && storage.getEmergency()) {
+                dismissBlockOverlay()
+                return
+            }
+            if (blockOverlay != null && !shouldEnforceNow()) {
+                dismissBlockOverlay()
+                return
+            }
+
+            // 2. If the overlay is NOT showing and a policy IS active, check
+            //    the current foreground app.  If it is blocked → show overlay
+            //    immediately (handles: resume-while-inside, missed events).
+            if (blockOverlay == null && storage.isPolicyActive() && shouldEnforceNow()) {
+                val blockedSet = storage.getEnforcedApps()
+                val node = rootInActiveWindow
+                val fgPkg = node?.packageName?.toString()
+                if (fgPkg != null &&
+                    fgPkg != "com.mobile_controller" &&
+                    !fgPkg.startsWith("com.android.systemui") &&
+                    blockedSet.contains(fgPkg)
+                ) {
+                    showBlockOverlay(fgPkg)
+                }
+            }
+        } catch (e: Exception) {
+            // ignore — non-critical background eval
+        }
+    }
+
+    // ── Home / utility ──────────────────────────────────────────────────────
 
     private fun homePackage(): String {
         if (cachedHomePackage != null) return cachedHomePackage!!
@@ -454,9 +543,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
             val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
             val ri = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
             cachedHomePackage = ri?.activityInfo?.packageName
-        } catch (e: Exception) {
-            // ignore
-        }
+        } catch (e: Exception) { /* ignore */ }
         if (cachedHomePackage == null) cachedHomePackage = "com.android.launcher"
         return cachedHomePackage!!
     }
@@ -507,9 +594,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
         return try {
             val pm: PackageManager = applicationContext.packageManager
             pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
-        } catch (e: Exception) {
-            packageName
-        }
+        } catch (e: Exception) { packageName }
     }
 
     private fun dp(value: Int): Int {
@@ -519,12 +604,14 @@ class RestrictionAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onUnbind(intent: Intent?): Boolean {
+        stopPeriodicEval()
         lastBlockedAt.clear()
         dismissBlockOverlay()
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
+        stopPeriodicEval()
         lastBlockedAt.clear()
         dismissBlockOverlay()
         policyStorage = null
