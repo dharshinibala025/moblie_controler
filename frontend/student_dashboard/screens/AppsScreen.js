@@ -215,9 +215,17 @@ export const AppsScreen = ({ data }) => {
 
     const blockedSet = new Set(restriction.blockedPackages || []);
 
+    // While restrictions are active, any installed app the phone classifies as
+    // social/games/entertainment is blocked even if it is not (yet) in the
+    // server's package list. This guarantees social media apps are blocked and
+    // shown locally regardless of scan/staleness on the backend.
+    const AUTO_BLOCK_CATEGORIES = ['social', 'games', 'entertainment'];
+
     return source.map((app) => {
       const pkg = app.packageName || app.package;
-      const blocked = restriction.active ? blockedSet.has(pkg) : false;
+      const category = String(app.category || '').toLowerCase();
+      const categoryBlocked = AUTO_BLOCK_CATEGORIES.includes(category);
+      const blocked = restriction.active ? (blockedSet.has(pkg) || categoryBlocked) : false;
       return {
         ...app,
         name: app.name || app.appName || 'Application',

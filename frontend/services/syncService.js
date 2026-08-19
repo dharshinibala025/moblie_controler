@@ -11,6 +11,23 @@ const CACHE_KEYS = {
   POLICY_CACHE: '@focussync:policyCache',
 };
 
+// While a policy is active, every installed app the phone classifies as
+// social/games/entertainment is enforced too — even if the server's package
+// list is stale/incomplete. Keeps the native accessibility service and the
+// Apps screen consistent with each other.
+const AUTO_BLOCK_CATEGORIES = ['social', 'games', 'entertainment'];
+
+const enrichBlockedPackages = (packages, installedApps) => {
+  const blocked = new Set(Array.isArray(packages) ? packages : []);
+  for (const app of installedApps || []) {
+    if (!app || !app.packageName) continue;
+    if (AUTO_BLOCK_CATEGORIES.includes(String(app.category || '').toLowerCase())) {
+      blocked.add(app.packageName);
+    }
+  }
+  return Array.from(blocked);
+};
+
 class SyncService {
   isSyncing = false;
   _intervalId = null;
@@ -121,10 +138,13 @@ class SyncService {
         const policyVersion = policy.policyVersion || 1;
         const status = policy.status || 'active';
         const emergency = policy.emergency === 'active';
+        // Enrich with locally-classified social/games/entertainment apps so the
+        // native service enforces the same set the Apps screen shows.
+        const blockedPackages = enrichBlockedPackages(policy.blockedPackages || [], installedApps);
         if (AppScannerModule && AppScannerModule.savePolicy) {
           await AppScannerModule.savePolicy(
             policyVersion.toString(),
-            policy.blockedPackages || [],
+            blockedPackages,
             policy.scheduleStart || '09:00',
             policy.scheduleEnd || '16:00',
             policy.activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -139,7 +159,10 @@ class SyncService {
         // Cache the full policy envelope so the Apps screen can render live
         // badges and schedule info even while offline.
         try {
-          await AsyncStorage.setItem(CACHE_KEYS.POLICY_CACHE, JSON.stringify(policy));
+          await AsyncStorage.setItem(
+            CACHE_KEYS.POLICY_CACHE,
+            JSON.stringify({ ...policy, blockedPackages })
+          );
         } catch (e) {
           // ignore cache failures
         }
@@ -315,9 +338,20 @@ class SyncService {
                 };
               }
 
+              // Enrich with locally-classified social/games/entertainment apps
+              // so native enforcement matches what the Apps screen shows, even
+              // if the server list is stale or empty.
+              let installedApps = [];
+              try {
+                const cachedApps = await AsyncStorage.getItem(CACHE_KEYS.APPS_CACHE);
+                if (cachedApps) installedApps = JSON.parse(cachedApps) || [];
+              } catch (e) { /* ignore */ }
+              const enriched = enrichBlockedPackages(packages || [], installedApps);
+              packages = enriched;
+
               await AppScannerModule.savePolicy(
                 (policyVersion || 1).toString(),
-                packages || [],
+                packages,
                 scheduleStart || '09:00',
                 scheduleEnd || '16:00',
                 activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
@@ -332,7 +366,7 @@ class SyncService {
                 CACHE_KEYS.POLICY_CACHE,
                 JSON.stringify({
                   policyVersion: policyVersion || 1,
-                  blockedPackages: packages || [],
+                  blockedPackages: packages,
                   status: policy?.status || 'active',
                   scheduleStart: scheduleStart || '09:00',
                   scheduleEnd: scheduleEnd || '16:00',

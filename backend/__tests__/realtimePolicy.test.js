@@ -132,3 +132,64 @@ test("getStudentPolicy resolves scanned social apps for the student", async () =
   expect(policy.blockedPackages).toContain("com.example.mysocialapp");
   expect(policy.blockedPackages).toContain("com.android.settings");
 });
+
+test("processScan preserves the device-reported category so the app gets blocked", async () => {
+  const student = await User.create({
+    name: "Scan Category Student",
+    email: "scan-cat@test.com",
+    password: "Student@123",
+    role: "student",
+    classId: "C102",
+    institutionId: "INST001",
+  });
+
+  const Device = require("../models/Device");
+  const ScannedApp = require("../models/ScannedApp");
+  const scanService = require("../services/scanService");
+  const device = await Device.create({
+    userId: student._id,
+    deviceId: "dev-cat-123",
+    status: "online",
+  });
+
+  // The phone classifies this app as social even though it is not in any
+  // static list / catalog. processScan must KEEP that category.
+  const result = await scanService.processScan(student._id.toString(), device._id.toString(), [
+    {
+      packageName: "com.unknown.socialapp",
+      appName: "Unknown Social",
+      versionName: "1.0.0",
+      isSystemApp: false,
+      isGame: false,
+      isSocial: true,
+      category: "social",
+    },
+  ]);
+
+  expect(result.scannedCount).toBe(1);
+
+  const stored = await ScannedApp.findOne({
+    studentId: student._id,
+    packageName: "com.unknown.socialapp",
+    removedAt: null,
+  }).lean();
+  expect(stored).toBeTruthy();
+  expect(stored.category).toBe("social");
+
+  await Rule.create({
+    targetClassId: "C102",
+    targetScope: { type: "class", targetId: "C102" },
+    scheduleStart: "09:00",
+    scheduleEnd: "16:00",
+    activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    blockedApps: ["SocialMedia"],
+    reason: "Class hours",
+    status: "active",
+    policyVersion: 1,
+    createdBy: adminUserRef,
+  });
+
+  const policy = await autoBlockService.getStudentPolicy({ student, device, now: new Date() });
+  // Because the category was preserved, the scanned app lands in the blocked list.
+  expect(policy.blockedPackages).toContain("com.unknown.socialapp");
+});
