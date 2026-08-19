@@ -2,7 +2,6 @@ const User = require("../models/User");
 const Rule = require("../models/Rule");
 const Device = require("../models/Device");
 const ScannedApp = require("../models/ScannedApp");
-const { isRuleActiveNow } = require("../utils/scheduleHelper");
 const { getEmergencyUnblock } = require("../utils/emergencyHelper");
 const { getISTDate } = require("../utils/istTime");
 const logger = require("../utils/logger");
@@ -76,6 +75,46 @@ const TOKEN_TO_CATEGORY = {
 const toMinutes = (hhmm) => {
   const [h, m] = String(hhmm || "00:00").split(":").map(Number);
   return (h || 0) * 60 + (m || 0);
+};
+
+// Manual-start semantics: enforcement starts the moment an admin/staff applies
+// a rule (the start time is NOT a gate). Only the end time (auto-stop) and the
+// configured active days limit enforcement on the phone side.
+const isRuleWithinEndTime = (rule, now) => {
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const endMinutes = toMinutes(rule.scheduleEnd);
+  return currentMinutes < endMinutes;
+};
+
+const isRuleActiveDay = (rule, now) => {
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const dayName = dayNames[now.getDay()];
+  const days = rule.activeDays && rule.activeDays.length > 0
+    ? rule.activeDays
+    : DEFAULT_WINDOW.activeDays;
+  return days.includes(dayName);
+};
+
+// Resolve the concrete package list enforced by a set of rules (used to build
+// the FCM/socket payloads so devices receive a complete policy in one message).
+const resolvePackagesFromRules = (rules) => {
+  const blocked = new Set(AUTO_BLOCK_PACKAGES);
+  for (const rule of rules || []) {
+    for (const token of rule.blockedApps || []) {
+      if (!token) continue;
+      const category = TOKEN_TO_CATEGORY[String(token).toLowerCase().replace(/[^a-z]/g, "")] ||
+        TOKEN_TO_CATEGORY[String(token).toLowerCase()];
+      if (category) {
+        (CATEGORY_TO_PACKAGES[category] || []).forEach((pkg) => blocked.add(pkg));
+      } else {
+        blocked.add(token);
+      }
+    }
+  }
+  // Settings is always part of an active restriction policy so permission
+  // revocation is impossible mid-class (time-bounded by the end time).
+  blocked.add(SETTINGS_PACKAGE);
+  return Array.from(blocked);
 };
 
 const isDefaultWindowActive = (now) => {
@@ -183,11 +222,15 @@ const getStudentPolicy = async ({ student, device = null, now }) => {
     source = "rule";
   }
 
-  // Schedule is enforced either by an active rule window OR, when no rule has
+  // Schedule is enforced either by an active rule (manual-start: blocking begins
+  // the moment the rule is applied, regardless of the clock) OR, when no rule has
   // ever been configured, by the built-in default 09:00 - 16:00 window.
   let scheduleActive = false;
   if (activeRules.length > 0) {
-    scheduleActive = activeRules.some((rule) => isRuleActiveNow(rule, istNow));
+    // Manual-start: "Set Restriction Timing" must block immediately. Auto-stop
+    // happens when the schedule engine pauses the rule at its end time; the
+    // phone's native service also self-limits to the end time as a safety net.
+    scheduleActive = true;
   } else if (!hasAnyRule) {
     scheduleActive = isDefaultWindowActive(istNow);
   }
@@ -215,14 +258,12 @@ const getStudentPolicy = async ({ student, device = null, now }) => {
     ? await resolveBlockedPackages(student._id, activeRules)
     : [];
 
-  // Block the Android Settings app during an active restriction window, but
-  // only once the student has completed setup (both permissions granted).
+  // Block the Android Settings app during an active restriction window so the
+  // student cannot revoke permissions mid-class. Always applied while active
+  // (enforcement is time-bounded: after the end time the overlay auto-stops and
+  // Settings becomes usable again).
   if (
     status === "active" &&
-    device &&
-    device.deviceInfo &&
-    device.deviceInfo.accessibilityEnabled === true &&
-    device.deviceInfo.overlayEnabled === true &&
     !blockedPackages.includes(SETTINGS_PACKAGE)
   ) {
     blockedPackages.push(SETTINGS_PACKAGE);
@@ -305,7 +346,13 @@ const getClassWindow = async (classId, now) => {
 
   let active = false;
   if (activeRules.length > 0) {
-    active = activeRules.some((rule) => isRuleActiveNow(rule, istNow));
+    // Manual-start: the class window counts as "active" from the moment a rule
+    // is applied until its end time, so the engine auto-stops at end time but
+    // NEVER auto-pauses immediately after an apply (which used to happen when
+    // the window was gated by the start time).
+    active = activeRules.some(
+      (rule) => isRuleWithinEndTime(rule, istNow) && isRuleActiveDay(rule, istNow)
+    );
   } else if (!hasAnyRule) {
     active = isDefaultWindowActive(istNow);
   }
@@ -324,6 +371,7 @@ module.exports = {
   getStudentPolicy,
   getClassWindow,
   resolveBlockedPackages,
+  resolvePackagesFromRules,
   isDefaultWindowActive,
   buildScopeRuleQuery,
   DEFAULT_WINDOW,

@@ -3,7 +3,6 @@ const Device = require("../models/Device");
 const Rule = require("../models/Rule");
 const usageService = require("./usageService");
 const { getISTDate } = require("../utils/istTime");
-const { isRuleActiveNow } = require("../utils/scheduleHelper");
 
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -61,7 +60,7 @@ class ClassService {
         status: "active",
       }).lean();
       if (activeRules.length > 0) {
-        hasScheduleActive = activeRules.some((rule) => isRuleActiveNow(rule, istNow));
+        hasScheduleActive = true;
       }
     } catch (e) {
       // ignore - schedule check is best-effort

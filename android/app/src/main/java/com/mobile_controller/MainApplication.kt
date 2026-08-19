@@ -1,6 +1,8 @@
 package com.mobile_controller
 
 import android.app.Application
+import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -51,6 +53,29 @@ class MainApplication : Application(), ReactApplication {
       loadReactNative(this)
     } catch (e: Exception) {
       Log.e("MobileController", "React Native init failed", e)
+    }
+
+    // Background policy-sync fallback (refreshes policy even when the app is
+    // killed; FCM data messages provide the instant path).
+    try {
+      PolicySyncScheduler.schedule(this)
+    } catch (e: Exception) {
+      Log.e("MobileController", "WorkManager schedule failed", e)
+    }
+
+    // Persistent foreground service keeps the process alive so the accessibility
+    // service stays connected (prevents Android disabling it -> "Not working").
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(
+          Intent(this, PolicyForegroundService::class.java)
+        )
+      } else {
+        @Suppress("DEPRECATION")
+        startService(Intent(this, PolicyForegroundService::class.java))
+      }
+    } catch (e: Exception) {
+      Log.e("MobileController", "Foreground service start failed", e)
     }
   }
 }

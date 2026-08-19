@@ -242,7 +242,7 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
 
     for (const cid of scopedClassIds) {
       setClassEmergencyUnblock(cid, true);
-      await ruleService.batchRuleCommand({ classIds: [cid], action: "pause" });
+      await ruleService.batchRuleCommand({ classIds: [cid], action: "pause", actorId: req.user.userId });
       emitToClass(cid, "emergency:unblock", { timestamp: new Date() });
     }
 
@@ -269,7 +269,7 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
 // POST: Pause restriction for a class (unblock all apps for that class)
 router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, next) => {
   try {
-    const result = await ruleService.batchRuleCommand({ classIds: [req.params.id], action: "pause" });
+    const result = await ruleService.batchRuleCommand({ classIds: [req.params.id], action: "pause", actorId: req.user.userId });
 
     await auditService.logAction(
       req.user.userId,
@@ -298,7 +298,7 @@ router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, n
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     setClassEmergencyUnblock(req.params.id, false);
 
-    const result = await ruleService.batchRuleCommand({ classIds: [req.params.id], action: "start" });
+    const result = await ruleService.batchRuleCommand({ classIds: [req.params.id], action: "start", actorId: req.user.userId });
 
     await auditService.logAction(
       req.user.userId,

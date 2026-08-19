@@ -3,6 +3,7 @@ const Device = require("../models/Device");
 const User = require("../models/User");
 const { emitToClass } = require("../config/socket");
 const fcmService = require("./fcmService");
+const autoBlockService = require("./autoBlockService");
 const logger = require("../utils/logger");
 const { NotFoundError, ValidationError, ForbiddenError } = require("../utils/AppError");
 
@@ -17,7 +18,7 @@ exports.createRule = async (ruleData, actorId) => {
 
   if (rule.status === "active") {
     rule.startedAt = new Date();
-    await dispatchRule(rule, "start");
+    await dispatchRule(rule, "start", { actorId, transition: "set" });
   }
 
   return rule;
@@ -41,14 +42,20 @@ exports.updateRule = async (ruleId, updateData, actorId, institutionId) => {
 
   if (rule.status !== previousStatus && rule.status === "active") {
     rule.startedAt = new Date();
-    await dispatchRule(rule, "start");
+    await dispatchRule(rule, "start", {
+      actorId,
+      transition: previousStatus === "paused" ? "resume" : "set",
+    });
   } else if (rule.status === "paused" || rule.status === "stopped") {
     rule.startedAt = null;
-    await dispatchRule(rule, rule.status === "paused" ? "pause" : "stop");
+    await dispatchRule(rule, rule.status === "paused" ? "pause" : "stop", {
+      actorId,
+      transition: rule.status === "paused" ? "pause" : "stop",
+    });
   } else {
     // If rule remains active but other parameters (like blockedApps) change, dispatch update
     if (rule.status === "active") {
-      await dispatchRule(rule, "start");
+      await dispatchRule(rule, "start", { actorId, transition: "set" });
     }
   }
 
@@ -77,7 +84,7 @@ exports.getRuleById = async (ruleId, institutionId) => {
   return rule;
 };
 
-exports.sendCommand = async (ruleId, action, actorId, institutionId) => {
+exports.sendCommand = async (ruleId, action, actorId, institutionId, options = {}) => {
   const rule = await Rule.findById(ruleId);
   if (!rule) {
     throw new NotFoundError("Rule");
@@ -111,12 +118,56 @@ exports.sendCommand = async (ruleId, action, actorId, institutionId) => {
   rule.policyVersion = (rule.policyVersion || 1) + 1;
 
   await rule.save();
-  await dispatchRule(rule, action);
+  await dispatchRule(rule, action, {
+    actorId,
+    transition: action === "start" ? "resume" : action,
+    notify: options.notify !== false,
+  });
 
   return rule;
 };
 
 const BATCH_SIZE = 5;
+
+const DEFAULT_ACTIVE_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Resolve the acting user's label for student notifications. Unknown/string
+// actors (e.g. the schedule engine) fall back to "System".
+const resolveActorLabel = async (actorId) => {
+  try {
+    if (!actorId || typeof actorId !== "string" || actorId.length !== 24) {
+      return "System";
+    }
+    const actor = await User.findById(actorId).select("role").lean();
+    if (!actor) return "System";
+    return actor.role === "staff" ? "Staff" : "Admin";
+  } catch (err) {
+    return "System";
+  }
+};
+
+// Build the full policy data block sent over socket + FCM so a device can
+// update its local PolicyStorage in ONE message (no extra /policy/latest fetch).
+// Socket emissions carry blockedPackages as a REAL array (the JS client checks
+// Array.isArray); FCM data messages keep it JSON-stringified because FCM data
+// fields only accept string values.
+const buildPolicyData = (action, status, blockedPackages, rule, serverTimestamp, options = {}) => {
+  const isFcm = options.fcm === true;
+  return {
+    action,
+    status,
+    blockedPackages: isFcm ? JSON.stringify(blockedPackages || []) : blockedPackages || [],
+    scheduleStart: rule && rule.scheduleStart ? rule.scheduleStart : "09:00",
+    scheduleEnd: rule && rule.scheduleEnd ? rule.scheduleEnd : "16:00",
+    activeDays: JSON.stringify(
+      rule && rule.activeDays && rule.activeDays.length > 0 ? rule.activeDays : DEFAULT_ACTIVE_DAYS
+    ),
+    reason: rule && rule.reason ? rule.reason : "",
+    policyVersion: String(rule && rule.policyVersion ? rule.policyVersion : 1),
+    ruleId: rule && rule._id ? String(rule._id) : "",
+    serverTimestamp: serverTimestamp.toISOString(),
+  };
+};
 
 /**
  * Create a rule for a class, or update the latest existing rule for that class
@@ -163,7 +214,7 @@ exports.applyBulkRulePolicy = async (targetClassIds, ruleData, actorId) => {
  * effects (rule state, policyVersion, device status, socket emit, FCM push,
  * deduped restriction notification) but with constant DB round-trips.
  */
-exports.batchRuleCommand = async ({ classIds = [], action }) => {
+exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = true }) => {
   const validFromStatus = { pause: "active", start: "paused" };
   const fromStatus = validFromStatus[action];
   if (!fromStatus) {
@@ -178,10 +229,24 @@ exports.batchRuleCommand = async ({ classIds = [], action }) => {
   }
 
   const affectedRules = await Rule.find(query)
-    .select("_id targetClassId reason")
+    .select("_id targetClassId reason blockedApps scheduleStart scheduleEnd activeDays policyVersion")
     .lean();
 
   const affectedClassIds = [...new Set(affectedRules.map((r) => r.targetClassId).filter(Boolean))];
+
+  // Group rules by class so we can send each class a complete, accurate
+  // blocked-package list (manual-start: start immediately from apply).
+  const rulesByClass = {};
+  for (const r of affectedRules) {
+    (rulesByClass[r.targetClassId] = rulesByClass[r.targetClassId] || []).push(r);
+  }
+  const blockedPackagesByClass = {};
+  for (const cid of Object.keys(rulesByClass)) {
+    blockedPackagesByClass[cid] =
+      action === "start"
+        ? autoBlockService.resolvePackagesFromRules(rulesByClass[cid])
+        : [];
+  }
 
   if (affectedRules.length > 0) {
     await Rule.updateMany(
@@ -196,9 +261,13 @@ exports.batchRuleCommand = async ({ classIds = [], action }) => {
   const serverTimestamp = new Date();
 
   const targetStudentIds = [];
+  const studentClassMap = new Map();
   if (affectedClassIds.length > 0) {
-    const students = await User.find({ role: "student", classId: { $in: affectedClassIds } }).select("_id");
-    for (const s of students) targetStudentIds.push(s._id);
+    const students = await User.find({ role: "student", classId: { $in: affectedClassIds } }).select("_id classId");
+    for (const s of students) {
+      targetStudentIds.push(s._id);
+      studentClassMap.set(s._id.toString(), s.classId);
+    }
   }
 
   if (targetStudentIds.length > 0) {
@@ -212,49 +281,61 @@ exports.batchRuleCommand = async ({ classIds = [], action }) => {
       }
     );
 
-    // Non-blocking FCM multicast for all affected devices in a single call.
+    // Per-class FCM multicast so every device gets the exact policy for its
+    // own class in a single data message (the native handler saves it directly).
     const devicesWithFcm = await Device.find({
       userId: { $in: targetStudentIds },
       fcmToken: { $ne: null },
-    }).select("fcmToken").lean();
-    const tokens = devicesWithFcm.map((d) => d.fcmToken).filter(Boolean);
-    if (tokens.length > 0) {
+    }).select("userId fcmToken").lean();
+    const tokensByClass = new Map();
+    for (const d of devicesWithFcm) {
+      if (!d.fcmToken) continue;
+      const classId = studentClassMap.get(d.userId.toString());
+      if (!classId) continue;
+      if (!tokensByClass.has(classId)) tokensByClass.set(classId, []);
+      tokensByClass.get(classId).push(d.fcmToken);
+    }
+    for (const [classId, tokens] of tokensByClass) {
+      if (tokens.length === 0) continue;
+      const payload = buildPolicyData(
+        action,
+        newStatus,
+        blockedPackagesByClass[classId] || [],
+        rulesByClass[classId] ? rulesByClass[classId][0] : null,
+        serverTimestamp,
+        { fcm: true }
+      );
       fcmService
-        .sendToMultipleDevices(tokens, {
-          action,
-          status: newStatus,
-          serverTimestamp: serverTimestamp.toISOString(),
-        })
+        .sendToMultipleDevices(tokens, payload)
         .catch(() => {});
     }
 
-    // Deduped restriction notification (one per student for this action).
-    const Notification = require("../models/Notification");
-    const title = action === "pause" ? "Policy Restriction Paused" : "Classroom Restriction Activated";
-    const reason = affectedRules[0]?.reason;
-    const message = reason ? `Admin Instruction: ${reason}` : `Classroom restriction rule ${action}ed.`;
+    // One restriction notification per student, replacing any prior unread one
+    // (max one card per student, so repeated set/pause/resume never stacks).
+    if (notify !== false && targetStudentIds.length > 0) {
+      const Notification = require("../models/Notification");
+      const actorLabel = await resolveActorLabel(actorId);
+      const title = action === "pause" ? "Policy Restriction Paused" : "Restriction Resumed";
+      const reason = affectedRules[0]?.reason;
+      const message = reason
+        ? `${actorLabel} Instruction: ${reason}`
+        : `Classroom restriction rule ${action}ed.`;
 
-    const existing = await Notification.find({
-      studentId: { $in: targetStudentIds },
-      type: "restriction",
-      title,
-      message,
-      read: false,
-    }).select("studentId");
-
-    const existingSet = new Set(existing.map((n) => n.studentId.toString()));
-    const toCreate = targetStudentIds
-      .filter((sId) => !existingSet.has(sId.toString()))
-      .map((sId) => ({
-        studentId: sId,
-        title,
-        message,
+      await Notification.deleteMany({
+        studentId: { $in: targetStudentIds },
         type: "restriction",
         read: false,
-      }));
+      });
 
-    if (toCreate.length > 0) {
-      await Notification.insertMany(toCreate);
+      await Notification.insertMany(
+        targetStudentIds.map((sId) => ({
+          studentId: sId,
+          title,
+          message,
+          type: "restriction",
+          read: false,
+        }))
+      );
     }
   }
 
@@ -262,7 +343,13 @@ exports.batchRuleCommand = async ({ classIds = [], action }) => {
     emitToClass(cid, "rule:update", {
       action,
       status: newStatus,
-      serverTimestamp: serverTimestamp.toISOString(),
+      ...buildPolicyData(
+        action,
+        newStatus,
+        blockedPackagesByClass[cid] || [],
+        rulesByClass[cid] ? rulesByClass[cid][0] : null,
+        serverTimestamp
+      ),
     });
   }
 
@@ -270,7 +357,7 @@ exports.batchRuleCommand = async ({ classIds = [], action }) => {
   return { affectedRules: affectedRules.length, affectedClassIds };
 };
 
-async function dispatchRule(rule, action) {
+async function dispatchRule(rule, action, { actorId = null, transition = action, notify = true } = {}) {
   const serverTimestamp = new Date();
 
   // Resolve scope target
@@ -307,17 +394,29 @@ async function dispatchRule(rule, action) {
   const deviceStatusMap = { start: "blocked", pause: "active", stop: "active" };
   const newDeviceStatus = deviceStatusMap[action] || "active";
 
-  // Broadcast using Socket class logic
+  // Broadcast using Socket class logic (socket carries a real array; FCM keeps
+  // the JSON-string form since FCM data fields only accept string values).
+  const resolvedPackages =
+    action === "start" ? autoBlockService.resolvePackagesFromRules([rule.toObject()]) : [];
+  const socketPolicyData = buildPolicyData(
+    action,
+    rule.status,
+    resolvedPackages,
+    rule.toObject(),
+    serverTimestamp
+  );
+  const fcmPolicyData = buildPolicyData(
+    action,
+    rule.status,
+    resolvedPackages,
+    rule.toObject(),
+    serverTimestamp,
+    { fcm: true }
+  );
   emitToClass(rule.targetClassId, "rule:update", {
     ruleId: rule._id,
     action,
-    blockedApps: rule.blockedApps,
-    scheduleStart: rule.scheduleStart,
-    scheduleEnd: rule.scheduleEnd,
-    activeDays: rule.activeDays,
-    status: rule.status,
-    policyVersion: rule.policyVersion,
-    serverTimestamp: serverTimestamp.toISOString(),
+    ...socketPolicyData,
   });
 
   if (targetDevices.length > 0) {
@@ -342,50 +441,47 @@ async function dispatchRule(rule, action) {
       Promise.allSettled(
         devicesWithFcm.map((device) =>
           fcmService.sendToDevice(device.fcmToken, {
+            ...fcmPolicyData,
             ruleId: rule._id.toString(),
-            action,
-            blockedApps: JSON.stringify(rule.blockedApps),
-            scheduleStart: rule.scheduleStart,
-            scheduleEnd: rule.scheduleEnd,
-            activeDays: JSON.stringify(rule.activeDays),
-            status: rule.status,
-            policyVersion: String(rule.policyVersion || 1),
-            serverTimestamp: serverTimestamp.toISOString(),
           })
         )
       ).catch(() => {});
     }
   }
 
-  const Notification = require("../models/Notification");
-  const notificationTitle = action === "start" ? "Classroom Restriction Activated" : action === "pause" ? "Policy Restriction Paused" : "Classroom Policy Stopped";
-  const notificationMsg = rule.reason ? `Admin Instruction: ${rule.reason}` : `Classroom restriction rule ${action}ed for schedule ${rule.scheduleStart} – ${rule.scheduleEnd}.`;
+  if (notify && targetStudentIds.length > 0) {
+    const Notification = require("../models/Notification");
+    const actorLabel = await resolveActorLabel(actorId);
+    const reason = rule.reason;
+    const notificationTitle =
+      transition === "resume"
+        ? "Restriction Resumed"
+        : action === "start"
+          ? "Classroom Restriction Activated"
+          : action === "pause"
+            ? "Policy Restriction Paused"
+            : "Classroom Policy Stopped";
+    const notificationMsg = reason
+      ? `${actorLabel} Instruction: ${reason}`
+      : `Classroom restriction rule ${action}ed.`;
 
-  if (targetStudentIds.length > 0) {
-    // Deduplicate: never stack identical unread restriction notifications for
-    // the same student (repeated dispatches / auto-pause must not spam the list).
-    const existing = await Notification.find({
+    // Stacking fix: replace any prior unread restriction card with the newest
+    // state so the student list never accumulates duplicate restriction cards.
+    await Notification.deleteMany({
       studentId: { $in: targetStudentIds },
       type: "restriction",
-      title: notificationTitle,
-      message: notificationMsg,
       read: false,
-    }).select("studentId");
+    });
 
-    const existingSet = new Set(existing.map((n) => n.studentId.toString()));
-    const notificationsToCreate = targetStudentIds
-      .filter((sId) => !existingSet.has(sId.toString()))
-      .map((sId) => ({
+    await Notification.insertMany(
+      targetStudentIds.map((sId) => ({
         studentId: sId,
         title: notificationTitle,
         message: notificationMsg,
         type: "restriction",
         read: false,
-      }));
-
-    if (notificationsToCreate.length > 0) {
-      await Notification.insertMany(notificationsToCreate);
-    }
+      }))
+    );
   }
 
   logger.info(`Dispatched scoped [${scopeType}] rule ${rule._id} [${action}] to ${targetDevices.length} devices and ${targetStudentIds.length} students.`);

@@ -295,6 +295,42 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    /**
+     * Returns the Firebase Cloud Messaging token for this device, or "" when
+     * Firebase is not configured yet (e.g. no google-services.json). Never throws.
+     */
+    @ReactMethod
+    fun getFcmToken(promise: Promise) {
+        try {
+            val task = com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+            task.addOnCompleteListener { completed ->
+                if (completed.isSuccessful && completed.result != null) {
+                    promise.resolve(completed.result)
+                } else {
+                    promise.resolve("")
+                }
+            }
+            task.addOnFailureListener {
+                promise.resolve("")
+            }
+        } catch (e: Exception) {
+            promise.resolve("")
+        }
+    }
+
+    /**
+     * Mirrors the deviceId + auth token + base URL into native storage so the
+     * background WorkManager sync can refresh the policy without the JS runtime.
+     */
+    @ReactMethod
+    fun saveAuth(deviceId: String, authToken: String, baseUrl: String) {
+        try {
+            PolicyStorage(reactContext).saveAuth(deviceId, authToken, baseUrl)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private fun isAccessibilityServiceEnabled(): Boolean {
         val expectedService = "${reactContext.packageName}/${RestrictionAccessibilityService::class.java.canonicalName}"
         val enabledServices = Settings.Secure.getString(

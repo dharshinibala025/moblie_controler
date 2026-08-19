@@ -72,7 +72,7 @@ describe("Rule dispatch notifications - dedupe", () => {
 
     const notifications = await Notification.find({ studentId: studentUser._id });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0].message).toBe("Admin Instruction: Study Hours Policy restriction");
+    expect(notifications[0].message).toBe("Staff Instruction: Study Hours Policy restriction");
   });
 
   test("re-dispatching an already-active rule (repeat Set Restriction click) does not stack duplicate notifications", async () => {
@@ -139,5 +139,113 @@ describe("Student notification auto-clear on read", () => {
 
     // Notification still exists because it belongs to a different student.
     expect(await Notification.findById(notif._id)).not.toBeNull();
+  });
+});
+
+describe("Role-aware restriction notifications (Admin/Staff/System)", () => {
+  const createActiveRule = async () => {
+    const res = await request(app)
+      .post("/staff/classes/C101/rules")
+      .set("Authorization", `Bearer ${staffToken}`)
+      .send({
+        blockedApps: ["SocialMedia"],
+        scheduleStart: "09:00",
+        scheduleEnd: "16:00",
+        activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        reason: "Study Hours Policy restriction",
+        status: "active",
+      });
+    return res.body;
+  };
+
+  test("staff pause -> 'Policy Restriction Paused' with Staff Instruction", async () => {
+    const rule = await createActiveRule();
+
+    await request(app)
+      .patch(`/staff/classes/C101/rules/${rule._id}`)
+      .set("Authorization", `Bearer ${staffToken}`)
+      .send({ status: "paused", reason: "Study Hours Policy restriction" });
+
+    const notifs = await Notification.find({ studentId: studentUser._id });
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0].title).toBe("Policy Restriction Paused");
+    expect(notifs[0].message).toBe("Staff Instruction: Study Hours Policy restriction");
+  });
+
+  test("staff resume -> 'Restriction Resumed' with Staff Instruction", async () => {
+    const rule = await createActiveRule();
+    await request(app)
+      .patch(`/staff/classes/C101/rules/${rule._id}`)
+      .set("Authorization", `Bearer ${staffToken}`)
+      .send({ status: "paused" });
+
+    await request(app)
+      .patch(`/staff/classes/C101/rules/${rule._id}`)
+      .set("Authorization", `Bearer ${staffToken}`)
+      .send({ status: "active", reason: "Study Hours Policy restriction" });
+
+    const notifs = await Notification.find({ studentId: studentUser._id });
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0].title).toBe("Restriction Resumed");
+    expect(notifs[0].message).toBe("Staff Instruction: Study Hours Policy restriction");
+  });
+
+  test("new restriction notification replaces a prior unread one even when reason changes", async () => {
+    const rule = await createActiveRule();
+    expect(await Notification.countDocuments({ studentId: studentUser._id })).toBe(1);
+
+    await request(app)
+      .patch(`/staff/classes/C101/rules/${rule._id}`)
+      .set("Authorization", `Bearer ${staffToken}`)
+      .send({ status: "active", reason: "Updated reason text" });
+
+    const notifs = await Notification.find({ studentId: studentUser._id });
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0].message).toBe("Staff Instruction: Updated reason text");
+  });
+
+  test("sendCommand with notify:false creates no student notification (silent auto-stop)", async () => {
+    const rule = await createActiveRule();
+    const ruleService = require("../services/ruleService");
+
+    await ruleService.sendCommand(rule._id, "pause", "Schedule window closed - auto-pause", null, { notify: false });
+
+    const notifs = await Notification.find({ studentId: studentUser._id });
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0].title).toBe("Classroom Restriction Activated");
+  });
+});
+
+describe("Student notification pruning - one restriction card max", () => {
+  test("GET /student/notifications prunes duplicate unread restriction cards, keeping the newest", async () => {
+    await Notification.insertMany([
+      { studentId: studentUser._id, title: "Classroom Restriction Activated", message: "Admin Instruction: a", type: "restriction", read: false, createdAt: new Date(Date.now() - 60000) },
+      { studentId: studentUser._id, title: "Classroom Restriction Activated", message: "Admin Instruction: b", type: "restriction", read: false, createdAt: new Date(Date.now() - 40000) },
+      { studentId: studentUser._id, title: "Policy Restriction Paused", message: "Admin Instruction: c", type: "restriction", read: false, createdAt: new Date(Date.now() - 20000) },
+    ]);
+
+    const res = await request(app)
+      .get("/student/notifications")
+      .set("Authorization", `Bearer ${studentToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.notifications).toHaveLength(1);
+    expect(res.body.notifications[0].message).toBe("Admin Instruction: c");
+
+    expect(await Notification.countDocuments({ studentId: studentUser._id })).toBe(1);
+  });
+
+  test("unread-count drops after pruning duplicates", async () => {
+    await Notification.insertMany([
+      { studentId: studentUser._id, title: "Classroom Restriction Activated", message: "Admin Instruction: a", type: "restriction", read: false },
+      { studentId: studentUser._id, title: "Classroom Restriction Activated", message: "Admin Instruction: b", type: "restriction", read: false },
+    ]);
+
+    const res = await request(app)
+      .get("/student/notifications/unread-count")
+      .set("Authorization", `Bearer ${studentToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.unreadCount).toBe(1);
   });
 });

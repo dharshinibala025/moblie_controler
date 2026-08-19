@@ -194,7 +194,7 @@ describe("autoBlockService - Android Settings block after setup", () => {
     expect(policy.blockedPackages).toContain(SETTINGS_PACKAGE);
   });
 
-  test("Settings is NOT blocked when the student has not completed setup", async () => {
+  test("Settings is blocked whenever the policy is active (setup-independent)", async () => {
     await Rule.create({
       createdBy: adminUser._id,
       targetClassId: "C101",
@@ -222,6 +222,8 @@ describe("autoBlockService - Android Settings block after setup", () => {
       now: insideWindow(),
     });
     expect(policy.status).toBe("active");
-    expect(policy.blockedPackages).not.toContain(SETTINGS_PACKAGE);
+    // Settings is always part of an active restriction policy so permissions
+    // cannot be revoked mid-class (enforcement is time-bounded by the end time).
+    expect(policy.blockedPackages).toContain(SETTINGS_PACKAGE);
   });
 });

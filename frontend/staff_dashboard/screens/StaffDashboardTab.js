@@ -118,7 +118,7 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
           const restricted = students.filter(s => s.scheduleRestricted).length;
           setRestrictedStudents(restricted);
 
-          const unblocked = students.filter(s => s.deviceStatus === 'online' || s.deviceStatus === 'active').length;
+          const unblocked = Math.max(0, students.length - blocked - restricted);
           setUnblockedStudents(unblocked);
 
           const warnings = students.reduce((sum, s) => sum + (s.attempts || 0), 0);
@@ -287,7 +287,9 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
               <View style={[styles.statIconContainer, { backgroundColor: '#EFF6FF' }]}>
                 <VectorIcon name="school" size={14} color={colors.primary} />
               </View>
-              <Text style={[styles.badgeText, { color: '#0284C7' }]}>100%</Text>
+              <Text style={[styles.badgeText, { color: '#0284C7' }]}>
+                {displayTotal ? `${Math.round((onlineStudents / displayTotal) * 100)}%` : '0%'}
+              </Text>
             </View>
             <Text style={styles.statValue}>{displayTotal}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Total</Text>

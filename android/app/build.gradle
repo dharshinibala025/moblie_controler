@@ -3,6 +3,13 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
 
+// FCM (instant policy push) activates automatically once google-services.json is
+// dropped into android/app/. The build stays green without it (WorkManager is
+// the fallback delivery channel).
+if (file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
+}
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -83,8 +90,8 @@ android {
         applicationId "com.mobile_controller"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 4
-        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : "1.2.0"
+        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 8
+        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : "1.2.3"
     }
     signingConfigs {
         debug {
@@ -116,6 +123,13 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+
+    // Background policy sync fallback (refreshes policy even when the app is killed)
+    implementation("androidx.work:work-runtime:2.9.1")
+
+    // Instant policy push via Firebase Cloud Messaging (native handler updates
+    // PolicyStorage directly, so locked/killed phones block immediately).
+    implementation("com.google.firebase:firebase-messaging:24.0.0")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

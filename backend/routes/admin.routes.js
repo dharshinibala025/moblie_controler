@@ -622,7 +622,7 @@ router.post("/override/pause", async (req, res, next) => {
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     const scopeClassIds = classId ? [classId] : targetClassIds;
 
-    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "pause" });
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "pause", actorId: req.user.userId });
     const { affectedClassIds, affectedRules } = result;
 
     for (const cid of affectedClassIds) {
@@ -654,7 +654,7 @@ router.post("/override/resume", async (req, res, next) => {
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     const scopeClassIds = classId ? [classId] : targetClassIds;
 
-    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "start" });
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "start", actorId: req.user.userId });
     const { affectedClassIds, affectedRules } = result;
 
     for (const cid of affectedClassIds) {
@@ -998,10 +998,48 @@ router.post("/notifications/broadcast", async (req, res, next) => {
 
 router.get("/dashboard/overview", async (req, res, next) => {
   try {
-    const totalStudents = await User.countDocuments({ role: "student" });
-    const totalStaff = await User.countDocuments({ role: "staff" });
-    const connectedDevicesCount = await Device.countDocuments({ status: "active" });
-    const blockedDevicesCount = await Device.countDocuments({ status: "blocked" });
+    const { getISTDate } = require("../utils/istTime");
+    const istNow = getISTDate();
+    const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+    const onlineSince = new Date(Date.now() - ONLINE_THRESHOLD_MS);
+
+    // Real counts, scoped to the admin's institution when one is set.
+    const studentQuery = { role: "student" };
+    const staffQuery = { role: "staff" };
+    if (req.scopeInstitutionId) {
+      studentQuery.institutionId = req.scopeInstitutionId;
+      staffQuery.institutionId = req.scopeInstitutionId;
+    }
+    const totalStudents = await User.countDocuments(studentQuery);
+    const totalStaff = await User.countDocuments(staffQuery);
+
+    // Devices are scoped through their owning users.
+    let deviceQuery = {};
+    if (req.scopeInstitutionId) {
+      const institutionUserIds = await User.find({
+        institutionId: req.scopeInstitutionId,
+        role: { $in: ["student", "staff"] },
+      }).select("_id");
+      deviceQuery.userId = { $in: institutionUserIds.map((u) => u._id) };
+    }
+
+    // "Connected Phones" = devices that synced within the last 2 minutes
+    // (real online-now set, regardless of blocking state).
+    const connectedDevicesCount = await Device.countDocuments({
+      ...deviceQuery,
+      lastSyncAt: { $gte: onlineSince },
+    });
+    const blockedDevicesCount = await Device.countDocuments({
+      ...deviceQuery,
+      status: "blocked",
+    });
+
+    const connectedPct = totalStudents
+      ? Math.round((connectedDevicesCount / totalStudents) * 100)
+      : 0;
+    const blockedPct = totalStudents
+      ? Math.round((blockedDevicesCount / totalStudents) * 100)
+      : 0;
 
     const BlockedAttempt = require("../models/BlockedAttempt");
     const AuditLog = require("../models/AuditLog");
@@ -1056,6 +1094,14 @@ router.get("/dashboard/overview", async (req, res, next) => {
       if (recentActivities.length >= 5) break;
     }
 
+    // Real weekly session count (IST week starts Monday 00:00).
+    const dayOfWeek = istNow.getDay(); // 0 = Sunday
+    const mondayIST = new Date(istNow);
+    mondayIST.setDate(istNow.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    mondayIST.setHours(0, 0, 0, 0);
+    const startOfWeekUTC = new Date(mondayIST.getTime() - 5.5 * 60 * 60 * 1000);
+    const sessionsThisWeek = await Session.countDocuments({ createdAt: { $gte: startOfWeekUTC } });
+
     res.json({
       stats: [
         {
@@ -1065,7 +1111,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
           value: totalStudents.toLocaleString(),
           iconColor: "#2563EB",
           iconBackground: "#EFF6FF",
-          trend: "+4.2%",
+          trend: null,
           trendPositive: true,
         },
         {
@@ -1075,7 +1121,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
           value: totalStaff.toLocaleString(),
           iconColor: "#38BDF8",
           iconBackground: "#F0F9FF",
-          trend: "+1.1%",
+          trend: null,
           trendPositive: true,
         },
         {
@@ -1085,8 +1131,8 @@ router.get("/dashboard/overview", async (req, res, next) => {
           value: connectedDevicesCount.toLocaleString(),
           iconColor: "#16A34A",
           iconBackground: "#DCFCE7",
-          trend: "+8.6%",
-          trendPositive: true,
+          trend: `${connectedPct}%`,
+          trendPositive: connectedPct >= 50,
         },
         {
           id: "blocked-phones",
@@ -1095,23 +1141,13 @@ router.get("/dashboard/overview", async (req, res, next) => {
           value: blockedDevicesCount.toLocaleString(),
           iconColor: "#EF4444",
           iconBackground: "#FEE2E2",
-          trend: "-2.3%",
-          trendPositive: false,
+          trend: `${blockedPct}%`,
+          trendPositive: blockedPct < 50,
         },
       ],
-      recentActivities: recentActivities.length > 0 ? recentActivities : [
-        {
-          id: "default-1",
-          icon: "how-to-reg",
-          title: "System Active",
-          description: "All enforcement services running normally",
-          time: "Just now",
-          iconColor: "#2563EB",
-          iconBackground: "#EFF6FF",
-        },
-      ],
+      recentActivities,
       usageSummary: {
-        sessionsThisWeek: 354,
+        sessionsThisWeek,
         periodText: "This week",
       },
     });

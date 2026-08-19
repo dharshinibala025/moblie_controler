@@ -22,7 +22,14 @@ router.get("/latest", async (req, res, next) => {
 
     const now = Date.now();
     const lastRequestTime = lastRequestCache.get(deviceId);
-    if (process.env.NODE_ENV !== "test" && lastRequestTime && now - lastRequestTime < 2000) {
+    // Realtime (socket-triggered) fetches must never be throttled — the socket
+    // "start" handler uses this endpoint to apply an instant block.
+    if (
+      process.env.NODE_ENV !== "test" &&
+      syncType !== "realtime" &&
+      lastRequestTime &&
+      now - lastRequestTime < 2000
+    ) {
       return res.status(429).json({ error: "Replay guard: request throttled. Please wait." });
     }
     lastRequestCache.set(deviceId, now);

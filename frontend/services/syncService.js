@@ -38,8 +38,15 @@ class SyncService {
       const permissions = await this.checkPermissions();
 
       // 2. Register device with backend
+      // Get the real FCM token (native Firebase) when available so pushes can
+      // reach the phone even while the app is backgrounded or killed.
+      let fcmToken = null;
+      if (AppScannerModule && AppScannerModule.getFcmToken) {
+        fcmToken = await AppScannerModule.getFcmToken().catch(() => null);
+      }
+
       const registrationPayload = {
-        fcmToken: 'fcm_placeholder', // fallback FCM token
+        fcmToken,
         deviceInfo: {
           platform: 'android',
           osVersion: nativeInfo.osVersion,
@@ -59,6 +66,21 @@ class SyncService {
       const serverDeviceId = registerRes.deviceId;
       if (serverDeviceId) {
         await AsyncStorage.setItem(CACHE_KEYS.DEVICE_ID, serverDeviceId);
+      }
+
+      // Mirror deviceId + auth token + base URL into native storage so the
+      // background WorkManager sync can refresh the policy without JS.
+      try {
+        const accessToken = await AsyncStorage.getItem('@focussync:accessToken');
+        if (AppScannerModule && AppScannerModule.saveAuth) {
+          await AppScannerModule.saveAuth(
+            serverDeviceId || '',
+            accessToken || '',
+            BASE_URL,
+          ).catch(() => null);
+        }
+      } catch (e) {
+        // ignore mirror failures
       }
 
       // 3. Scan installed apps
@@ -213,7 +235,7 @@ class SyncService {
       this._socket.on('rule:update', async (data) => {
         try {
           console.log('FocusSync: Received rule:update', data.action);
-          const { action, blockedApps, scheduleStart, scheduleEnd, activeDays, status, policyVersion } = data;
+          const { action, blockedPackages, scheduleStart, scheduleEnd, activeDays, status, policyVersion } = data;
 
           if (AppScannerModule && AppScannerModule.savePolicy) {
             if (action === 'pause' || action === 'stop') {
@@ -229,26 +251,97 @@ class SyncService {
                 'paused',
                 false
               ).catch(() => null);
+
+              // Update the policy cache so the Apps screen reflects the change
+              await AsyncStorage.setItem(
+                CACHE_KEYS.POLICY_CACHE,
+                JSON.stringify({
+                  policyVersion: policyVersion || 0,
+                  blockedPackages: [],
+                  status: 'inactive',
+                  scheduleStart: scheduleStart || '09:00',
+                  scheduleEnd: scheduleEnd || '16:00',
+                  activeDays: activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                  scheduleActive: false,
+                  source: 'realtime',
+                }),
+              ).catch(() => {});
             } else if (action === 'start') {
-              // Block: save the blocked apps with active status
-              // Fetch full policy from server for accurate blocked list
-              const deviceId = await AsyncStorageModule.getItem(CACHE_KEYS.DEVICE_ID);
-              if (deviceId) {
-                const policy = await apiFetch(`/policy/latest?deviceId=${deviceId}&syncType=realtime`, { method: 'GET' });
-                if (policy) {
-                  await AppScannerModule.savePolicy(
-                    (policy.policyVersion || 1).toString(),
-                    policy.blockedPackages || [],
-                    policy.scheduleStart || '09:00',
-                    policy.scheduleEnd || '16:00',
-                    policy.activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-                    policy.restrictionReason || '',
-                    policy.policyVersion || 1,
-                    policy.status || 'active',
-                    policy.emergency === 'active'
-                  ).catch(() => null);
+              // Block: parse the payload pushed by the server (socket sends a
+              // real array, FCM sends a JSON-encoded string). Only fall back to
+              // /policy/latest when no packages were provided, and if that
+              // refetch fails keep the last-known list instead of wiping
+              // enforcement to zero ("Restrictions Active · 0 apps blocked").
+              let packages = Array.isArray(blockedPackages)
+                ? blockedPackages
+                : null;
+              if (packages === null && typeof blockedPackages === 'string' && blockedPackages.trim()) {
+                try {
+                  const parsed = JSON.parse(blockedPackages);
+                  if (Array.isArray(parsed)) packages = parsed;
+                } catch (e) {
+                  packages = null;
                 }
               }
+              if (packages !== null && !Array.isArray(packages)) packages = null;
+              let policy = null;
+
+              if (!packages) {
+                const deviceId = await AsyncStorageModule.getItem(CACHE_KEYS.DEVICE_ID);
+                if (deviceId) {
+                  policy = await apiFetch(`/policy/latest?deviceId=${deviceId}&syncType=realtime`, { method: 'GET' })
+                    .catch(() => null);
+                  packages = policy && Array.isArray(policy.blockedPackages) ? policy.blockedPackages : [];
+                }
+                if (!packages || packages.length === 0) {
+                  const prev = await AsyncStorage.getItem(CACHE_KEYS.POLICY_CACHE).catch(() => null);
+                  if (prev) {
+                    try {
+                      const prevPolicy = JSON.parse(prev);
+                      if (prevPolicy && Array.isArray(prevPolicy.blockedPackages) && prevPolicy.blockedPackages.length > 0) {
+                        packages = prevPolicy.blockedPackages;
+                      }
+                    } catch (e) { /* ignore */ }
+                  }
+                }
+              } else {
+                policy = {
+                  policyVersion,
+                  blockedPackages: packages,
+                  scheduleStart: scheduleStart || '09:00',
+                  scheduleEnd: scheduleEnd || '16:00',
+                  activeDays: activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                  status: status || 'active',
+                };
+              }
+
+              await AppScannerModule.savePolicy(
+                (policyVersion || 1).toString(),
+                packages || [],
+                scheduleStart || '09:00',
+                scheduleEnd || '16:00',
+                activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                policy?.restrictionReason || '',
+                policyVersion || 1,
+                policy?.status || 'active',
+                policy?.emergency === 'active'
+              ).catch(() => null);
+
+              // Update the policy cache so the Apps screen reflects the change
+              await AsyncStorage.setItem(
+                CACHE_KEYS.POLICY_CACHE,
+                JSON.stringify({
+                  policyVersion: policyVersion || 1,
+                  blockedPackages: packages || [],
+                  status: policy?.status || 'active',
+                  scheduleStart: scheduleStart || '09:00',
+                  scheduleEnd: scheduleEnd || '16:00',
+                  activeDays: activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                  scheduleActive: true,
+                  source: 'realtime',
+                  restrictionReason: policy?.restrictionReason || '',
+                }),
+              ).catch(() => {});
             }
           }
         } catch (e) {

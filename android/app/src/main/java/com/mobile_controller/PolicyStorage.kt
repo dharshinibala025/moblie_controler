@@ -43,13 +43,30 @@ class PolicyStorage(context: Context) {
     }
 
     fun clearPolicy() {
+        // Emergency unblock / pause: fully lift restrictions. configured stays
+        // true so the offline default-window fallback never re-engages, and the
+        // emergency flag stays true until the next real policy arrives.
         prefs.edit()
             .putString("blocked_apps", "[]")
             .putString("status", "inactive")
-            .putBoolean("emergency", false)
-            .putBoolean("configured", false)
+            .putBoolean("emergency", true)
+            .putBoolean("configured", true)
             .apply()
     }
+
+    // Device auth mirror for the background PolicySyncWorker (WorkManager).
+    fun saveAuth(deviceId: String, authToken: String, baseUrl: String) {
+        prefs.edit()
+            .putString("device_id", deviceId)
+            .putString("auth_token", authToken)
+            .putString("base_url", baseUrl)
+            .apply()
+    }
+
+    fun getDeviceId(): String = prefs.getString("device_id", "") ?: ""
+    fun getAuthToken(): String = prefs.getString("auth_token", "") ?: ""
+    fun getBaseUrl(): String =
+        prefs.getString("base_url", "https://moblie-controler.onrender.com") ?: "https://moblie-controler.onrender.com"
 
     fun isConfigured(): Boolean = prefs.getBoolean("configured", false)
 

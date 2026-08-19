@@ -16,6 +16,29 @@ const router = express.Router();
 router.use(authMiddleware);
 router.use(roleMiddleware("student"));
 
+// Restriction notifications are one-per-student: keep only the newest unread
+// restriction card so a legacy backlog or repeated set/pause/resume never
+// floods the student's notification list.
+const pruneDuplicateRestrictions = async (userId) => {
+  try {
+    const Notification = require("../models/Notification");
+    const cards = await Notification.find({
+      studentId: userId,
+      type: "restriction",
+      read: false,
+    })
+      .sort({ createdAt: -1 })
+      .select("_id");
+    if (cards.length > 1) {
+      await Notification.deleteMany({
+        _id: { $in: cards.slice(1).map((c) => c._id) },
+      });
+    }
+  } catch (err) {
+    logger.error("Error pruning duplicate restriction notifications:", err);
+  }
+};
+
 const verifyDevice = async (req, res, next) => {
   try {
     const device = await deviceService.getDeviceByUser(req.user.userId);
@@ -298,6 +321,7 @@ router.get("/apps", async (req, res, next) => {
 router.get("/notifications", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
+    await pruneDuplicateRestrictions(req.user.userId);
     const notifications = await Notification.find({
       $or: [
         { studentId: req.user.userId },
@@ -318,6 +342,7 @@ router.get("/notifications", async (req, res, next) => {
 router.get("/notifications/unread-count", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
+    await pruneDuplicateRestrictions(req.user.userId);
     const unreadCount = await Notification.countDocuments({
       $or: [
         { studentId: req.user.userId },
