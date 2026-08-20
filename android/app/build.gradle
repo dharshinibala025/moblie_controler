@@ -90,8 +90,8 @@ android {
         applicationId "com.mobile_controller"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 16
-        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : "1.2.11"
+        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 17
+        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : "1.2.12"
     }
     signingConfigs {
         debug {

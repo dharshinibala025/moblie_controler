@@ -112,7 +112,8 @@ class RestrictionAccessibilityService : AccessibilityService() {
             // not real user navigation.  Previously this caused the overlay to
             // be dismissed during app-launch transitions and re-shown by the
             // app's second activity window, producing the "popup twice" bug.
-            if (packageName.startsWith("com.android.systemui")) {
+            if (packageName.startsWith("com.android.systemui") ||
+                packageName == "com.mobile_controller") {
                 return
             }
 
