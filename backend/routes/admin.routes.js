@@ -227,6 +227,92 @@ router.post("/users/:id/reactivate", async (req, res, next) => {
   }
 });
 
+router.patch("/users/:id", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const allowedFields = [
+      "name",
+      "email",
+      "classId",
+      "registerNumber",
+      "employeeId",
+      "departmentId",
+      "academicYearId",
+      "sectionId",
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        user[field] = req.body[field];
+      }
+    }
+
+    await user.save();
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json(userObj);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/users/:id", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    await User.deleteOne({ _id: req.params.id });
+    res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/users/:id/block", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    user.status = "blocked";
+    user.isActive = false;
+    await user.save();
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json(userObj);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/users/:id/unblock", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    user.status = "active";
+    user.isActive = true;
+    await user.save();
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json(userObj);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ========== HIERARCHY MANAGEMENT ==========
 
 router.post("/departments", validate("createDepartment"), async (req, res, next) => {
@@ -1662,6 +1748,26 @@ router.post("/notifications/mark-read", async (req, res, next) => {
     const Notification = require("../models/Notification");
     await Notification.updateMany({ recipientId: req.user.userId, recipientRole: "admin" }, { $set: { read: true } });
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ========== ADMIN ACCOUNT ==========
+
+router.post("/change-password", async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "currentPassword and newPassword are required" });
+    }
+
+    const result = await authService.changePassword(req.user.userId, currentPassword, newPassword);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    res.json({ message: "Password changed successfully" });
   } catch (err) {
     next(err);
   }

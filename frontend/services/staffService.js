@@ -111,6 +111,24 @@ export const fetchStaffNotifications = async () => {
   return fetchWithRefresh('/staff/notifications');
 };
 
+// ─── Change Password ───────────────────────────────────────────────────────────
+export const changePassword = async (currentPassword, newPassword) => {
+  return await fetchWithRefresh(`${BASE_URL}/staff/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+};
+
+// ─── Update Profile ────────────────────────────────────────────────────────────
+export const updateProfile = async (profileData) => {
+  return await fetchWithRefresh(`${BASE_URL}/staff/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profileData),
+  });
+};
+
 export default {
   fetchMyClasses,
   fetchClassLiveStatus,
@@ -122,5 +140,7 @@ export default {
   pauseClassRestriction,
   resumeClassRestriction,
   fetchStaffNotifications,
+  changePassword,
+  updateProfile,
 };
 

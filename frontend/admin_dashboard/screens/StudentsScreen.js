@@ -132,17 +132,26 @@ const StudentsScreen = () => {
   }, [students, searchQuery, selectedDept, selectedYear, selectedSection]);
 
   const handleToggleBlock = async (studentId) => {
-    setStudents((prev) =>
-      prev.map((student) =>
-        student.id === studentId
-          ? {
-              ...student,
-              isBlocked: !student.isBlocked,
-              accountStatus: !student.isBlocked ? 'Blocked' : 'Active',
-            }
-          : student,
-      ),
-    );
+    try {
+      const student = students.find((s) => s.id === studentId);
+      if (!student) return;
+
+      if (student.isBlocked) {
+        await adminService.unblockStudent(studentId);
+      } else {
+        await adminService.blockStudent(studentId);
+      }
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === studentId
+            ? { ...s, isBlocked: !s.isBlocked, accountStatus: !s.isBlocked ? 'Blocked' : 'Active' }
+            : s,
+        ),
+      );
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to update block status.');
+    }
   };
 
   const handleViewStudent = (student) => {
@@ -155,16 +164,27 @@ const StudentsScreen = () => {
     setEditModalVisible(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editFormData.name || !editFormData.registerNumber || !editFormData.email) {
       Alert.alert('Required Fields', 'Please fill in Name, Register Number, and Email.');
       return;
     }
-    setStudents((prev) =>
-      prev.map((s) => (s.id === editFormData.id ? { ...s, ...editFormData } : s)),
-    );
-    setEditModalVisible(false);
-    Alert.alert('Success', 'Student details updated successfully.');
+
+    try {
+      await adminService.updateStudent(editFormData.id, {
+        name: editFormData.name,
+        email: editFormData.email,
+        registerNumber: editFormData.registerNumber,
+      });
+
+      setStudents((prev) =>
+        prev.map((s) => (s.id === editFormData.id ? { ...s, ...editFormData } : s)),
+      );
+      setEditModalVisible(false);
+      Alert.alert('Success', 'Student details updated successfully.');
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to update student.');
+    }
   };
 
   const handleDeleteStudent = (studentId, studentName) => {
@@ -176,47 +196,67 @@ const StudentsScreen = () => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setStudents((prev) => prev.filter((s) => s.id !== studentId));
-            Alert.alert('Deleted', `${studentName} has been removed.`);
+          onPress: async () => {
+            try {
+              await adminService.deleteStudent(studentId);
+              setStudents((prev) => prev.filter((s) => s.id !== studentId));
+              Alert.alert('Deleted', `${studentName} has been removed.`);
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to delete student.');
+            }
           },
         },
       ],
     );
   };
 
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     if (!newStudentData.name || !newStudentData.registerNumber || !newStudentData.email) {
       Alert.alert('Required Fields', 'Please fill in Name, Register Number, and Email.');
       return;
     }
 
-    const tempPassword = `Temp@${Math.floor(1000 + Math.random() * 9000)}`;
-    const newStudent = {
-      id: `s_${Date.now()}`,
-      ...newStudentData,
-      accountStatus: 'Active',
-      isBlocked: false,
-      mustChangePassword: true,
-      tempPassword,
-    };
+    try {
+      const tempPassword = `Temp@${Math.floor(1000 + Math.random() * 9000)}`;
 
-    setStudents((prev) => [newStudent, ...prev]);
-    setAddModalVisible(false);
+      const result = await adminService.createStudent({
+        name: newStudentData.name,
+        email: newStudentData.email,
+        registerNumber: newStudentData.registerNumber,
+        classId: 'CSE-1-A',
+        tempPassword,
+      });
 
-    Alert.alert(
-      'Account Created & Email Sent',
-      `Student account created for ${newStudent.name}.\n\nTemporary Password: ${tempPassword}\nCredentials sent to ${newStudent.email}.`,
-    );
+      const createdStudent = {
+        id: result?.id || result?._id || `s_${Date.now()}`,
+        ...newStudentData,
+        accountStatus: 'Active',
+        isBlocked: false,
+        mustChangePassword: true,
+        tempPassword: result?.tempPassword || tempPassword,
+      };
 
-    setNewStudentData({
-      name: '',
-      registerNumber: '',
-      email: '',
-      department: 'CSE',
-      year: '1st Year',
-      section: 'A',
-    });
+      setStudents((prev) => [createdStudent, ...prev]);
+      setAddModalVisible(false);
+
+      const generatedPassword = result?.tempPassword || tempPassword;
+
+      Alert.alert(
+        'Account Created & Email Sent',
+        `Student account created for ${newStudentData.name}.\n\nTemporary Password: ${generatedPassword}\nCredentials sent to ${newStudentData.email}.`,
+      );
+
+      setNewStudentData({
+        name: '',
+        registerNumber: '',
+        email: '',
+        department: 'CSE',
+        year: '1st Year',
+        section: 'A',
+      });
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to create student account.');
+    }
   };
 
   const handleDownloadTemplate = () => {

@@ -121,7 +121,7 @@ const NotificationsScreen = ({ onBack }) => {
   };
 
   const handleMarkAllRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true, isRead: true })));
     try {
       await adminService.markAllNotificationsRead();
     } catch (err) {
@@ -182,7 +182,7 @@ const NotificationsScreen = ({ onBack }) => {
             filteredList.map((item) => (
               <View
                 key={item.id}
-                style={[styles.notifCard, !item.isRead && styles.unreadCard]}
+                style={[styles.notifCard, !(item.read || item.isRead) && styles.unreadCard]}
               >
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconBox, { backgroundColor: item.iconBg }]}>
@@ -193,7 +193,7 @@ const NotificationsScreen = ({ onBack }) => {
                       <Text style={styles.notifTitle} numberOfLines={1}>
                         {item.title}
                       </Text>
-                      {!item.isRead ? <View style={styles.unreadDot} /> : null}
+                      {!(item.read || item.isRead) ? <View style={styles.unreadDot} /> : null}
                     </View>
                     <Text style={styles.notifMeta}>
                       Target: {item.target} &middot; {item.time}

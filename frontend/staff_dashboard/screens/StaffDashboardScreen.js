@@ -35,7 +35,7 @@ export const StaffDashboardScreen = ({ onLogout }) => {
     try {
       const data = await fetchStaffNotifications();
       if (Array.isArray(data)) {
-        const unread = data.filter(n => !n.isRead).length;
+        const unread = data.filter(n => !n.read && !n.isRead).length;
         setUnreadCount(unread);
       }
     } catch (e) {

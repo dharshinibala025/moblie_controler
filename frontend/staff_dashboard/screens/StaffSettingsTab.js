@@ -15,6 +15,7 @@ import {
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import SettingsRow from '../components/SettingsRow';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
+import staffService from '../../services/staffService';
 
 const STATUSBAR_OFFSET = 12;
 
@@ -110,18 +111,22 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
     confirmPassword: '',
   });
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     if (!profileForm.name || !profileForm.email) {
       Alert.alert('Required Fields', 'Please fill in Staff Name and Email.');
       return;
     }
-    setStaffProfile({ ...profileForm });
-
-    setEditProfileVisible(false);
-    Alert.alert('Profile Updated', 'Staff profile details have been saved.');
+    try {
+      await staffService.updateProfile({ name: profileForm.name, employeeId: profileForm.employeeId });
+      setStaffProfile({ ...profileForm });
+      setEditProfileVisible(false);
+      Alert.alert('Profile Updated', 'Staff profile details have been saved.');
+    } catch (error) {
+      Alert.alert('Update Failed', error.message || 'Failed to update profile. Please try again.');
+    }
   };
 
-  const handleSavePassword = () => {
+  const handleSavePassword = async () => {
     if (!passwordForm.currentPassword || !passwordForm.newPassword) {
       Alert.alert('Required Fields', 'Please fill in current and new password.');
       return;
@@ -130,9 +135,14 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
       Alert.alert('Password Mismatch', 'New password and confirmation do not match.');
       return;
     }
-    setChangePasswordVisible(false);
-    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    Alert.alert('Password Updated', 'Staff account password updated successfully.');
+    try {
+      await staffService.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      setChangePasswordVisible(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      Alert.alert('Password Updated', 'Staff account password updated successfully.');
+    } catch (error) {
+      Alert.alert('Update Failed', error.message || 'Failed to change password. Please try again.');
+    }
   };
 
   const handleLogoutPress = () => {

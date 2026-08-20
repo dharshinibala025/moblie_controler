@@ -74,7 +74,7 @@ const SettingsScreen = ({ adminData, onLogout }) => {
       await adminService.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
       Alert.alert('Password Updated', 'Admin account password updated successfully in database.');
     } catch (err) {
-      Alert.alert('Password Update Notice', 'Current password re-verified and password updated.');
+      Alert.alert('Password Update Failed', err.message || 'Failed to update password. Please check your current password and try again.');
     }
 
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });

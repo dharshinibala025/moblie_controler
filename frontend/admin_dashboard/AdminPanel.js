@@ -11,6 +11,7 @@ import SettingsScreen from './screens/SettingsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 
 import colors from './styles/colors';
+import adminService from '../services/adminService';
 
 /**
  * AdminPanel
@@ -34,6 +35,13 @@ const TABS = [
 
 const AdminPanel = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [adminProfile, setAdminProfile] = useState(null);
+
+  useEffect(() => {
+    adminService.getAdminProfile().then((data) => {
+      if (data) setAdminProfile(data);
+    }).catch(() => {});
+  }, []);
 
 
 
@@ -46,7 +54,7 @@ const AdminPanel = ({ onLogout }) => {
       case 'devices':
         return <DevicesScreen />;
       case 'settings':
-        return <SettingsScreen onLogout={onLogout} />;
+        return <SettingsScreen adminData={adminProfile} onLogout={onLogout} />;
       case 'notifications':
         return <NotificationsScreen onBack={() => setActiveTab('dashboard')} />;
       case 'dashboard':

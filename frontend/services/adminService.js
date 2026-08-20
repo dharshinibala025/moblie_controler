@@ -187,5 +187,69 @@ class AdminService {
       method: 'POST',
     });
   }
+
+  async createStudent(studentData) {
+    return await apiFetch('/admin/users/student', {
+      method: 'POST',
+      body: JSON.stringify(studentData),
+    });
+  }
+
+  async updateStudent(userId, updateData) {
+    return await apiFetch(`/admin/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  async deleteStudent(userId) {
+    return await apiFetch(`/admin/users/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async blockStudent(userId) {
+    return await apiFetch(`/admin/users/${userId}/block`, {
+      method: 'POST',
+    });
+  }
+
+  async unblockStudent(userId) {
+    return await apiFetch(`/admin/users/${userId}/unblock`, {
+      method: 'POST',
+    });
+  }
+
+  async createStaff(staffData) {
+    return await apiFetch('/admin/users/staff', {
+      method: 'POST',
+      body: JSON.stringify(staffData),
+    });
+  }
+
+  async updateStaff(userId, updateData) {
+    return await apiFetch(`/admin/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  async deleteStaff(userId) {
+    return await apiFetch(`/admin/users/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async blockStaff(userId) {
+    return await apiFetch(`/admin/users/${userId}/block`, {
+      method: 'POST',
+    });
+  }
+
+  async unblockStaff(userId) {
+    return await apiFetch(`/admin/users/${userId}/unblock`, {
+      method: 'POST',
+    });
+  }
 }
 export default new AdminService();

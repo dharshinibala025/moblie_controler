@@ -121,7 +121,7 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
       try {
         const notifs = await adminService.getAdminNotifications();
         if (isMounted && Array.isArray(notifs)) {
-          setUnreadCount(notifs.filter((n) => !n.read).length);
+          setUnreadCount(notifs.filter((n) => !n.read && !n.isRead).length);
         }
       } catch (e) {
         // ignore

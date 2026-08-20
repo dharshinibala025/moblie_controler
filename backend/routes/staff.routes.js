@@ -4,6 +4,8 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 const classService = require("../services/classService");
 const ruleService = require("../services/ruleService");
 const auditService = require("../services/auditService");
+const bcrypt = require("bcrypt");
+const User = require("../models/User");
 const { validate } = require("../middleware/validation");
 const StaffAssignment = require("../models/StaffAssignment");
 
@@ -210,6 +212,54 @@ router.post("/classes/:id/rules/:ruleId/command", verifyClassScope, async (req, 
       req.user.institutionId || rule.institutionId
     );
     res.json(rule);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST: Staff changes their own password
+router.post("/change-password", async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "currentPassword and newPassword are required" });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH: Staff updates their own profile
+router.patch("/profile", async (req, res, next) => {
+  try {
+    const { name, employeeId } = req.body;
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (name !== undefined) user.name = name;
+    if (employeeId !== undefined) user.employeeId = employeeId;
+    await user.save();
+
+    const { password, ...sanitized } = user.toObject();
+    res.json(sanitized);
   } catch (err) {
     next(err);
   }

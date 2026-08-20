@@ -89,17 +89,30 @@ const StaffScreen = () => {
   }, [staff, searchQuery, selectedDept, selectedAdvisor]);
 
   const handleToggleBlock = async (staffId) => {
-    setStaff((prev) =>
-      prev.map((member) =>
-        member.id === staffId
-          ? {
-              ...member,
-              isBlocked: !member.isBlocked,
-              accountStatus: !member.isBlocked ? 'Blocked' : 'Active',
-            }
-          : member,
-      ),
-    );
+    try {
+      const member = staff.find((m) => m.id === staffId);
+      if (!member) return;
+
+      if (member.isBlocked) {
+        await adminService.unblockStaff(staffId);
+      } else {
+        await adminService.blockStaff(staffId);
+      }
+
+      setStaff((prev) =>
+        prev.map((m) =>
+          m.id === staffId
+            ? {
+                ...m,
+                isBlocked: !m.isBlocked,
+                accountStatus: !m.isBlocked ? 'Blocked' : 'Active',
+              }
+            : m,
+        ),
+      );
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to toggle block status.');
+    }
   };
 
   const handleViewMember = (member) => {
@@ -112,16 +125,26 @@ const StaffScreen = () => {
     setEditModalVisible(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editFormData.name || !editFormData.email) {
       Alert.alert('Required Fields', 'Please fill in Staff Name and Email.');
       return;
     }
-    setStaff((prev) =>
-      prev.map((m) => (m.id === editFormData.id ? { ...m, ...editFormData } : m)),
-    );
-    setEditModalVisible(false);
-    Alert.alert('Success', 'Staff details updated successfully.');
+
+    try {
+      await adminService.updateStaff(editFormData.id, {
+        name: editFormData.name,
+        email: editFormData.email,
+      });
+
+      setStaff((prev) =>
+        prev.map((m) => (m.id === editFormData.id ? { ...m, name: editFormData.name, email: editFormData.email } : m)),
+      );
+      setEditModalVisible(false);
+      Alert.alert('Success', 'Staff details updated successfully.');
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to update staff details.');
+    }
   };
 
   const handleDeleteStaff = (staffId, staffName) => {
@@ -133,46 +156,67 @@ const StaffScreen = () => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setStaff((prev) => prev.filter((m) => m.id !== staffId));
-            Alert.alert('Deleted', `${staffName} has been removed.`);
+          onPress: async () => {
+            try {
+              await adminService.deleteStaff(staffId);
+              setStaff((prev) => prev.filter((m) => m.id !== staffId));
+              Alert.alert('Deleted', `${staffName} has been removed.`);
+            } catch (error) {
+              Alert.alert('Error', error.message || 'Failed to delete staff member.');
+            }
           },
         },
       ],
     );
   };
 
-  const handleAddStaff = () => {
+  const handleAddStaff = async () => {
     if (!newStaffData.name || !newStaffData.email) {
       Alert.alert('Required Fields', 'Please fill in Staff Name and Email.');
       return;
     }
 
-    const tempPassword = `Staff@${Math.floor(1000 + Math.random() * 9000)}`;
-    const newMember = {
-      id: `t_${Date.now()}`,
-      staffId: `STF${Math.floor(100 + Math.random() * 900)}`,
-      ...newStaffData,
-      accountStatus: 'Active',
-      isBlocked: false,
-      mustChangePassword: true,
-      tempPassword,
-    };
+    try {
+      const tempPassword = `Staff@${Math.floor(1000 + Math.random() * 9000)}`;
 
-    setStaff((prev) => [newMember, ...prev]);
-    setAddModalVisible(false);
+      const result = await adminService.createStaff({
+        name: newStaffData.name,
+        email: newStaffData.email,
+        employeeId: newStaffData.staffId || undefined,
+        tempPassword,
+      });
 
-    Alert.alert(
-      'Staff Account Created',
-      `Staff Account Created for ${newMember.name}.\n\nTemporary Password: ${tempPassword}\nCredentials sent to ${newMember.email}.`,
-    );
+      const createdMember = {
+        id: result?.id || result?._id || `t_${Date.now()}`,
+        staffId: result?.staffId || result?.employeeId || newStaffData.staffId || `STF${Math.floor(100 + Math.random() * 900)}`,
+        name: newStaffData.name,
+        email: newStaffData.email,
+        department: newStaffData.department,
+        assignedAdvisor: newStaffData.assignedAdvisor,
+        accountStatus: 'Active',
+        isBlocked: false,
+        mustChangePassword: true,
+        tempPassword,
+      };
 
-    setNewStaffData({
-      name: '',
-      email: '',
-      department: 'Computer Science',
-      assignedAdvisor: 'CA1',
-    });
+      setStaff((prev) => [createdMember, ...prev]);
+      setAddModalVisible(false);
+
+      Alert.alert(
+        'Staff Account Created',
+        `Staff Account Created for ${createdMember.name}.\n\nTemporary Password: ${tempPassword}\nCredentials sent to ${createdMember.email}.`,
+      );
+
+      setNewStaffData({
+        name: '',
+        email: '',
+        staffId: '',
+        department: 'Computer Science',
+        assignedAdvisor: 'CA1',
+      });
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to create staff member.');
+    }
   };
 
   const handleDownloadTemplate = () => {

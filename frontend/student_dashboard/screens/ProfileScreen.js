@@ -167,7 +167,7 @@ export const ProfileScreen = ({ student, onLogout }) => {
       </TouchableOpacity>
 
       <Text style={styles.footerNote}>
-        Department Controller Student Portal • v1.0
+        Department Controller Student Portal • v1.2.11
       </Text>
     </ScrollView>
   );
