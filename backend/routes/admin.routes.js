@@ -836,6 +836,7 @@ router.get("/students/:id/social-apps", async (req, res, next) => {
     const Device = require("../models/Device");
     const Rule = require("../models/Rule");
     const User = require("../models/User");
+    const autoBlockService = require("../services/autoBlockService");
 
     const studentId = req.params.id;
     const student = await User.findById(studentId);
@@ -859,11 +860,13 @@ router.get("/students/:id/social-apps", async (req, res, next) => {
       status: "active",
     });
 
-    const blockedAppsSet = new Set();
+    // Resolve tokens to actual package names using autoBlockService
+    const resolvedRules = activeRules.map((r) => r.toObject());
+    const resolvedPackages = autoBlockService.resolvePackagesFromRules(resolvedRules);
+    const blockedAppsSet = new Set(resolvedPackages);
     let maxPolicyVersion = 0;
     activeRules.forEach((rule) => {
       maxPolicyVersion = Math.max(maxPolicyVersion, rule.policyVersion || 1);
-      rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
     });
 
     const query = { studentId, removedAt: null };

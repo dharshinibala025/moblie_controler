@@ -57,8 +57,9 @@ class RestrictionAccessibilityService : AccessibilityService() {
     private var periodicHandler: Handler? = null
     private var periodicRunnable: Runnable? = null
 
-    // Built-in offline fallback list so social media/games are still blocked during the
+    // Built-in offline fallback list so social media apps are still blocked during the
     // schedule window even if the server policy has not been synced yet.
+    // Only social media — games/entertainment are NOT auto-blocked.
     private val fallbackBlockedPackages = setOf(
         "com.instagram.android",
         "com.whatsapp",
@@ -78,14 +79,7 @@ class RestrictionAccessibilityService : AccessibilityService() {
         "com.badoo.mobile",
         "com.tinder",
         "com.quora.android",
-        "com.tumblr",
-        "com.dts.freefireth",
-        "com.tencent.ig",
-        "com.pubg.imobile",
-        "com.netflix.mediaclient",
-        "com.amazon.avod.thirdpartyclient",
-        "in.startv.hotstar",
-        "com.jio.media.ondemand"
+        "com.tumblr"
     )
 
     override fun onCreate() {
@@ -109,12 +103,6 @@ class RestrictionAccessibilityService : AccessibilityService() {
             if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
             val packageName = event.packageName?.toString() ?: return
-
-            // ── Own package: dismiss overlay if showing, then bail out ─────
-            if (packageName == "com.mobile_controller") {
-                if (blockOverlay != null) dismissBlockOverlay()
-                return
-            }
 
             val storage = policyStorage ?: PolicyStorage(applicationContext).also {
                 policyStorage = it
@@ -558,7 +546,8 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 if (fgPkg != null &&
                     fgPkg != "com.mobile_controller" &&
                     !fgPkg.startsWith("com.android.systemui") &&
-                    blockedSet.contains(fgPkg)
+                    blockedSet.contains(fgPkg) &&
+                    shouldLaunch(fgPkg)
                 ) {
                     showBlockOverlay(fgPkg)
                 }

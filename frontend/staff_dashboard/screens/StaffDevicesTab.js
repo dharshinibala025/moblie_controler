@@ -100,44 +100,14 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const [liveStudents, setLiveStudents] = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Helper to resolve staff class ID dynamically.
-  // Rules and student matching are keyed by the human-readable class CODE
-  // (e.g. "CSE-2-A"), NOT the Mongo ObjectId, so we must always resolve the code.
-  const resolveStaffClassCode = async () => {
-    const isObjectId = (value) => !!value && /^[a-f0-9]{24}$/i.test(value);
-
-    const candidates = [staffInfo?.classId, staffInfo?.assignedClass];
-    for (const candidate of candidates) {
-      if (candidate && !isObjectId(candidate)) {
-        return candidate;
-      }
-    }
-
-    if (staffInfo?.classRoomId) {
-      try {
-        const staffService = require('../../services/staffService').default;
-        const myClassesRes = await staffService.fetchMyClasses();
-        if (myClassesRes && myClassesRes.classes && myClassesRes.classes.length > 0) {
-          const cls = myClassesRes.classes[0];
-          return cls.code || cls._id;
-        }
-      } catch (e) {
-        console.warn('FocusSync: My classes fetch notice:', e.message);
-      }
-    }
-
-    return staffInfo?.classRoomId || staffInfo?.classId || 'default-class';
-  };
-
-  const getAssignedClassId = () => resolveStaffClassCode();
+  // Resolve class ID consistently with StaffDashboardTab/StaffStudentsTab
+  const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
 
   // Load rules on mount + poll live status every 15s
   useEffect(() => {
     const fetchRule = async () => {
-      const classIdToQuery = await getAssignedClassId();
       if (!classIdToQuery) return;
       try {
-        const staffService = require('../../services/staffService').default;
         const rules = await staffService.fetchClassRules(classIdToQuery);
         if (rules && rules.length > 0) {
           // Find most recent rule
@@ -165,10 +135,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
     };
 
     const fetchStudents = async () => {
-      const classIdToQuery = await getAssignedClassId();
       if (!classIdToQuery) return;
       try {
-        const staffService = require('../../services/staffService').default;
         const data = await staffService.fetchClassLiveStatus(classIdToQuery);
         if (data && data.students) {
           setLiveStudents(data.students);
@@ -222,14 +190,10 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
   // Restriction actions
   const handleApplyRestriction = async () => {
-    const classIdToQuery = await getAssignedClassId();
-
     setLoading(true);
     try {
-      const staffService = require('../../services/staffService').default;
-      
       const payload = {
-        blockedApps: ['SocialMedia', 'Games'],
+        blockedApps: ['SocialMedia'],
         scheduleStart: parseTo24Hour(startTime),
         scheduleEnd: parseTo24Hour(endTime),
         activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -272,13 +236,9 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   };
 
   const handlePauseRestriction = async () => {
-    const classIdToQuery = await getAssignedClassId();
-
-    // Optimistic UI: instantly show paused
     setRestrictionStatus('PAUSED');
     setActionLoading(true);
     try {
-      const staffService = require('../../services/staffService').default;
       await staffService.pauseClassRestriction(classIdToQuery);
       Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused. Students can access apps now.');
     } catch (err) {
@@ -290,13 +250,9 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   };
 
   const handleResumeRestriction = async () => {
-    const classIdToQuery = await getAssignedClassId();
-
-    // Optimistic UI: instantly show active
     setRestrictionStatus('ACTIVE');
     setActionLoading(true);
     try {
-      const staffService = require('../../services/staffService').default;
       await staffService.resumeClassRestriction(classIdToQuery);
       Alert.alert('Restriction Resumed', 'Mobile restriction is active again. Apps are now blocked.');
     } catch (err) {
@@ -436,10 +392,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                       text: 'Remove',
                       style: 'destructive',
                       onPress: async () => {
-                        const classIdToQuery = await getAssignedClassId();
                         setActionLoading(true);
                         try {
-                          const staffService = require('../../services/staffService').default;
                           await staffService.updateClassRule(classIdToQuery, activeRule._id, { status: 'stopped' });
                           setRestrictionStatus('IDLE');
                           setActiveRule(null);

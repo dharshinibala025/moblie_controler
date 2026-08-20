@@ -5,6 +5,7 @@ const Session = require("../models/Session");
 const LoginAuditLog = require("../models/LoginAuditLog");
 const ConsentRecord = require("../models/ConsentRecord");
 const AuditLog = require("../models/AuditLog");
+const ClassRoom = require("../models/ClassRoom");
 const logger = require("../utils/logger");
 
 const LOCKOUT_ATTEMPTS = 5;
@@ -336,13 +337,24 @@ class AuthService {
       return { success: false, error: "Email already registered", status: 409 };
     }
 
+    // Look up ClassRoom to populate academicYearId, sectionId, departmentId, classRoomId
+    const primaryClassCode = classIds && classIds.length > 0 ? classIds[0] : null;
+    let classroom = null;
+    if (primaryClassCode) {
+      classroom = await ClassRoom.findOne({ code: primaryClassCode.toUpperCase() });
+    }
+
     const user = await User.create({
       name,
       email: email.toLowerCase(),
       password: tempPassword,
       role: "staff",
       employeeId,
-      classId: classIds && classIds.length > 0 ? classIds[0] : null,
+      classId: primaryClassCode,
+      classRoomId: classroom ? classroom._id : null,
+      departmentId: classroom ? classroom.departmentId : null,
+      academicYearId: classroom ? classroom.academicYearId : null,
+      sectionId: classroom ? classroom.sectionId : null,
       institutionId: "KSRCE",
       mustChangePassword: true,
       hasSetPassword: true,
