@@ -10,6 +10,7 @@ import {
   Animated,
   Platform,
   StatusBar,
+  AppState,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
