@@ -86,7 +86,7 @@ export const AppsScreen = ({ data }) => {
       activeDays: p.activeDays || [],
       source: p.source || 'default',
       nextUnlockAt: p.nextUnlockAt || null,
-      blockedPackages: active ? p.blockedPackages || [] : [],
+      blockedPackages: p.blockedPackages || [],
       emergency: p.emergency === 'active',
     };
   }, [policy, tick]);
@@ -260,7 +260,8 @@ export const AppsScreen = ({ data }) => {
       const categoryBlocked = AUTO_BLOCK_CATEGORIES.includes(category);
       const blocked =
         app.blocked === true ||
-        (restriction.active && (blockedSet.has(pkg) || categoryBlocked));
+        blockedSet.has(pkg) ||
+        categoryBlocked;
       return {
         ...app,
         name: app.name || app.appName || 'Application',

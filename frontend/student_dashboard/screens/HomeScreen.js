@@ -11,6 +11,7 @@ import {
   Platform,
   StatusBar,
   AppState,
+  DeviceEventEmitter,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -245,6 +246,20 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
     loadEnforcementState();
 
+    // Listen for real-time policy changes so the clock updates immediately
+    // when staff/admin applies, pauses, or stops a restriction.
+    const policySub = DeviceEventEmitter.addListener('FocusSync:policyChanged', (data) => {
+      try {
+        if (data) {
+          if (data.status) policyActiveRef.current = data.status === 'active';
+          if (data.scheduleStart) handleScheduleStartChange(data.scheduleStart);
+          if (data.scheduleEnd) handleScheduleEndChange(data.scheduleEnd);
+          if (data.activeDays && data.activeDays.length) activeDaysRef.current = data.activeDays;
+          loadEnforcementState();
+        }
+      } catch (e) { /* ignore */ }
+    });
+
     const subscription = AppState.addEventListener('change', async (nextState) => {
       if (nextState === 'active') {
         // Lightweight: only check permissions for the one-by-one permission flow.
@@ -310,7 +325,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         setStatusMode('LIFTED');
         setRemainingSeconds(0);
         setProgress(1.0);
-      } else if (currentSec >= startSec && currentSec < endSec) {
+      } else if (policyActiveRef.current && currentSec >= startSec && currentSec < endSec) {
         const remaining = endSec - currentSec;
         const prog = remaining / totalDuration;
         setStatusMode('ACTIVE');
@@ -344,6 +359,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       clearInterval(interval);
       clearInterval(healthInterval);
       subscription?.remove();
+      policySub?.remove();
       syncService.stopRealtimeListener();
     };
     // Mount-only effect: the permission flow runs once; the AppState listener
