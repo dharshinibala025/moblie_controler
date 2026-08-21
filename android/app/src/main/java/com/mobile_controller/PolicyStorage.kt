@@ -122,7 +122,7 @@ class PolicyStorage(context: Context) {
     fun getRuleId(): String = prefs.getString("rule_id", "") ?: ""
     fun getVersion(): Int = prefs.getInt("version", 1)
 
-    fun getStatus(): String = prefs.getString("status", "active") ?: "active"
+    fun getStatus(): String = prefs.getString("status", "inactive") ?: "inactive"
     fun isPolicyActive(): Boolean = getStatus().equals("active", ignoreCase = true)
     fun getEmergency(): Boolean = prefs.getBoolean("emergency", false)
 

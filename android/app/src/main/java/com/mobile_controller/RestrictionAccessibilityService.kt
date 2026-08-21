@@ -57,31 +57,6 @@ class RestrictionAccessibilityService : AccessibilityService() {
     private var periodicHandler: Handler? = null
     private var periodicRunnable: Runnable? = null
 
-    // Built-in offline fallback list so social media apps are still blocked during the
-    // schedule window even if the server policy has not been synced yet.
-    // Only social media — games/entertainment are NOT auto-blocked.
-    private val fallbackBlockedPackages = setOf(
-        "com.instagram.android",
-        "com.whatsapp",
-        "org.telegram.messenger",
-        "com.snapchat.android",
-        "com.twitter.android",
-        "com.facebook.katana",
-        "com.facebook.orca",
-        "com.google.android.youtube",
-        "com.instagram.barcelona",
-        "com.discord",
-        "com.zhiliaoapp.musically",
-        "com.pinterest",
-        "com.reddit.frontpage",
-        "com.linkedin.android",
-        "com.likee",
-        "com.badoo.mobile",
-        "com.tinder",
-        "com.quora.android",
-        "com.tumblr"
-    )
-
     override fun onCreate() {
         super.onCreate()
         policyStorage = PolicyStorage(applicationContext)
@@ -124,14 +99,12 @@ class RestrictionAccessibilityService : AccessibilityService() {
             }
 
             // ── Compute the enforced set ──────────────────────────────────
-            val blockedSet = if (storage.isConfigured()) {
-                if (storage.isPolicyActive()) {
-                    storage.getEnforcedApps()
-                } else {
-                    emptySet()
-                }
+            // Only block when a real admin/staff policy exists AND is active.
+            // No fallback list — fresh installs with no policy = no blocking.
+            val blockedSet = if (storage.isConfigured() && storage.isPolicyActive()) {
+                storage.getEnforcedApps()
             } else {
-                fallbackBlockedPackages
+                emptySet()
             }
 
             // ── Dismiss the overlay when the student navigates to ANY
@@ -170,14 +143,16 @@ class RestrictionAccessibilityService : AccessibilityService() {
         return true
     }
 
-    // Manual-start semantics: blocking begins the moment the policy is applied
-    // (the start time is NOT a gate). Auto-stop at the end time and the
-    // configured active days still limit enforcement as a phone-side safety.
+    // Blocking is only enforced when the current time falls within the
+    // [scheduleStart, scheduleEnd) window on an active day. If no policy
+    // is configured the service stays quiet (fail-closed).
     private fun shouldEnforceNow(): Boolean {
-        val storage = policyStorage ?: return true
+        val storage = policyStorage ?: return false
+        val start = storage.getScheduleStart()
         val end = storage.getScheduleEnd()
 
         try {
+            val startParts = start.split(":").map { it.toInt() }
             val endParts = end.split(":").map { it.toInt() }
             val cal = Calendar.getInstance()
 
@@ -190,11 +165,12 @@ class RestrictionAccessibilityService : AccessibilityService() {
             if (activeDays.isNotEmpty() && !activeDays.contains(dayName)) return false
 
             val currentMinutesOfDay = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+            val startMinutesOfDay = startParts[0] * 60 + startParts[1]
             val endMinutesOfDay = endParts[0] * 60 + endParts[1]
 
-            return currentMinutesOfDay < endMinutesOfDay
+            return currentMinutesOfDay >= startMinutesOfDay && currentMinutesOfDay < endMinutesOfDay
         } catch (e: Exception) {
-            return true
+            return false
         }
     }
 
