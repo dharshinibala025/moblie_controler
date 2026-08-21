@@ -1,4 +1,4 @@
-/**
+﻿/**
  * staffService — Staff API Service
  * Smart Classroom Mobile Usage Control System
  */
@@ -19,7 +19,6 @@ const fetchWithRefresh = async (path, options = {}) => {
     return await apiFetch(path, options);
   } catch (err) {
     if (err.status === 401 && err.data?.tokenExpired) {
-      // Try to refresh
       const refreshToken = await getRefreshToken();
       if (!refreshToken) throw err;
 
@@ -36,7 +35,6 @@ const fetchWithRefresh = async (path, options = {}) => {
 
       await saveTokens(refreshData.accessToken, refreshData.refreshToken || refreshToken);
 
-      // Retry original request with new token
       return await apiFetch(path, {
         ...options,
         headers: {
@@ -113,18 +111,16 @@ export const fetchStaffNotifications = async () => {
 
 // ─── Change Password ───────────────────────────────────────────────────────────
 export const changePassword = async (currentPassword, newPassword) => {
-  return await fetchWithRefresh(`${BASE_URL}/staff/change-password`, {
+  return fetchWithRefresh('/staff/change-password', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ currentPassword, newPassword }),
   });
 };
 
 // ─── Update Profile ────────────────────────────────────────────────────────────
 export const updateProfile = async (profileData) => {
-  return await fetchWithRefresh(`${BASE_URL}/staff/profile`, {
+  return fetchWithRefresh('/staff/profile', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profileData),
   });
 };
@@ -143,4 +139,3 @@ export default {
   changePassword,
   updateProfile,
 };
-
