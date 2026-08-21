@@ -247,6 +247,8 @@ const DevicesScreen = () => {
     const target = devices.find((d) => d.id === deviceId);
     if (!target) return;
 
+    const previousBlocked = target.isBlocked;
+
     setDevices((prev) =>
       prev.map((device) =>
         device.id === deviceId ? { ...device, isBlocked: !device.isBlocked } : device,
@@ -254,14 +256,19 @@ const DevicesScreen = () => {
     );
 
     try {
-      if (target.isBlocked) {
+      if (previousBlocked) {
         await adminService.unblockDevice(deviceId);
       } else {
         await adminService.blockDevice(deviceId);
       }
       await loadDevices();
     } catch (err) {
-      console.warn('Device toggle API notice:', err.message);
+      setDevices((prev) =>
+        prev.map((device) =>
+          device.id === deviceId ? { ...device, isBlocked: previousBlocked } : device,
+        ),
+      );
+      Alert.alert('Toggle Failed', 'Failed to update device status: ' + (err.message || 'Please try again.'));
     }
   };
 

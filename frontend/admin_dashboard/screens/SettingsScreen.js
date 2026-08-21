@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -32,11 +33,23 @@ import adminService from '../../services/adminService';
 const SettingsScreen = ({ adminData, onLogout }) => {
   const [adminProfile, setAdminProfile] = useState({
     name: adminData?.name || 'System Administrator',
-    employeeId: 'ADM001',
-    department: 'Computer Science and Engineering',
+    employeeId: adminData?.employeeId || 'ADM001',
+    department: adminData?.departmentId || 'Computer Science and Engineering',
     email: adminData?.email || 'admin@ksrce.ac.in',
-    phone: '+91 98765 43210',
+    phone: adminData?.phone || '+91 98765 43210',
   });
+
+  useEffect(() => {
+    if (adminData) {
+      setAdminProfile({
+        name: adminData.name || 'System Administrator',
+        employeeId: adminData.employeeId || 'ADM001',
+        department: adminData.departmentId || 'Computer Science and Engineering',
+        email: adminData.email || 'admin@ksrce.ac.in',
+        phone: adminData.phone || '+91 98765 43210',
+      });
+    }
+  }, [adminData]);
 
   const [editProfileVisible, setEditProfileVisible] = useState(false);
   const [profileForm, setProfileForm] = useState({ ...adminProfile });
@@ -48,14 +61,28 @@ const SettingsScreen = ({ adminData, onLogout }) => {
     confirmPassword: '',
   });
 
-  const handleSaveProfile = () => {
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const handleSaveProfile = async () => {
     if (!profileForm.name || !profileForm.email) {
       Alert.alert('Required Fields', 'Please fill in Admin Name and Email.');
       return;
     }
-    setAdminProfile({ ...profileForm });
-    setEditProfileVisible(false);
-    Alert.alert('Profile Updated', 'Admin profile details have been saved.');
+
+    setProfileSaving(true);
+    try {
+      await adminService.updateAdminProfile({
+        name: profileForm.name,
+        email: profileForm.email,
+      });
+      setAdminProfile({ ...adminProfile, name: profileForm.name, email: profileForm.email });
+      setEditProfileVisible(false);
+      Alert.alert('Profile Updated', 'Admin profile details have been saved successfully.');
+    } catch (err) {
+      Alert.alert('Update Failed', err.message || 'Failed to update profile. Please try again.');
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const handleSavePassword = async () => {
@@ -228,8 +255,16 @@ const SettingsScreen = ({ adminData, onLogout }) => {
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
-                <Text style={styles.saveBtnText}>Save Profile</Text>
+              <TouchableOpacity
+                style={[styles.saveBtn, profileSaving && { opacity: 0.6 }]}
+                onPress={handleSaveProfile}
+                disabled={profileSaving}
+              >
+                {profileSaving ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save Profile</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>

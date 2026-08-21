@@ -219,11 +219,14 @@ const StudentsScreen = () => {
     try {
       const tempPassword = `Temp@${Math.floor(1000 + Math.random() * 9000)}`;
 
+      const yearChar = newStudentData.year ? newStudentData.year.charAt(0) : '1';
+      const sectionVal = newStudentData.section || 'A';
+
       const result = await adminService.createStudent({
         name: newStudentData.name,
         email: newStudentData.email,
         registerNumber: newStudentData.registerNumber,
-        classId: 'CSE-1-A',
+        classId: `${selectedDept}-${yearChar}-${sectionVal}`,
         tempPassword,
       });
 
@@ -259,46 +262,10 @@ const StudentsScreen = () => {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    Alert.alert('Download Excel Template', 'Student_Import_Template.xlsx downloaded successfully.');
-  };
-
   const handleUploadExcelPress = async (droppedBase64, droppedName) => {
     try {
       let fileBase64 = typeof droppedBase64 === 'string' ? droppedBase64 : null;
       let fileName = typeof droppedName === 'string' ? droppedName : 'student_roster.xlsx';
-
-      if (!fileBase64 && typeof document !== 'undefined' && document.createElement) {
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.xlsx, .xls, .csv';
-
-        const fileSelectedPromise = new Promise((resolve) => {
-          fileInput.onchange = (e) => {
-            const file = e.target?.files?.[0];
-            if (!file) {
-              resolve(null);
-              return;
-            }
-            fileName = file.name;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-              const arrayBuffer = evt.target.result;
-              const bytes = new Uint8Array(arrayBuffer);
-              let binary = '';
-              for (let i = 0; i < bytes.byteLength; i++) {
-                binary += String.fromCharCode(bytes[i]);
-              }
-              const base64 = typeof global.btoa === 'function' ? global.btoa(binary) : null;
-              resolve(base64);
-            };
-            reader.readAsArrayBuffer(file);
-          };
-        });
-
-        fileInput.click();
-        fileBase64 = await fileSelectedPromise;
-      }
 
       // Native Mobile File Picker via @react-native-documents/picker
       if (!fileBase64) {
@@ -450,7 +417,6 @@ const StudentsScreen = () => {
           <ImportExcelCard
             title="Import Students Excel (.xlsx)"
             subtitle="Bulk import student records. Generates accounts & emails credentials."
-            onDownloadTemplate={handleDownloadTemplate}
             onUploadExcel={handleUploadExcelPress}
           />
         </View>
@@ -612,14 +578,37 @@ const StudentsScreen = () => {
                   onChangeText={(t) => setNewStudentData({ ...newStudentData, registerNumber: t })}
                 />
 
-                <Text style={styles.inputLabel}>Email Address *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g. vikas.s@ksrce.ac.in"
-                  keyboardType="email-address"
-                  value={newStudentData.email}
-                  onChangeText={(t) => setNewStudentData({ ...newStudentData, email: t })}
-                />
+              <Text style={styles.inputLabel}>Email Address *</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. vikas.s@ksrce.ac.in"
+                keyboardType="email-address"
+                value={newStudentData.email}
+                onChangeText={(t) => setNewStudentData({ ...newStudentData, email: t })}
+              />
+
+              <View style={styles.formRow}>
+                <View style={{ flex: 1, marginRight: spacing.sm }}>
+                  <Text style={styles.inputLabel}>Year</Text>
+                  <SelectDropdown
+                    value={newStudentData.year}
+                    options={yearDropdownOptions.filter(o => o.value !== 'All')}
+                    onSelect={(v) => setNewStudentData({ ...newStudentData, year: v })}
+                    placeholder="Select Year"
+                    icon="calendar-today"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Section</Text>
+                  <SelectDropdown
+                    value={newStudentData.section}
+                    options={getSectionOptions(newStudentData.year).map(s => ({ label: `Section ${s}`, value: s }))}
+                    onSelect={(v) => setNewStudentData({ ...newStudentData, section: v })}
+                    placeholder="Select Section"
+                    icon="group"
+                  />
+                </View>
+              </View>
               </View>
 
               <View style={styles.modalFooter}>

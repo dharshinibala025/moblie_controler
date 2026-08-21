@@ -135,10 +135,11 @@ const StaffScreen = () => {
       await adminService.updateStaff(editFormData.id, {
         name: editFormData.name,
         email: editFormData.email,
+        department: editFormData.department,
       });
 
       setStaff((prev) =>
-        prev.map((m) => (m.id === editFormData.id ? { ...m, name: editFormData.name, email: editFormData.email } : m)),
+        prev.map((m) => (m.id === editFormData.id ? { ...m, name: editFormData.name, email: editFormData.email, department: editFormData.department } : m)),
       );
       setEditModalVisible(false);
       Alert.alert('Success', 'Staff details updated successfully.');
@@ -219,49 +220,10 @@ const StaffScreen = () => {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    Alert.alert(
-      'Download Excel Template',
-      'Staff_Import_Template.xlsx downloaded successfully.',
-    );
-  };
-
   const handleUploadExcelPress = async (droppedBase64, droppedName) => {
     try {
       let fileBase64 = typeof droppedBase64 === 'string' ? droppedBase64 : null;
       let fileName = typeof droppedName === 'string' ? droppedName : 'staff_roster.xlsx';
-
-      if (!fileBase64 && typeof document !== 'undefined' && document.createElement) {
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.xlsx, .xls, .csv';
-
-        const fileSelectedPromise = new Promise((resolve) => {
-          fileInput.onchange = (e) => {
-            const file = e.target?.files?.[0];
-            if (!file) {
-              resolve(null);
-              return;
-            }
-            fileName = file.name;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-              const arrayBuffer = evt.target.result;
-              const bytes = new Uint8Array(arrayBuffer);
-              let binary = '';
-              for (let i = 0; i < bytes.byteLength; i++) {
-                binary += String.fromCharCode(bytes[i]);
-              }
-              const base64 = typeof global.btoa === 'function' ? global.btoa(binary) : null;
-              resolve(base64);
-            };
-            reader.readAsArrayBuffer(file);
-          };
-        });
-
-        fileInput.click();
-        fileBase64 = await fileSelectedPromise;
-      }
 
       // Native Mobile File Picker via @react-native-documents/picker
       if (!fileBase64) {
@@ -399,7 +361,6 @@ const StaffScreen = () => {
         <ImportExcelCard
           title="Import Staff Excel (.xlsx)"
           subtitle="Bulk add staff members. Generates accounts & emails credentials."
-          onDownloadTemplate={handleDownloadTemplate}
           onUploadExcel={handleUploadExcelPress}
         />
       </View>
@@ -567,6 +528,14 @@ const StaffScreen = () => {
                 onChangeText={(t) => setNewStaffData({ ...newStaffData, email: t })}
               />
 
+              <Text style={styles.inputLabel}>Employee ID</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. EMP001"
+                value={newStaffData.staffId}
+                onChangeText={(t) => setNewStaffData({ ...newStaffData, staffId: t })}
+              />
+
               <Text style={styles.inputLabel}>Department</Text>
               <TextInput
                 style={styles.textInput}
@@ -598,11 +567,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingBottom: spacing.xxxl },
   section: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
-  filterLabel: {
-    ...typography.captionMedium,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
   filterBar: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,

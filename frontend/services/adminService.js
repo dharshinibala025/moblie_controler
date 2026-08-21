@@ -106,6 +106,13 @@ class AdminService {
     }
   }
 
+  async updateAdminProfile({ name, email }) {
+    return await apiFetch('/admin/profile', {
+      method: 'PUT',
+      body: JSON.stringify({ name, email }),
+    });
+  }
+
   async changePassword(currentPassword, newPassword) {
     return await apiFetch('/admin/change-password', {
       method: 'POST',

@@ -1773,4 +1773,56 @@ router.post("/change-password", async (req, res, next) => {
   }
 });
 
+// ========== ADMIN PROFILE ==========
+
+router.get("/profile", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.userId).select("name email employeeId departmentId phone status role");
+    if (!user) return res.status(404).json({ error: "Admin not found" });
+
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      employeeId: user.employeeId || "",
+      departmentId: user.departmentId || "",
+      phone: user.phone || "",
+      status: user.status,
+      role: user.role,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put("/profile", async (req, res, next) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ error: "name and email are required" });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: "Admin not found" });
+
+    if (email !== user.email) {
+      const existing = await User.findOne({ email, _id: { $ne: user._id } });
+      if (existing) {
+        return res.status(409).json({ error: "Email is already in use by another account" });
+      }
+    }
+
+    user.name = name;
+    user.email = email;
+    await user.save();
+
+    res.json({
+      message: "Profile updated successfully",
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
