@@ -1056,6 +1056,7 @@ router.post("/notifications/broadcast", async (req, res, next) => {
 
     const notificationsToCreate = students.map((s) => ({
       studentId: s._id,
+      recipientId: s._id,
       title: title || "Department HOD / Admin Instruction",
       message: message,
       type: type || "general",
@@ -1549,10 +1550,11 @@ router.post("/broadcast", async (req, res, next) => {
 
     const students = await User.find(query);
     const notificationsToCreate = students.map((st) => ({
-      userId: st._id,
+      studentId: st._id,
+      recipientId: st._id,
       title: title || "Broadcast Announcement",
       message: message || "System Notification",
-      type: "announcement",
+      type: "broadcast",
       read: false,
     }));
 
