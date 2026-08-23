@@ -407,7 +407,7 @@ export const AppsScreen = ({ data }) => {
       </View>
 
       {/* App List */}
-      <AppGridCard apps={filteredApps} showStatusBadge={activeFilter !== 'all'} />
+      <AppGridCard apps={filteredApps} showStatusBadge={true} />
     </ScrollView>
   );
 };
