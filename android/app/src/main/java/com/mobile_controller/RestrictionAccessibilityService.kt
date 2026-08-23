@@ -1,6 +1,7 @@
 package com.mobile_controller
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -16,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -498,6 +500,14 @@ class RestrictionAccessibilityService : AccessibilityService() {
         try {
             val storage = policyStorage ?: return
 
+            // AUTO-RECOVERY: If service is dead but policy is active, attempt recovery
+            if (blockOverlay == null && storage.isPolicyActive() && shouldEnforceNow() && !isAccessibilityServiceRunning()) {
+                Log.w("RestrictionService", "Service dead but policy active - attempting recovery")
+                stopPeriodicEval()
+                startPeriodicEval()
+                return
+            }
+
             // 1. If the overlay is showing but enforcement is over → dismiss
             //    (handles: admin/staff paused, end-time passed, emergency).
             if (blockOverlay != null && !storage.isPolicyActive()) {
@@ -556,6 +566,33 @@ class RestrictionAccessibilityService : AccessibilityService() {
             startActivity(homeIntent)
         } catch (e: Exception) {
             Log.e("RestrictionService", "Failed to launch home", e)
+        }
+    }
+
+    // TRUE liveness check: returns true only when the accessibility service is
+    // actually BOUND/RUNNING right now (not just enabled in the settings list).
+    // A service can be enabled-but-dead ("Not working") — that is the #1 silent
+    // cause of "accessibility is ON but apps are not blocked".
+    private fun isAccessibilityServiceRunning(): Boolean {
+        try {
+            val am = getSystemService(AccessibilityManager::class.java) as AccessibilityManager?
+                ?: return false
+            val runningServices = am.getEnabledAccessibilityServiceList(
+                AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+            )
+            for (info in runningServices) {
+                val id = info.resolveInfo?.serviceInfo
+                if (id == null) continue
+                val candidate = id.packageName + "/" + id.name
+                if (candidate.contains(packageName) &&
+                    candidate.contains("RestrictionAccessibilityService")
+                ) {
+                    return true
+                }
+            }
+            return false
+        } catch (e: Exception) {
+            return false
         }
     }
 

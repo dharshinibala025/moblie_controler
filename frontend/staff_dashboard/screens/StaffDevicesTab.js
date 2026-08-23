@@ -185,12 +185,14 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       Alert.alert('No Class Assigned', 'Your staff account does not have a class assigned.');
       return;
     }
+    // Optimistic UI: instantly show paused
+    setRestrictionStatus('PAUSED');
     setActionLoading(true);
     try {
       await staffService.pauseClassRestriction(classIdToQuery);
-      setRestrictionStatus('PAUSED');
       Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused.');
     } catch (err) {
+      setRestrictionStatus('ACTIVE');
       Alert.alert('Pause Failed', err.message || 'Failed to pause restriction.');
     } finally {
       setActionLoading(false);
@@ -202,12 +204,14 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       Alert.alert('No Class Assigned', 'Your staff account does not have a class assigned.');
       return;
     }
+    // Optimistic UI: instantly show active
+    setRestrictionStatus('ACTIVE');
     setActionLoading(true);
     try {
       await staffService.resumeClassRestriction(classIdToQuery);
-      setRestrictionStatus('ACTIVE');
       Alert.alert('Restriction Resumed', 'Mobile restriction is active again.');
     } catch (err) {
+      setRestrictionStatus('PAUSED');
       Alert.alert('Resume Failed', err.message || 'Failed to resume restriction.');
     } finally {
       setActionLoading(false);
@@ -229,11 +233,30 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.flatFormContainer}>
+          {/* Restriction Status Indicator */}
           <View style={styles.statusIndicatorRow}>
-            <Text style={styles.labelTitle}>Restriction Status:</Text>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '1A' }]}>
-              <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
-              <Text style={[styles.statusBadgeText, { color: getStatusColor() }]}>{restrictionStatus}</Text>
+            <View style={[
+              styles.statusBadge,
+              restrictionStatus === 'ACTIVE' && styles.statusActive,
+              restrictionStatus === 'PAUSED' && styles.statusPaused,
+              restrictionStatus === 'IDLE' && styles.statusIdle,
+            ]}>
+              <View style={[
+                styles.statusDot,
+                restrictionStatus === 'ACTIVE' && styles.dotActive,
+                restrictionStatus === 'PAUSED' && styles.dotPaused,
+                restrictionStatus === 'IDLE' && styles.dotIdle,
+              ]} />
+              <Text style={[
+                styles.statusBadgeText,
+                restrictionStatus === 'ACTIVE' && styles.textActive,
+                restrictionStatus === 'PAUSED' && styles.textPaused,
+                restrictionStatus === 'IDLE' && styles.textIdle,
+              ]}>
+                {restrictionStatus === 'ACTIVE' && 'ACTIVE - Apps Blocked'}
+                {restrictionStatus === 'PAUSED' && 'PAUSED - Apps Unblocked'}
+                {restrictionStatus === 'IDLE' && 'IDLE - No Restriction'}
+              </Text>
             </View>
           </View>
 
@@ -514,6 +537,19 @@ const styles = StyleSheet.create({
   emptyDeviceContainer: { alignItems: 'center', paddingVertical: 24 },
   emptyDeviceTitle: { fontSize: 13, fontWeight: '700', color: '#475569', marginTop: 8 },
   emptyDeviceSubtitle: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+  statusIndicatorRow: { flexDirection: 'row', justifyContent: 'center', paddingVertical: 8 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, gap: 6, borderWidth: 1 },
+  statusActive: { backgroundColor: '#DCFCE7', borderColor: '#16A34A' },
+  statusPaused: { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
+  statusIdle: { backgroundColor: '#F1F5F9', borderColor: '#94A3B8' },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  dotActive: { backgroundColor: '#16A34A' },
+  dotPaused: { backgroundColor: '#F59E0B' },
+  dotIdle: { backgroundColor: '#94A3B8' },
+  statusBadgeText: { fontSize: 12, fontWeight: '700' },
+  textActive: { color: '#16A34A' },
+  textPaused: { color: '#D97706' },
+  textIdle: { color: '#64748B' },
 });
 
 export default StaffDevicesTab;

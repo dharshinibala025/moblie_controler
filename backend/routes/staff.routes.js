@@ -270,8 +270,10 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
   try {
     const User = require("../models/User");
     const ClassRoom = require("../models/ClassRoom");
+    const Device = require("../models/Device");
     const { emitToClass } = require("../config/socket");
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    const fcmService = require("../services/fcmService");
 
     const staffUser = await User.findById(req.user.userId || req.user.id || req.user._id);
     if (!staffUser || staffUser.role !== "staff") {
@@ -290,10 +292,42 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
     }
     const scopedClassIds = [...classIds].filter(Boolean);
 
+    // Collect student IDs for these classes
+    const students = await User.find({ role: "student", classId: { $in: scopedClassIds }, status: "active" })
+      .select("_id classId").lean();
+    const studentIds = students.map((s) => s._id);
+
     for (const cid of scopedClassIds) {
       setClassEmergencyUnblock(cid, true);
       await ruleService.batchRuleCommand({ classIds: [cid], action: "pause", actorId: req.user.userId });
       emitToClass(cid, "emergency:unblock", { timestamp: new Date() });
+    }
+
+    // FCM multicast for background/killed apps in these classes
+    if (studentIds.length > 0) {
+      const devicesWithFcm = await Device.find({
+        userId: { $in: studentIds },
+        fcmToken: { $ne: null },
+      }).select("userId fcmToken").lean();
+
+      const emergencyPayload = {
+        action: "stop",
+        status: "paused",
+        blockedPackages: "[]",
+        emergency: "active",
+        policyVersion: "0",
+        scheduleStart: "09:00",
+        scheduleEnd: "16:00",
+        activeDays: '["Mon","Tue","Wed","Thu","Fri","Sat"]',
+        ruleId: "",
+        serverTimestamp: new Date().toISOString(),
+      };
+
+      for (const d of devicesWithFcm) {
+        if (d.fcmToken) {
+          fcmService.sendToDevice(d.fcmToken, emergencyPayload).catch(() => {});
+        }
+      }
     }
 
     await auditService.logAction(

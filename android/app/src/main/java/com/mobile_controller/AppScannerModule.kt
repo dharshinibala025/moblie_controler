@@ -456,9 +456,23 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
     fun checkPermissions(promise: Promise) {
         try {
             val result = Arguments.createMap()
-            result.putBoolean("accessibilityEnabled", isAccessibilityServiceEnabled())
-            result.putBoolean("accessibilityRunning", isAccessibilityServiceRunning())
-            result.putBoolean("overlayEnabled", canDrawOverlays())
+            val enabled = isAccessibilityServiceEnabled()
+            val running = isAccessibilityServiceRunning()  // TRUE liveness check
+            val overlay = canDrawOverlays()
+
+            result.putBoolean("accessibilityEnabled", enabled)
+            result.putBoolean("accessibilityRunning", running)  // CRITICAL
+            result.putBoolean("overlayEnabled", overlay)
+
+            // Add diagnostic info
+            val diagnostic = when {
+                !enabled -> "ENABLE_IN_SETTINGS"
+                enabled && !running -> "SERVICE_DEAD_REENABLE"
+                !overlay -> "ENABLE_OVERLAY_PERMISSION"
+                else -> "OK"
+            }
+            result.putString("diagnostic", diagnostic)
+
             promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("CHECK_PERMISSIONS_ERROR", e.localizedMessage, e)
