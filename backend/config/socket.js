@@ -1,36 +1,41 @@
-const { Server } = require("socket.io");
-const jwt = require("jsonwebtoken");
-const logger = require("../utils/logger");
+const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 
 let io = null;
 
 const connectionCounts = new Map();
-const MAX_CONNECTIONS_PER_USER = parseInt(process.env.MAX_SOCKET_CONNECTIONS_PER_USER) || 5;
+const MAX_CONNECTIONS_PER_USER =
+  parseInt(process.env.MAX_SOCKET_CONNECTIONS_PER_USER) || 5;
 
-const initializeSocket = (httpServer) => {
+const initializeSocket = httpServer => {
   io = new Server(httpServer, {
     cors: {
       origin: process.env.ALLOWED_ORIGINS
-        ? process.env.ALLOWED_ORIGINS.split(",")
-        : ["http://localhost:3000"],
-      methods: ["GET", "POST"],
+        ? process.env.ALLOWED_ORIGINS.split(',')
+        : ['http://localhost:3000'],
+      methods: ['GET', 'POST'],
       credentials: true,
     },
     connectTimeout: 10000,
   });
 
   io.use((socket, next) => {
-    const isProduction = process.env.NODE_ENV === "production";
-    const token = socket.handshake.auth.token || (!isProduction && socket.handshake.query.token);
+    const isProduction = process.env.NODE_ENV === 'production';
+    const token =
+      socket.handshake.auth.token ||
+      (!isProduction && socket.handshake.query.token);
     if (!token) {
-      return next(new Error("Authentication required"));
+      return next(new Error('Authentication required'));
     }
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+        algorithms: ['HS256'],
+      });
       socket.user = decoded;
       next();
     } catch (err) {
-      return next(new Error("Invalid or expired token"));
+      return next(new Error('Invalid or expired token'));
     }
   });
 
@@ -38,10 +43,10 @@ const initializeSocket = (httpServer) => {
     const userId = socket.user.userId.toString();
     const count = connectionCounts.get(userId) || 0;
     if (count >= MAX_CONNECTIONS_PER_USER) {
-      return next(new Error("Too many connections from this account"));
+      return next(new Error('Too many connections from this account'));
     }
     connectionCounts.set(userId, count + 1);
-    socket.on("disconnect", () => {
+    socket.on('disconnect', () => {
       const current = connectionCounts.get(userId) || 0;
       if (current <= 1) {
         connectionCounts.delete(userId);
@@ -52,7 +57,7 @@ const initializeSocket = (httpServer) => {
     next();
   });
 
-  io.on("connection", (socket) => {
+  io.on('connection', socket => {
     const user = socket.user;
     logger.info(`Socket connected: userId=${user.userId}, role=${user.role}`);
 
@@ -63,42 +68,59 @@ const initializeSocket = (httpServer) => {
       logger.debug(`Socket joined room class:${user.classId}`);
     }
 
-    if (user.role === "admin" || user.role === "staff") {
+    if (user.role === 'admin' || user.role === 'staff') {
       socket.join(`monitor:${user.institutionId}`);
     }
 
-    // Student requests their current policy state after connecting/reconnecting
-    socket.on("device:requestState", async () => {
-      try {
-        if (user.role !== "student") return;
-        const User = require("../models/User");
-        const Device = require("../models/Device");
-        const Rule = require("../models/Rule");
-        const { getEmergencyUnblock } = require("../utils/emergencyHelper");
-        const { buildScopeRuleQuery, resolvePackagesFromRules } = require("../services/autoBlockService");
+    // Staff also join their assigned class rooms to receive real-time rule updates
+    if (user.role === 'staff' && user.classId) {
+      socket.join(`class:${user.classId}`);
+      logger.debug(`Staff joined room class:${user.classId}`);
+    }
 
-        const student = await User.findById(user.userId).select("classId academicYearId sectionId departmentId institutionId").lean();
+    // Student requests their current policy state after connecting/reconnecting
+    socket.on('device:requestState', async () => {
+      try {
+        if (user.role !== 'student') return;
+        const User = require('../models/User');
+        const Device = require('../models/Device');
+        const Rule = require('../models/Rule');
+        const { getEmergencyUnblock } = require('../utils/emergencyHelper');
+        const {
+          buildScopeRuleQuery,
+          resolvePackagesFromRules,
+        } = require('../services/autoBlockService');
+
+        const student = await User.findById(user.userId)
+          .select('classId academicYearId sectionId departmentId institutionId')
+          .lean();
         if (!student || !student.classId) return;
 
         // Stringify ObjectId fields for buildScopeRuleQuery
         const studentForQuery = {
           ...student,
-          departmentId: student.departmentId ? student.departmentId.toString() : null,
-          academicYearId: student.academicYearId ? student.academicYearId.toString() : null,
+          departmentId: student.departmentId
+            ? student.departmentId.toString()
+            : null,
+          academicYearId: student.academicYearId
+            ? student.academicYearId.toString()
+            : null,
           sectionId: student.sectionId ? student.sectionId.toString() : null,
         };
 
         const device = await Device.findOne({ userId: user.userId }).lean();
-        const deviceStatus = device ? device.status : "offline";
+        const deviceStatus = device ? device.status : 'offline';
 
         const emergencyActive = getEmergencyUnblock(student.classId);
 
         const rules = await Rule.find({
           ...buildScopeRuleQuery(studentForQuery),
-          status: { $in: ["active", "paused", "stopped"] },
-        }).sort({ updatedAt: -1 }).lean();
+          status: { $in: ['active', 'paused', 'stopped'] },
+        })
+          .sort({ updatedAt: -1 })
+          .lean();
 
-        const activeRules = rules.filter((r) => r.status === "active");
+        const activeRules = rules.filter(r => r.status === 'active');
 
         // Manual-start semantics (matches getStudentPolicy): any active rule
         // means the policy is being enforced right now, regardless of the clock.
@@ -108,43 +130,58 @@ const initializeSocket = (httpServer) => {
         // match them against real installed packages and enforce them.
         let action, blockedApps;
         if (emergencyActive) {
-          action = "stop";
+          action = 'stop';
           blockedApps = [];
         } else if (scheduleActive) {
-          action = "start";
+          action = 'start';
           blockedApps = resolvePackagesFromRules(activeRules);
-        } else if (deviceStatus === "active") {
-          action = "pause";
+        } else if (deviceStatus === 'active') {
+          action = 'pause';
           blockedApps = [];
         } else {
-          action = "stop";
+          action = 'stop';
           blockedApps = [];
         }
 
-        const maxVersion = rules.reduce((max, r) => Math.max(max, r.policyVersion || 1), 0);
+        const maxVersion = rules.reduce(
+          (max, r) => Math.max(max, r.policyVersion || 1),
+          0,
+        );
 
-        socket.emit("rule:update", {
+        socket.emit('rule:update', {
           action,
           blockedApps,
-          scheduleStart: rules[0]?.scheduleStart || "09:00",
-          scheduleEnd: rules[0]?.scheduleEnd || "16:00",
-          activeDays: rules[0]?.activeDays || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-          status: scheduleActive && deviceStatus !== "active" && !emergencyActive ? "active" : "paused",
+          scheduleStart: rules[0]?.scheduleStart || '09:00',
+          scheduleEnd: rules[0]?.scheduleEnd || '16:00',
+          activeDays: rules[0]?.activeDays || [
+            'Mon',
+            'Tue',
+            'Wed',
+            'Thu',
+            'Fri',
+            'Sat',
+          ],
+          status:
+            scheduleActive && deviceStatus !== 'active' && !emergencyActive
+              ? 'active'
+              : 'paused',
           policyVersion: maxVersion,
           classId: student.classId,
-          emergency: emergencyActive ? "active" : "inactive",
+          emergency: emergencyActive ? 'active' : 'inactive',
         });
       } catch (err) {
-        logger.error("device:requestState handler error:", err);
+        logger.error('device:requestState handler error:', err);
       }
     });
 
-    socket.on("disconnect", (reason) => {
-      logger.info(`Socket disconnected: userId=${user.userId}, reason=${reason}`);
+    socket.on('disconnect', reason => {
+      logger.info(
+        `Socket disconnected: userId=${user.userId}, reason=${reason}`,
+      );
     });
   });
 
-  logger.info("Socket.io server initialized");
+  logger.info('Socket.io server initialized');
   return io;
 };
 
@@ -152,7 +189,7 @@ const getIO = () => io;
 
 const emitToClass = (classId, event, data) => {
   if (!io) {
-    logger.warn("Socket.io not initialized, cannot emit event");
+    logger.warn('Socket.io not initialized, cannot emit event');
     return false;
   }
   io.to(`class:${classId}`).emit(event, data);
@@ -162,7 +199,7 @@ const emitToClass = (classId, event, data) => {
 
 const emitToUser = (userId, event, data) => {
   if (!io) {
-    logger.warn("Socket.io not initialized, cannot emit event");
+    logger.warn('Socket.io not initialized, cannot emit event');
     return false;
   }
   io.to(`user:${userId}`).emit(event, data);

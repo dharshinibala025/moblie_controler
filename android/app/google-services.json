@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "707061571787",
+    "project_id": "mobilecontroller-e6a15",
+    "storage_bucket": "mobilecontroller-e6a15.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:707061571787:android:9794220344cd3a4ae2fb4e",
+        "android_client_info": {
+          "package_name": "com.mobile_controller"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3tABKq73XSaLZDnNrLAaHLu9QYDTwM5A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
