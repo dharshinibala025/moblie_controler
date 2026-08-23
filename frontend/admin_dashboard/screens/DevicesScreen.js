@@ -501,6 +501,35 @@ const DevicesScreen = () => {
 
           <View style={styles.divider} />
 
+          {/* Restriction Status Indicator */}
+          <View style={styles.statusIndicatorRow}>
+            <View style={[
+              styles.statusBadge,
+              restrictionStatus === 'ACTIVE' && styles.statusActive,
+              restrictionStatus === 'PAUSED' && styles.statusPaused,
+              restrictionStatus === 'IDLE' && styles.statusIdle,
+            ]}>
+              <View style={[
+                styles.statusDot,
+                restrictionStatus === 'ACTIVE' && styles.dotActive,
+                restrictionStatus === 'PAUSED' && styles.dotPaused,
+                restrictionStatus === 'IDLE' && styles.dotIdle,
+              ]} />
+              <Text style={[
+                styles.statusBadgeText,
+                restrictionStatus === 'ACTIVE' && styles.textActive,
+                restrictionStatus === 'PAUSED' && styles.textPaused,
+                restrictionStatus === 'IDLE' && styles.textIdle,
+              ]}>
+                {restrictionStatus === 'ACTIVE' && '🟢 ACTIVE - Apps Blocked'}
+                {restrictionStatus === 'PAUSED' && '🟡 PAUSED - Apps Unblocked'}
+                {restrictionStatus === 'IDLE' && '⚪ IDLE - No Restriction'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
           <View style={styles.controlsGroup}>
             <TouchableOpacity
               style={[styles.applyBtn, actionLoading && styles.applyBtnDisabled]}
@@ -762,6 +791,59 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     fontSize: 13,
     color: colors.textPrimary,
+  },
+  statusIndicatorRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.round,
+    gap: spacing.xs,
+    borderWidth: 1,
+  },
+  statusActive: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#16A34A',
+  },
+  statusPaused: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+  },
+  statusIdle: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#94A3B8',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dotActive: {
+    backgroundColor: '#16A34A',
+  },
+  dotPaused: {
+    backgroundColor: '#F59E0B',
+  },
+  dotIdle: {
+    backgroundColor: '#94A3B8',
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  textActive: {
+    color: '#16A34A',
+  },
+  textPaused: {
+    color: '#D97706',
+  },
+  textIdle: {
+    color: '#64748B',
   },
 });
 

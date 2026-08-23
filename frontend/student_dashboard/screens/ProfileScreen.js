@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -13,14 +13,11 @@ import {
 import { colors, borderRadius } from '../styles/theme';
 import VectorIcon from '../components/VectorIcon';
 import authService from '../../services/authService';
-import { EnforcementDiagnosticsScreen } from './EnforcementDiagnosticsScreen';
 
 const STATUSBAR_OFFSET =
   Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 16;
 
 export const ProfileScreen = ({ student, onLogout, onNavigate }) => {
-  const [showDiagnostics, setShowDiagnostics] = useState(false);
-
   const getInitials = name => {
     if (!name) return 'ST';
     return name
@@ -62,12 +59,6 @@ export const ProfileScreen = ({ student, onLogout, onNavigate }) => {
       ],
     );
   };
-
-  if (showDiagnostics) {
-    return (
-      <EnforcementDiagnosticsScreen onBack={() => setShowDiagnostics(false)} />
-    );
-  }
 
   return (
     <ScrollView
@@ -181,16 +172,6 @@ export const ProfileScreen = ({ student, onLogout, onNavigate }) => {
           </Text>
         </View>
       </View>
-
-      {/* Diagnostics Action */}
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={() => setShowDiagnostics(true)}
-        style={styles.diagnosticsButton}
-      >
-        <VectorIcon name="tool" size={18} color="#2563EB" />
-        <Text style={styles.diagnosticsText}>Enforcement Diagnostics</Text>
-      </TouchableOpacity>
 
       {/* Logout Action */}
       <TouchableOpacity
