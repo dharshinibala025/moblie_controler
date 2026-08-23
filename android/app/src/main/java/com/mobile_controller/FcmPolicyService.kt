@@ -25,6 +25,7 @@ class FcmPolicyService : FirebaseMessagingService() {
                 "start" -> {
                     val blockedPackages = parseStringArray(data["blockedPackages"])
                     val days = parseStringArray(data["activeDays"])
+                    val emergency = data["emergency"] == "active"
                     policyStorage.savePolicy(
                         ruleId = data["ruleId"] ?: "",
                         blockedApps = blockedPackages,
@@ -34,7 +35,7 @@ class FcmPolicyService : FirebaseMessagingService() {
                         reason = data["reason"] ?: "",
                         version = data["policyVersion"]?.toIntOrNull() ?: 1,
                         status = "active",
-                        emergency = data["emergency"] == "active"
+                        emergency = false  // ALWAYS clear emergency on resume/start
                     )
                 }
                 "pause" -> {
@@ -49,11 +50,31 @@ class FcmPolicyService : FirebaseMessagingService() {
                         reason = data["reason"] ?: "",
                         version = data["policyVersion"]?.toIntOrNull() ?: 1,
                         status = "paused",
-                        emergency = false
+                        emergency = false  // Explicitly NOT emergency
                     )
                 }
+                "stop" -> {
+                    // Emergency unblock sends "stop" with emergency: "active"
+                    val emergency = data["emergency"] == "active"
+                    if (emergency) {
+                        policyStorage.clearPolicy()  // Sets emergency=true
+                    } else {
+                        // Normal stop - clear without emergency
+                        val days = parseStringArray(data["activeDays"])
+                        policyStorage.savePolicy(
+                            ruleId = data["ruleId"] ?: "",
+                            blockedApps = emptyList(),
+                            scheduleStart = data["scheduleStart"] ?: "09:00",
+                            scheduleEnd = data["scheduleEnd"] ?: "16:00",
+                            activeDays = if (days.isEmpty()) DEFAULT_ACTIVE_DAYS else days,
+                            reason = data["reason"] ?: "",
+                            version = data["policyVersion"]?.toIntOrNull() ?: 1,
+                            status = "inactive",
+                            emergency = false
+                        )
+                    }
+                }
                 else -> {
-                    // stop / emergency -> full clear
                     policyStorage.clearPolicy()
                 }
             }

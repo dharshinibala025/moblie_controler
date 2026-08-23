@@ -153,6 +153,7 @@ const resolveActorLabel = async (actorId) => {
 // fields only accept string values.
 const buildPolicyData = (action, status, blockedPackages, rule, serverTimestamp, options = {}) => {
   const isFcm = options.fcm === true;
+  const isEmergency = options.emergency === true;
   return {
     action,
     status,
@@ -166,6 +167,7 @@ const buildPolicyData = (action, status, blockedPackages, rule, serverTimestamp,
     policyVersion: String(rule && rule.policyVersion ? rule.policyVersion : 1),
     ruleId: rule && rule._id ? String(rule._id) : "",
     serverTimestamp: serverTimestamp.toISOString(),
+    emergency: isEmergency ? "active" : "inactive",
   };
 };
 
@@ -303,7 +305,7 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
         blockedPackagesByClass[classId] || [],
         rulesByClass[classId] ? rulesByClass[classId][0] : null,
         serverTimestamp,
-        { fcm: true }
+        { fcm: true, emergency: false }  // Explicitly set emergency: false for normal pause/start
       );
       fcmService
         .sendToMultipleDevices(tokens, payload)
@@ -417,7 +419,7 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
     resolvedPackages,
     rule.toObject(),
     serverTimestamp,
-    { fcm: true }
+    { fcm: true, emergency: false }  // Explicitly set emergency: false for normal pause/start
   );
   emitToClass(rule.targetClassId, "rule:update", {
     ruleId: rule._id,

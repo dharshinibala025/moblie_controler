@@ -63,7 +63,16 @@ const initializeSocket = httpServer => {
 
     socket.join(`user:${user.userId}`);
 
-    if (user.classId) {
+    // Refresh student classId from DB on connect to ensure correct room
+    if (user.role === 'student') {
+      const User = require("../models/User");
+      User.findById(user.userId).select('classId').lean().then(student => {
+        if (student?.classId) {
+          socket.join(`class:${student.classId}`);
+          logger.debug(`Socket joined room class:${student.classId} (refreshed from DB)`);
+        }
+      }).catch(err => logger.warn('Failed to refresh student classId on connect:', err));
+    } else if (user.classId) {
       socket.join(`class:${user.classId}`);
       logger.debug(`Socket joined room class:${user.classId}`);
     }

@@ -1585,6 +1585,7 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
     const auditService = require("../services/auditService");
     const { emitToClass } = require("../config/socket");
     const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    const fcmService = require("../services/fcmService");
 
     setEmergencyUnblock(true);
 
@@ -1632,6 +1633,33 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
     }
     // Also hit the ALL channel for any stragglers
     emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
+
+    // FCM multicast for background/killed apps
+    if (studentIds.length > 0) {
+      const devicesWithFcm = await Device.find({
+        userId: { $in: studentIds },
+        fcmToken: { $ne: null },
+      }).select("userId fcmToken").lean();
+
+      const emergencyPayload = {
+        action: "stop",
+        status: "paused",
+        blockedPackages: "[]",
+        emergency: "active",
+        policyVersion: "0",
+        scheduleStart: "09:00",
+        scheduleEnd: "16:00",
+        activeDays: '["Mon","Tue","Wed","Thu","Fri","Sat"]',
+        ruleId: "",
+        serverTimestamp: new Date().toISOString(),
+      };
+
+      for (const d of devicesWithFcm) {
+        if (d.fcmToken) {
+          fcmService.sendToDevice(d.fcmToken, emergencyPayload).catch(() => {});
+        }
+      }
+    }
 
     await auditService.logAction(
       req.user.userId,

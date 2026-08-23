@@ -259,7 +259,9 @@ class SyncService {
       'change',
       nextState => {
         if (nextState === 'active') {
-          this.sync('periodic').catch(() => null);
+          this.sync('foreground').catch(() => null);
+          // Request latest state from socket on foreground
+          this._socket?.emit('device:requestState');
         }
       },
     );
@@ -334,7 +336,7 @@ class SyncService {
       // Listen for rule updates (pause/start/stop) from staff or admin
       this._socket.on('rule:update', async data => {
         try {
-          console.log('FocusSync: Received rule:update', data.action);
+          console.log('FocusSync: Received rule:update', data.action, 'emergency:', data.emergency);
           const {
             action,
             blockedPackages,
@@ -343,7 +345,34 @@ class SyncService {
             activeDays,
             status,
             policyVersion,
+            emergency,
           } = data;
+
+          // Emergency unblock takes priority - clear policy completely
+          if (emergency === 'active') {
+            console.log('FocusSync: Emergency unblock received via rule:update');
+            if (AppScannerModule && AppScannerModule.clearPolicy) {
+              await AppScannerModule.clearPolicy().catch(() => null);
+            }
+            const emergencyPolicy = {
+              policyVersion: policyVersion || 0,
+              blockedPackages: [],
+              status: 'inactive',
+              scheduleStart: scheduleStart || '09:00',
+              scheduleEnd: scheduleEnd || '16:00',
+              activeDays: normalizeDays(activeDays) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+              scheduleActive: false,
+              source: 'realtime',
+              emergency: true,
+            };
+            try {
+              await AsyncStorage.setItem(CACHE_KEYS.POLICY_CACHE, JSON.stringify(emergencyPolicy));
+            } catch (e) { /* ignore */ }
+            try {
+              DeviceEventEmitter.emit('FocusSync:policyChanged', emergencyPolicy);
+            } catch (e) { /* ignore */ }
+            return;
+          }
 
           if (AppScannerModule && AppScannerModule.savePolicy) {
             if (action === 'pause' || action === 'stop') {
@@ -553,6 +582,24 @@ class SyncService {
           if (AppScannerModule && AppScannerModule.clearPolicy) {
             await AppScannerModule.clearPolicy().catch(() => null);
           }
+          // Update cache and emit event for UI consistency
+          const emergencyPolicy = {
+            policyVersion: 0,
+            blockedPackages: [],
+            status: 'inactive',
+            scheduleStart: '09:00',
+            scheduleEnd: '16:00',
+            activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+            scheduleActive: false,
+            source: 'realtime',
+            emergency: true,
+          };
+          try {
+            await AsyncStorage.setItem(CACHE_KEYS.POLICY_CACHE, JSON.stringify(emergencyPolicy));
+          } catch (e) { /* ignore */ }
+          try {
+            DeviceEventEmitter.emit('FocusSync:policyChanged', emergencyPolicy);
+          } catch (e) { /* ignore */ }
         } catch (e) {
           console.warn(
             'FocusSync: emergency:unblock handling error:',
