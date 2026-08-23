@@ -17,7 +17,6 @@ import StatsCard from '../components/StatsCard';
 import SectionTitle from '../components/SectionTitle';
 import DashboardCard from '../components/DashboardCard';
 import ActivityCard from '../components/ActivityCard';
-import PlaceholderChart from '../components/PlaceholderChart';
 import FilterChipGroup from '../components/FilterChipGroup';
 import PermissionModal from '../../components/PermissionModal';
 import adminService from '../../services/adminService';
@@ -71,16 +70,6 @@ const INITIAL_STATS = [
 
 const INITIAL_ACTIVITIES = [];
 
-const USAGE_SUMMARY_DATA = [
-  { label: 'Mon', value: 0 },
-  { label: 'Tue', value: 0 },
-  { label: 'Wed', value: 0 },
-  { label: 'Thu', value: 0 },
-  { label: 'Fri', value: 0 },
-  { label: 'Sat', value: 0 },
-  { label: 'Sun', value: 0 },
-];
-
 const ANNOUNCEMENT_TARGETS = ['All Students', 'Department', 'Year', 'Section', 'Individual Student'];
 
 const DashboardScreen = ({ onNavigateNotifications }) => {
@@ -98,12 +87,16 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
   useEffect(() => {
     let isMounted = true;
     const fetchOverview = async () => {
-      const res = await adminService.getDashboardOverview();
-      if (res && isMounted) {
-        if (res.stats) {
-          setStats(res.stats);
+      try {
+        const res = await adminService.getDashboardOverview();
+        if (res && isMounted) {
+          if (res.stats && res.stats.length > 0) {
+            setStats(res.stats);
+          }
+          setActivities(res.recentActivities || []);
         }
-        setActivities(res.recentActivities || []);
+      } catch (err) {
+        console.warn('Dashboard overview fetch error:', err.message);
       }
     };
     fetchOverview();
@@ -121,7 +114,7 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
       try {
         const notifs = await adminService.getAdminNotifications();
         if (isMounted && Array.isArray(notifs)) {
-          setUnreadCount(notifs.filter((n) => !n.read).length);
+          setUnreadCount(notifs.filter((n) => !n.read && !n.isRead).length);
         }
       } catch (e) {
         // ignore
@@ -201,7 +194,7 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
         }\nTitle: ${announcementTitle}\nNotifications delivered to ${res?.count || 'all'} student devices.`,
       );
     } catch (err) {
-      Alert.alert('Broadcast Dispatched', 'Notification queued and sent to student mobile devices.');
+      Alert.alert('Broadcast Failed', 'Failed to dispatch broadcast: ' + (err.message || 'Please try again.'));
     }
 
     setAnnouncementTitle('');
@@ -496,14 +489,6 @@ const styles = StyleSheet.create({
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   statsGridItem: { width: '48%', marginBottom: spacing.md },
   activityPadding: { paddingHorizontal: spacing.md },
-  usageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  usageTotal: { ...typography.h3, color: colors.textPrimary },
-  usagePeriod: { ...typography.caption, color: colors.textSecondary },
 
   /* Modals */
   modalOverlay: {

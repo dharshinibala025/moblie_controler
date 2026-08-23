@@ -23,7 +23,6 @@ export const StaffDashboardScreen = ({ onLogout }) => {
         if (user) {
           setStaffInfo(user);
         }
-
       } catch (err) {
         console.warn('FocusSync: Failed to load staff details:', err);
       }
@@ -35,7 +34,7 @@ export const StaffDashboardScreen = ({ onLogout }) => {
     try {
       const data = await fetchStaffNotifications();
       if (Array.isArray(data)) {
-        const unread = data.filter(n => !n.isRead).length;
+        const unread = data.filter(n => !n.read && !n.isRead).length;
         setUnreadCount(unread);
       }
     } catch (e) {
@@ -63,19 +62,21 @@ export const StaffDashboardScreen = ({ onLogout }) => {
   const renderActiveScreen = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <StaffDashboardTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
+        return <StaffDashboardTab staffInfo={staffInfo} onNavigateTab={handleTabChange} />;
       case 'devices':
-        return <StaffDevicesTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
+        return <StaffDevicesTab staffInfo={staffInfo} onNavigateTab={handleTabChange} />;
       case 'students':
-        return <StaffStudentsTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
+        return <StaffStudentsTab staffInfo={staffInfo} onNavigateTab={handleTabChange} />;
       case 'notifications':
-        return <NotificationsScreen onBack={() => setActiveTab('dashboard')} />;
+        return <NotificationsScreen onBack={() => handleTabChange('dashboard')} />;
       case 'settings':
         return <StaffSettingsTab staffInfo={staffInfo} onLogout={onLogout} />;
       default:
-        return <StaffDashboardTab staffInfo={staffInfo} onNavigateTab={setActiveTab} />;
+        return <StaffDashboardTab staffInfo={staffInfo} onNavigateTab={handleTabChange} />;
     }
   };
+
+  const navTab = activeTab === 'notifications' ? 'dashboard' : activeTab;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -83,7 +84,7 @@ export const StaffDashboardScreen = ({ onLogout }) => {
       <View style={styles.screenContainer}>
         {renderActiveScreen()}
       </View>
-      <StaffBottomNavBar activeTab={activeTab} onSelectTab={handleTabChange} unreadCount={unreadCount} />
+      <StaffBottomNavBar activeTab={navTab} onSelectTab={handleTabChange} unreadCount={unreadCount} />
     </SafeAreaView>
   );
 };

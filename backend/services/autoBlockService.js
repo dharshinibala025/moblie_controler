@@ -41,11 +41,13 @@ const ENTERTAINMENT_PACKAGES = [
   "com.graymatrix.did",      // Zee5
 ];
 
+// Only social media apps are auto-blocked by default.
+// Games and entertainment remain available for EXPLICIT rule targeting
+// but are NOT included in the default auto-block set.
 const AUTO_BLOCK_PACKAGES = [
   ...SOCIAL_MEDIA_PACKAGES,
-  ...GAMES_PACKAGES,
-  ...ENTERTAINMENT_PACKAGES,
-  "com.android.vending", // Google Play Store
+  // Note: GAMES_PACKAGES and ENTERTAINMENT_PACKAGES intentionally excluded.
+  // Add "com.android.vending" (Play Store) only when admin explicitly adds it.
 ];
 
 const CATEGORY_TO_PACKAGES = {
@@ -160,7 +162,9 @@ const resolveBlockedPackages = async (studentId, rules) => {
     }).lean();
 
     for (const app of scannedApps) {
-      if (app.category === "social" || app.category === "games" || app.category === "entertainment") {
+      // Only auto-block social media apps from student's scanned list.
+      // Games and entertainment apps are intentionally not included.
+      if (app.category === "social") {
         blocked.add(app.packageName);
       }
     }

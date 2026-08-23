@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,15 +13,19 @@ import {
 import { colors, borderRadius } from '../styles/theme';
 import VectorIcon from '../components/VectorIcon';
 import authService from '../../services/authService';
+import { EnforcementDiagnosticsScreen } from './EnforcementDiagnosticsScreen';
 
-const STATUSBAR_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 16;
+const STATUSBAR_OFFSET =
+  Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 16;
 
-export const ProfileScreen = ({ student, onLogout }) => {
-  const getInitials = (name) => {
+export const ProfileScreen = ({ student, onLogout, onNavigate }) => {
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+
+  const getInitials = name => {
     if (!name) return 'ST';
     return name
       .split(' ')
-      .map((part) => part.charAt(0))
+      .map(part => part.charAt(0))
       .join('')
       .slice(0, 2)
       .toUpperCase();
@@ -55,9 +59,15 @@ export const ProfileScreen = ({ student, onLogout }) => {
             }
           },
         },
-      ]
+      ],
     );
   };
+
+  if (showDiagnostics) {
+    return (
+      <EnforcementDiagnosticsScreen onBack={() => setShowDiagnostics(false)} />
+    );
+  }
 
   return (
     <ScrollView
@@ -69,7 +79,11 @@ export const ProfileScreen = ({ student, onLogout }) => {
       <View style={styles.headerSection}>
         <View style={styles.avatarCircle}>
           {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} resizeMode="cover" />
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.avatarImage}
+              resizeMode="cover"
+            />
           ) : (
             <Text style={styles.avatarInitials}>{initials}</Text>
           )}
@@ -95,7 +109,9 @@ export const ProfileScreen = ({ student, onLogout }) => {
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Email Address</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>{email}</Text>
+              <Text style={styles.infoValue} numberOfLines={1}>
+                {email}
+              </Text>
             </View>
           </View>
 
@@ -104,7 +120,11 @@ export const ProfileScreen = ({ student, onLogout }) => {
           {/* REGISTER NO */}
           <View style={styles.infoRow}>
             <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
-              <VectorIcon name="card-account-details-outline" size={18} color="#16A34A" />
+              <VectorIcon
+                name="card-account-details-outline"
+                size={18}
+                color="#16A34A"
+              />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Register Number</Text>
@@ -130,7 +150,11 @@ export const ProfileScreen = ({ student, onLogout }) => {
           {/* SECTION */}
           <View style={styles.infoRow}>
             <View style={[styles.iconBox, { backgroundColor: '#F3E8FF' }]}>
-              <VectorIcon name="account-group-outline" size={18} color="#9333EA" />
+              <VectorIcon
+                name="account-group-outline"
+                size={18}
+                color="#9333EA"
+              />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Section</Text>
@@ -151,10 +175,22 @@ export const ProfileScreen = ({ student, onLogout }) => {
             <Text style={styles.policyTitle}>Department Mobile Controller</Text>
           </View>
           <Text style={styles.policyText}>
-            Student access is set to View-Only. Mobile application restrictions during class hours (09:00 AM – 04:00 PM) are enforced centrally by the HOD and Department Admin.
+            Student access is set to View-Only. Mobile application restrictions
+            during class hours (09:00 AM – 04:00 PM) are enforced centrally by
+            the HOD and Department Admin.
           </Text>
         </View>
       </View>
+
+      {/* Diagnostics Action */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => setShowDiagnostics(true)}
+        style={styles.diagnosticsButton}
+      >
+        <VectorIcon name="tool" size={18} color="#2563EB" />
+        <Text style={styles.diagnosticsText}>Enforcement Diagnostics</Text>
+      </TouchableOpacity>
 
       {/* Logout Action */}
       <TouchableOpacity
@@ -167,7 +203,7 @@ export const ProfileScreen = ({ student, onLogout }) => {
       </TouchableOpacity>
 
       <Text style={styles.footerNote}>
-        Department Controller Student Portal • v1.0
+        Department Controller Student Portal • v1.2.11
       </Text>
     </ScrollView>
   );
@@ -337,6 +373,26 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
+  /* Diagnostics Button */
+  diagnosticsButton: {
+    backgroundColor: '#EFF6FF',
+    height: 48,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  diagnosticsText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1D4ED8',
+  },
+
   /* Logout Button */
   logoutButton: {
     backgroundColor: '#FEF2F2',
@@ -367,4 +423,3 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileScreen;
-

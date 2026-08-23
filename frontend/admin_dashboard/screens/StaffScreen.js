@@ -89,17 +89,30 @@ const StaffScreen = () => {
   }, [staff, searchQuery, selectedDept, selectedAdvisor]);
 
   const handleToggleBlock = async (staffId) => {
-    setStaff((prev) =>
-      prev.map((member) =>
-        member.id === staffId
-          ? {
-              ...member,
-              isBlocked: !member.isBlocked,
-              accountStatus: !member.isBlocked ? 'Blocked' : 'Active',
-            }
-          : member,
-      ),
-    );
+    try {
+      const member = staff.find((m) => m.id === staffId);
+      if (!member) return;
+
+      if (member.isBlocked) {
+        await adminService.unblockStaff(staffId);
+      } else {
+        await adminService.blockStaff(staffId);
+      }
+
+      setStaff((prev) =>
+        prev.map((m) =>
+          m.id === staffId
+            ? {
+                ...m,
+                isBlocked: !m.isBlocked,
+                accountStatus: !m.isBlocked ? 'Blocked' : 'Active',
+              }
+            : m,
+        ),
+      );
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to toggle block status.');
+    }
   };
 
   const handleViewMember = (member) => {
@@ -112,16 +125,27 @@ const StaffScreen = () => {
     setEditModalVisible(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editFormData.name || !editFormData.email) {
       Alert.alert('Required Fields', 'Please fill in Staff Name and Email.');
       return;
     }
-    setStaff((prev) =>
-      prev.map((m) => (m.id === editFormData.id ? { ...m, ...editFormData } : m)),
-    );
-    setEditModalVisible(false);
-    Alert.alert('Success', 'Staff details updated successfully.');
+
+    try {
+      await adminService.updateStaff(editFormData.id, {
+        name: editFormData.name,
+        email: editFormData.email,
+        department: editFormData.department,
+      });
+
+      setStaff((prev) =>
+        prev.map((m) => (m.id === editFormData.id ? { ...m, name: editFormData.name, email: editFormData.email, department: editFormData.department } : m)),
+      );
+      setEditModalVisible(false);
+      Alert.alert('Success', 'Staff details updated successfully.');
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to update staff details.');
+    }
   };
 
   const handleDeleteStaff = (staffId, staffName) => {
@@ -133,91 +157,73 @@ const StaffScreen = () => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setStaff((prev) => prev.filter((m) => m.id !== staffId));
-            Alert.alert('Deleted', `${staffName} has been removed.`);
+          onPress: async () => {
+            try {
+              await adminService.deleteStaff(staffId);
+              setStaff((prev) => prev.filter((m) => m.id !== staffId));
+              Alert.alert('Deleted', `${staffName} has been removed.`);
+            } catch (error) {
+              Alert.alert('Error', error.message || 'Failed to delete staff member.');
+            }
           },
         },
       ],
     );
   };
 
-  const handleAddStaff = () => {
+  const handleAddStaff = async () => {
     if (!newStaffData.name || !newStaffData.email) {
       Alert.alert('Required Fields', 'Please fill in Staff Name and Email.');
       return;
     }
 
-    const tempPassword = `Staff@${Math.floor(1000 + Math.random() * 9000)}`;
-    const newMember = {
-      id: `t_${Date.now()}`,
-      staffId: `STF${Math.floor(100 + Math.random() * 900)}`,
-      ...newStaffData,
-      accountStatus: 'Active',
-      isBlocked: false,
-      mustChangePassword: true,
-      tempPassword,
-    };
+    try {
+      const tempPassword = `Staff@${Math.floor(1000 + Math.random() * 9000)}`;
 
-    setStaff((prev) => [newMember, ...prev]);
-    setAddModalVisible(false);
+      const result = await adminService.createStaff({
+        name: newStaffData.name,
+        email: newStaffData.email,
+        employeeId: newStaffData.staffId || undefined,
+        tempPassword,
+      });
 
-    Alert.alert(
-      'Staff Account Created',
-      `Staff Account Created for ${newMember.name}.\n\nTemporary Password: ${tempPassword}\nCredentials sent to ${newMember.email}.`,
-    );
+      const createdMember = {
+        id: result?.id || result?._id || `t_${Date.now()}`,
+        staffId: result?.staffId || result?.employeeId || newStaffData.staffId || `STF${Math.floor(100 + Math.random() * 900)}`,
+        name: newStaffData.name,
+        email: newStaffData.email,
+        department: newStaffData.department,
+        assignedAdvisor: newStaffData.assignedAdvisor,
+        accountStatus: 'Active',
+        isBlocked: false,
+        mustChangePassword: true,
+        tempPassword,
+      };
 
-    setNewStaffData({
-      name: '',
-      email: '',
-      department: 'Computer Science',
-      assignedAdvisor: 'CA1',
-    });
-  };
+      setStaff((prev) => [createdMember, ...prev]);
+      setAddModalVisible(false);
 
-  const handleDownloadTemplate = () => {
-    Alert.alert(
-      'Download Excel Template',
-      'Staff_Import_Template.xlsx downloaded successfully.',
-    );
+      Alert.alert(
+        'Staff Account Created',
+        `Staff Account Created for ${createdMember.name}.\n\nTemporary Password: ${tempPassword}\nCredentials sent to ${createdMember.email}.`,
+      );
+
+      setNewStaffData({
+        name: '',
+        email: '',
+        staffId: '',
+        department: 'Computer Science',
+        assignedAdvisor: 'CA1',
+      });
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to create staff member.');
+    }
   };
 
   const handleUploadExcelPress = async (droppedBase64, droppedName) => {
     try {
       let fileBase64 = typeof droppedBase64 === 'string' ? droppedBase64 : null;
       let fileName = typeof droppedName === 'string' ? droppedName : 'staff_roster.xlsx';
-
-      if (!fileBase64 && typeof document !== 'undefined' && document.createElement) {
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.xlsx, .xls, .csv';
-
-        const fileSelectedPromise = new Promise((resolve) => {
-          fileInput.onchange = (e) => {
-            const file = e.target?.files?.[0];
-            if (!file) {
-              resolve(null);
-              return;
-            }
-            fileName = file.name;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-              const arrayBuffer = evt.target.result;
-              const bytes = new Uint8Array(arrayBuffer);
-              let binary = '';
-              for (let i = 0; i < bytes.byteLength; i++) {
-                binary += String.fromCharCode(bytes[i]);
-              }
-              const base64 = typeof global.btoa === 'function' ? global.btoa(binary) : null;
-              resolve(base64);
-            };
-            reader.readAsArrayBuffer(file);
-          };
-        });
-
-        fileInput.click();
-        fileBase64 = await fileSelectedPromise;
-      }
 
       // Native Mobile File Picker via @react-native-documents/picker
       if (!fileBase64) {
@@ -355,7 +361,6 @@ const StaffScreen = () => {
         <ImportExcelCard
           title="Import Staff Excel (.xlsx)"
           subtitle="Bulk add staff members. Generates accounts & emails credentials."
-          onDownloadTemplate={handleDownloadTemplate}
           onUploadExcel={handleUploadExcelPress}
         />
       </View>
@@ -523,6 +528,14 @@ const StaffScreen = () => {
                 onChangeText={(t) => setNewStaffData({ ...newStaffData, email: t })}
               />
 
+              <Text style={styles.inputLabel}>Employee ID</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. EMP001"
+                value={newStaffData.staffId}
+                onChangeText={(t) => setNewStaffData({ ...newStaffData, staffId: t })}
+              />
+
               <Text style={styles.inputLabel}>Department</Text>
               <TextInput
                 style={styles.textInput}
@@ -554,11 +567,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingBottom: spacing.xxxl },
   section: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
-  filterLabel: {
-    ...typography.captionMedium,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
   filterBar: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,

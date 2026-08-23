@@ -132,17 +132,26 @@ const StudentsScreen = () => {
   }, [students, searchQuery, selectedDept, selectedYear, selectedSection]);
 
   const handleToggleBlock = async (studentId) => {
-    setStudents((prev) =>
-      prev.map((student) =>
-        student.id === studentId
-          ? {
-              ...student,
-              isBlocked: !student.isBlocked,
-              accountStatus: !student.isBlocked ? 'Blocked' : 'Active',
-            }
-          : student,
-      ),
-    );
+    try {
+      const student = students.find((s) => s.id === studentId);
+      if (!student) return;
+
+      if (student.isBlocked) {
+        await adminService.unblockStudent(studentId);
+      } else {
+        await adminService.blockStudent(studentId);
+      }
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === studentId
+            ? { ...s, isBlocked: !s.isBlocked, accountStatus: !s.isBlocked ? 'Blocked' : 'Active' }
+            : s,
+        ),
+      );
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to update block status.');
+    }
   };
 
   const handleViewStudent = (student) => {
@@ -155,16 +164,27 @@ const StudentsScreen = () => {
     setEditModalVisible(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editFormData.name || !editFormData.registerNumber || !editFormData.email) {
       Alert.alert('Required Fields', 'Please fill in Name, Register Number, and Email.');
       return;
     }
-    setStudents((prev) =>
-      prev.map((s) => (s.id === editFormData.id ? { ...s, ...editFormData } : s)),
-    );
-    setEditModalVisible(false);
-    Alert.alert('Success', 'Student details updated successfully.');
+
+    try {
+      await adminService.updateStudent(editFormData.id, {
+        name: editFormData.name,
+        email: editFormData.email,
+        registerNumber: editFormData.registerNumber,
+      });
+
+      setStudents((prev) =>
+        prev.map((s) => (s.id === editFormData.id ? { ...s, ...editFormData } : s)),
+      );
+      setEditModalVisible(false);
+      Alert.alert('Success', 'Student details updated successfully.');
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to update student.');
+    }
   };
 
   const handleDeleteStudent = (studentId, studentName) => {
@@ -176,89 +196,76 @@ const StudentsScreen = () => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setStudents((prev) => prev.filter((s) => s.id !== studentId));
-            Alert.alert('Deleted', `${studentName} has been removed.`);
+          onPress: async () => {
+            try {
+              await adminService.deleteStudent(studentId);
+              setStudents((prev) => prev.filter((s) => s.id !== studentId));
+              Alert.alert('Deleted', `${studentName} has been removed.`);
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to delete student.');
+            }
           },
         },
       ],
     );
   };
 
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     if (!newStudentData.name || !newStudentData.registerNumber || !newStudentData.email) {
       Alert.alert('Required Fields', 'Please fill in Name, Register Number, and Email.');
       return;
     }
 
-    const tempPassword = `Temp@${Math.floor(1000 + Math.random() * 9000)}`;
-    const newStudent = {
-      id: `s_${Date.now()}`,
-      ...newStudentData,
-      accountStatus: 'Active',
-      isBlocked: false,
-      mustChangePassword: true,
-      tempPassword,
-    };
+    try {
+      const tempPassword = `Temp@${Math.floor(1000 + Math.random() * 9000)}`;
 
-    setStudents((prev) => [newStudent, ...prev]);
-    setAddModalVisible(false);
+      const yearChar = newStudentData.year ? newStudentData.year.charAt(0) : '1';
+      const sectionVal = newStudentData.section || 'A';
 
-    Alert.alert(
-      'Account Created & Email Sent',
-      `Student account created for ${newStudent.name}.\n\nTemporary Password: ${tempPassword}\nCredentials sent to ${newStudent.email}.`,
-    );
+      const result = await adminService.createStudent({
+        name: newStudentData.name,
+        email: newStudentData.email,
+        registerNumber: newStudentData.registerNumber,
+        classId: `${selectedDept}-${yearChar}-${sectionVal}`,
+        tempPassword,
+      });
 
-    setNewStudentData({
-      name: '',
-      registerNumber: '',
-      email: '',
-      department: 'CSE',
-      year: '1st Year',
-      section: 'A',
-    });
-  };
+      const createdStudent = {
+        id: result?.id || result?._id || `s_${Date.now()}`,
+        ...newStudentData,
+        accountStatus: 'Active',
+        isBlocked: false,
+        mustChangePassword: true,
+        tempPassword: result?.tempPassword || tempPassword,
+      };
 
-  const handleDownloadTemplate = () => {
-    Alert.alert('Download Excel Template', 'Student_Import_Template.xlsx downloaded successfully.');
+      setStudents((prev) => [createdStudent, ...prev]);
+      setAddModalVisible(false);
+
+      const generatedPassword = result?.tempPassword || tempPassword;
+
+      Alert.alert(
+        'Account Created & Email Sent',
+        `Student account created for ${newStudentData.name}.\n\nTemporary Password: ${generatedPassword}\nCredentials sent to ${newStudentData.email}.`,
+      );
+
+      setNewStudentData({
+        name: '',
+        registerNumber: '',
+        email: '',
+        department: 'CSE',
+        year: '1st Year',
+        section: 'A',
+      });
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to create student account.');
+    }
   };
 
   const handleUploadExcelPress = async (droppedBase64, droppedName) => {
     try {
       let fileBase64 = typeof droppedBase64 === 'string' ? droppedBase64 : null;
       let fileName = typeof droppedName === 'string' ? droppedName : 'student_roster.xlsx';
-
-      if (!fileBase64 && typeof document !== 'undefined' && document.createElement) {
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.xlsx, .xls, .csv';
-
-        const fileSelectedPromise = new Promise((resolve) => {
-          fileInput.onchange = (e) => {
-            const file = e.target?.files?.[0];
-            if (!file) {
-              resolve(null);
-              return;
-            }
-            fileName = file.name;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-              const arrayBuffer = evt.target.result;
-              const bytes = new Uint8Array(arrayBuffer);
-              let binary = '';
-              for (let i = 0; i < bytes.byteLength; i++) {
-                binary += String.fromCharCode(bytes[i]);
-              }
-              const base64 = typeof global.btoa === 'function' ? global.btoa(binary) : null;
-              resolve(base64);
-            };
-            reader.readAsArrayBuffer(file);
-          };
-        });
-
-        fileInput.click();
-        fileBase64 = await fileSelectedPromise;
-      }
 
       // Native Mobile File Picker via @react-native-documents/picker
       if (!fileBase64) {
@@ -410,7 +417,6 @@ const StudentsScreen = () => {
           <ImportExcelCard
             title="Import Students Excel (.xlsx)"
             subtitle="Bulk import student records. Generates accounts & emails credentials."
-            onDownloadTemplate={handleDownloadTemplate}
             onUploadExcel={handleUploadExcelPress}
           />
         </View>
@@ -572,14 +578,37 @@ const StudentsScreen = () => {
                   onChangeText={(t) => setNewStudentData({ ...newStudentData, registerNumber: t })}
                 />
 
-                <Text style={styles.inputLabel}>Email Address *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g. vikas.s@ksrce.ac.in"
-                  keyboardType="email-address"
-                  value={newStudentData.email}
-                  onChangeText={(t) => setNewStudentData({ ...newStudentData, email: t })}
-                />
+              <Text style={styles.inputLabel}>Email Address *</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. vikas.s@ksrce.ac.in"
+                keyboardType="email-address"
+                value={newStudentData.email}
+                onChangeText={(t) => setNewStudentData({ ...newStudentData, email: t })}
+              />
+
+              <View style={styles.formRow}>
+                <View style={{ flex: 1, marginRight: spacing.sm }}>
+                  <Text style={styles.inputLabel}>Year</Text>
+                  <SelectDropdown
+                    value={newStudentData.year}
+                    options={yearDropdownOptions.filter(o => o.value !== 'All')}
+                    onSelect={(v) => setNewStudentData({ ...newStudentData, year: v })}
+                    placeholder="Select Year"
+                    icon="calendar-today"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Section</Text>
+                  <SelectDropdown
+                    value={newStudentData.section}
+                    options={getSectionOptions(newStudentData.year).map(s => ({ label: `Section ${s}`, value: s }))}
+                    onSelect={(v) => setNewStudentData({ ...newStudentData, section: v })}
+                    placeholder="Select Section"
+                    icon="group"
+                  />
+                </View>
+              </View>
               </View>
 
               <View style={styles.modalFooter}>

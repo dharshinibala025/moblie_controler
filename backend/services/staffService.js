@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const StaffAssignment = require("../models/StaffAssignment");
+const ClassRoom = require("../models/ClassRoom");
 const auditService = require("./auditService");
 const { ConflictError } = require("../utils/AppError");
 
@@ -11,12 +12,23 @@ class StaffService {
       throw new ConflictError("Email already registered");
     }
 
+    // Look up ClassRoom to populate academicYearId, sectionId, departmentId, classRoomId
+    const primaryClassCode = classIds && classIds.length > 0 ? classIds[0] : null;
+    let classroom = null;
+    if (primaryClassCode) {
+      classroom = await ClassRoom.findOne({ code: primaryClassCode.toUpperCase() });
+    }
+
     const staff = await User.create({
       name,
       email: email.toLowerCase(),
       password: tempPassword,
       role: "staff",
-      classId: classIds && classIds.length > 0 ? classIds[0] : null,
+      classId: primaryClassCode,
+      classRoomId: classroom ? classroom._id : null,
+      departmentId: classroom ? classroom.departmentId : null,
+      academicYearId: classroom ? classroom.academicYearId : null,
+      sectionId: classroom ? classroom.sectionId : null,
       institutionId: institutionId || scopeInstitutionId,
       mustChangePassword: true,
       hasSetPassword: true,

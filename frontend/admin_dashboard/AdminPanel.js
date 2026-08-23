@@ -11,6 +11,7 @@ import SettingsScreen from './screens/SettingsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 
 import colors from './styles/colors';
+import adminService from '../services/adminService';
 
 /**
  * AdminPanel
@@ -29,35 +30,44 @@ const TABS = [
   { key: 'students', label: 'Students', icon: 'school' },
   { key: 'staff', label: 'Staff', icon: 'groups' },
   { key: 'devices', label: 'Devices', icon: 'devices' },
+  { key: 'notifications', label: 'Alerts', icon: 'notifications' },
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
 const AdminPanel = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [adminProfile, setAdminProfile] = useState(null);
 
+  useEffect(() => {
+    adminService.getAdminProfile().then((data) => {
+      if (data) setAdminProfile(data);
+    }).catch(() => {});
+  }, []);
 
-
-  const renderActiveScreen = () => {
-    switch (activeTab) {
-      case 'students':
-        return <StudentsScreen />;
-      case 'staff':
-        return <StaffScreen />;
-      case 'devices':
-        return <DevicesScreen />;
-      case 'settings':
-        return <SettingsScreen onLogout={onLogout} />;
-      case 'notifications':
-        return <NotificationsScreen onBack={() => setActiveTab('dashboard')} />;
-      case 'dashboard':
-      default:
-        return <DashboardScreen onNavigateNotifications={() => setActiveTab('notifications')} />;
-    }
-  };
+  const navigateToNotifications = () => setActiveTab('notifications');
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <View style={styles.screenContainer}>{renderActiveScreen()}</View>
+      <View style={styles.screenContainer}>
+        <View style={[styles.screenWrapper, activeTab !== 'dashboard' && styles.screenHidden]}>
+          <DashboardScreen onNavigateNotifications={navigateToNotifications} />
+        </View>
+        <View style={[styles.screenWrapper, activeTab !== 'students' && styles.screenHidden]}>
+          <StudentsScreen />
+        </View>
+        <View style={[styles.screenWrapper, activeTab !== 'staff' && styles.screenHidden]}>
+          <StaffScreen />
+        </View>
+        <View style={[styles.screenWrapper, activeTab !== 'devices' && styles.screenHidden]}>
+          <DevicesScreen />
+        </View>
+        <View style={[styles.screenWrapper, activeTab !== 'notifications' && styles.screenHidden]}>
+          <NotificationsScreen onBack={() => setActiveTab('dashboard')} />
+        </View>
+        <View style={[styles.screenWrapper, activeTab !== 'settings' && styles.screenHidden]}>
+          <SettingsScreen adminData={adminProfile} onLogout={onLogout} />
+        </View>
+      </View>
       <BottomTabBar tabs={TABS} activeTab={activeTab} onTabPress={setActiveTab} />
     </SafeAreaView>
   );
@@ -66,6 +76,8 @@ const AdminPanel = ({ onLogout }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   screenContainer: { flex: 1 },
+  screenWrapper: { flex: 1 },
+  screenHidden: { height: 0, overflow: 'hidden', flex: 0 },
 });
 
 export default AdminPanel;

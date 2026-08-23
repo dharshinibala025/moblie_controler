@@ -8,27 +8,31 @@ import {
   Modal,
   TextInput,
   Alert,
-  Image,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import VectorIcon from '../../student_dashboard/components/VectorIcon';
 import SettingsRow from '../components/SettingsRow';
 import { colors, shadows, borderRadius } from '../../student_dashboard/styles/theme';
+import staffService from '../../services/staffService';
+import authService from '../../services/authService';
+import formatClassDisplay from '../../utils/formatClassDisplay';
 
 const STATUSBAR_OFFSET = 12;
 
 export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
-  // Staff Profile State loaded dynamically
   const [staffProfile, setStaffProfile] = useState({
     name: 'Loading...',
     employeeId: '...',
-    department: 'Computer Science Engineering',
+    department: '',
     email: '...',
-    avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
     initials: 'ST',
     assignedClass: '...',
   });
+
+  const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const getInitials = (name) => {
     if (!name) return 'ST';
@@ -40,60 +44,15 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
       .toUpperCase();
   };
 
-  const formatClassId = (assignedClass) => {
-    if (!assignedClass) return 'No Class Assigned';
-
-    // Handle new format: e.g. "CSE-2-D"
-    if (assignedClass.includes('-') && !assignedClass.includes(' - ')) {
-      const parts = assignedClass.split('-');
-      if (parts.length === 3) {
-        const dept = parts[0];
-        const yearVal = parts[1];
-        const section = parts[2];
-
-        let yearText = `${yearVal}th Year`;
-        if (yearVal === '1') yearText = '1st Year';
-        else if (yearVal === '2') yearText = '2nd Year';
-        else if (yearVal === '3') yearText = '3rd Year';
-        else if (yearVal === '4') yearText = '4th Year';
-
-        return `${yearText} ${dept} - Section ${section}`;
-      }
-    }
-
-    // Handle old format: e.g. "III CSE - A"
-    const parts = assignedClass.split(' - ');
-    const classPart = parts[0]; // e.g. "III CSE"
-    const section = parts[1] || ''; // e.g. "A"
-
-    let yearText = '';
-    if (classPart.startsWith('III')) {
-      yearText = '3rd Year';
-    } else if (classPart.startsWith('II')) {
-      yearText = '2nd Year';
-    } else if (classPart.startsWith('IV')) {
-      yearText = '4th Year';
-    } else if (classPart.startsWith('I')) {
-      yearText = '1st Year';
-    } else {
-      yearText = classPart;
-    }
-
-    const deptPart = classPart.replace(/^[IVX\s]+/, '').trim(); // Remove Roman numerals
-
-    return `${yearText} ${deptPart}${section ? ` - Section ${section}` : ''}`;
-  };
-
   useEffect(() => {
     if (staffInfo) {
       setStaffProfile({
         name: staffInfo.name || 'Staff Member',
-        employeeId: staffInfo.employeeId || 'KSR-STF-1024',
-        department: 'Computer Science Engineering',
+        employeeId: staffInfo.employeeId || '',
+        department: staffInfo.department || '',
         email: staffInfo.email || '',
-        avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
         initials: getInitials(staffInfo.name),
-        assignedClass: formatClassId(staffInfo.classId),
+        assignedClass: formatClassDisplay(staffInfo.classId),
       });
     }
   }, [staffInfo]);
@@ -110,18 +69,25 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
     confirmPassword: '',
   });
 
-  const handleSaveProfile = () => {
-    if (!profileForm.name || !profileForm.email) {
-      Alert.alert('Required Fields', 'Please fill in Staff Name and Email.');
+  const handleSaveProfile = async () => {
+    if (!profileForm.name) {
+      Alert.alert('Required Fields', 'Please fill in Staff Name.');
       return;
     }
-    setStaffProfile({ ...profileForm });
-
-    setEditProfileVisible(false);
-    Alert.alert('Profile Updated', 'Staff profile details have been saved.');
+    setSaving(true);
+    try {
+      await staffService.updateProfile({ name: profileForm.name, employeeId: profileForm.employeeId });
+      setStaffProfile({ ...staffProfile, name: profileForm.name, employeeId: profileForm.employeeId });
+      setEditProfileVisible(false);
+      Alert.alert('Profile Updated', 'Staff profile details have been saved.');
+    } catch (error) {
+      Alert.alert('Update Failed', error.message || 'Failed to update profile. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSavePassword = () => {
+  const handleSavePassword = async () => {
     if (!passwordForm.currentPassword || !passwordForm.newPassword) {
       Alert.alert('Required Fields', 'Please fill in current and new password.');
       return;
@@ -130,9 +96,21 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
       Alert.alert('Password Mismatch', 'New password and confirmation do not match.');
       return;
     }
-    setChangePasswordVisible(false);
-    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    Alert.alert('Password Updated', 'Staff account password updated successfully.');
+    if (passwordForm.newPassword.length < 6) {
+      Alert.alert('Weak Password', 'New password must be at least 6 characters.');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await staffService.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      setChangePasswordVisible(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      Alert.alert('Password Updated', 'Staff account password updated successfully.');
+    } catch (error) {
+      Alert.alert('Update Failed', error.message || 'Failed to change password. Please try again.');
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const handleLogoutPress = () => {
@@ -144,7 +122,12 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
         {
           text: 'Log Out',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            try {
+              await authService.logout();
+            } catch (e) {
+              // continue logout even if server revoke fails
+            }
             if (onLogout) {
               onLogout();
             }
@@ -156,7 +139,6 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
 
   return (
     <View style={styles.container}>
-      {/* Page Header (White background, flat text) */}
       <View style={styles.subHeader}>
         <Text style={styles.titleText}>Account Settings</Text>
         <Text style={styles.subtitleText}>Manage your staff profile details and account security.</Text>
@@ -167,7 +149,6 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Hero Card */}
         <View style={styles.section}>
           <View style={styles.profileCard}>
             <View style={styles.avatarCircle}>
@@ -176,9 +157,11 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
 
             <Text style={styles.profileName}>{staffProfile.name}</Text>
             <Text style={styles.profileEmpId}>Staff ID: {staffProfile.employeeId}</Text>
-            <View style={styles.deptBadge}>
-              <Text style={styles.deptBadgeText}>{staffProfile.department}</Text>
-            </View>
+            {staffProfile.department ? (
+              <View style={styles.deptBadge}>
+                <Text style={styles.deptBadgeText}>{staffProfile.department}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.divider} />
 
@@ -195,16 +178,15 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
           </View>
         </View>
 
-        {/* Account Management settings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Management</Text>
           <View style={styles.settingsGroupCard}>
             <SettingsRow
               icon="account"
               label="Edit Profile"
-              subtitle="Update name, email, or class assignment"
+              subtitle="Update name and employee ID"
               onPress={() => {
-                setProfileForm({ ...staffProfile });
+                setProfileForm({ name: staffProfile.name, employeeId: staffProfile.employeeId });
                 setEditProfileVisible(true);
               }}
             />
@@ -218,7 +200,6 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
           </View>
         </View>
 
-        {/* Session card */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Session</Text>
           <View style={styles.settingsGroupCard}>
@@ -259,27 +240,10 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
                 onChangeText={(t) => setProfileForm({ ...profileForm, employeeId: t })}
               />
 
-              <Text style={styles.inputLabel}>Department</Text>
-              <TextInput
-                style={styles.textInput}
-                value={profileForm.department}
-                onChangeText={(t) => setProfileForm({ ...profileForm, department: t })}
-              />
-
-              <Text style={styles.inputLabel}>Email Address</Text>
-              <TextInput
-                style={styles.textInput}
-                value={profileForm.email}
-                keyboardType="email-address"
-                onChangeText={(t) => setProfileForm({ ...profileForm, email: t })}
-              />
-
-              <Text style={styles.inputLabel}>Assigned Mentor Class</Text>
-              <TextInput
-                style={styles.textInput}
-                value={profileForm.assignedClass}
-                onChangeText={(t) => setProfileForm({ ...profileForm, assignedClass: t })}
-              />
+              <View style={styles.infoNote}>
+                <VectorIcon name="information" size={14} color="#64748B" />
+                <Text style={styles.infoNoteText}>Only Name and Employee ID can be edited. Contact admin for other changes.</Text>
+              </View>
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -289,8 +253,16 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
-                <Text style={styles.saveBtnText}>Save Profile</Text>
+              <TouchableOpacity
+                style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+                onPress={handleSaveProfile}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save Profile</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -314,6 +286,7 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
                 style={styles.textInput}
                 secureTextEntry
                 placeholder="Enter current password"
+                placeholderTextColor="#94A3B8"
                 value={passwordForm.currentPassword}
                 onChangeText={(t) => setPasswordForm({ ...passwordForm, currentPassword: t })}
               />
@@ -322,7 +295,8 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
               <TextInput
                 style={styles.textInput}
                 secureTextEntry
-                placeholder="Enter new password"
+                placeholder="Enter new password (min 6 chars)"
+                placeholderTextColor="#94A3B8"
                 value={passwordForm.newPassword}
                 onChangeText={(t) => setPasswordForm({ ...passwordForm, newPassword: t })}
               />
@@ -332,6 +306,7 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
                 style={styles.textInput}
                 secureTextEntry
                 placeholder="Confirm new password"
+                placeholderTextColor="#94A3B8"
                 value={passwordForm.confirmPassword}
                 onChangeText={(t) => setPasswordForm({ ...passwordForm, confirmPassword: t })}
               />
@@ -344,8 +319,16 @@ export const StaffSettingsTab = ({ staffInfo, onLogout }) => {
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSavePassword}>
-                <Text style={styles.saveBtnText}>Update Password</Text>
+              <TouchableOpacity
+                style={[styles.saveBtn, changingPassword && styles.saveBtnDisabled]}
+                onPress={handleSavePassword}
+                disabled={changingPassword}
+              >
+                {changingPassword ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Update Password</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -359,21 +342,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-  },
-  topBar: {
-    backgroundColor: '#0F172A',
-    paddingHorizontal: 16,
-    paddingTop: STATUSBAR_OFFSET,
-    paddingBottom: 14,
-    ...shadows.medium,
-    alignItems: 'center',
-  },
-  topBarTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   flex: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
@@ -516,6 +484,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0F172A',
   },
+  infoNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    backgroundColor: '#F8FAFC',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  infoNoteText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    lineHeight: 16,
+  },
   modalFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -543,6 +529,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.primary,
     justifyContent: 'center',
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  saveBtnDisabled: {
+    opacity: 0.6,
   },
   saveBtnText: {
     fontSize: 12,

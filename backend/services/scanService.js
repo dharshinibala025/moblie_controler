@@ -6,6 +6,33 @@ const User = require("../models/User");
 const logger = require("../utils/logger");
 const { NotFoundError } = require("../utils/AppError");
 
+// Categories the phone can report for each installed app (AppClassifier).
+const VALID_CATEGORIES = new Set([
+  "social",
+  "games",
+  "entertainment",
+  "educational",
+  "productivity",
+  "utilities",
+  "uncategorized",
+]);
+
+// The device classifies every installed app locally. Prefer that signal over
+// the server catalog so a phone-recognized social/games/entertainment app is
+// never downgraded to a generic category (which would exclude it from the
+// blocked-package list in autoBlockService.resolveBlockedPackages).
+const resolveScanCategory = (app, catalogMatch, catalogService) => {
+  if (app.isGame) return "games";
+  if (app.category && VALID_CATEGORIES.has(app.category) && app.category !== "uncategorized") {
+    return app.category;
+  }
+  if (catalogMatch && catalogMatch.category) return catalogMatch.category;
+  if (catalogService && catalogService.isSocialMediaPackage(app.packageName, app.appName)) {
+    return "social";
+  }
+  return "uncategorized";
+};
+
 exports.processScan = async (studentId, deviceId, apps) => {
   const student = await User.findById(studentId);
   if (!student) {
@@ -50,13 +77,12 @@ exports.processScan = async (studentId, deviceId, apps) => {
   const missingApps = [];
   for (const app of apps) {
     if (!catalogMap.has(app.packageName)) {
-      const isSocial = catalogService.isSocialMediaPackage(app.packageName, app.appName);
-      const category = app.isGame ? "games" : isSocial ? "social" : "uncategorized";
+      const category = resolveScanCategory(app, null, catalogService);
       missingApps.push({
         packageName: app.packageName,
         appName: app.appName,
         category,
-        isSocialMedia: isSocial,
+        isSocialMedia: category === "social",
         active: true,
       });
     }
@@ -107,10 +133,7 @@ exports.processScan = async (studentId, deviceId, apps) => {
   // 7. Upsert and restore all scanned applications
   for (const app of apps) {
     const catalogMatch = catalogMap.get(app.packageName);
-    let category = catalogMatch ? catalogMatch.category : "utilities";
-    if (app.isGame) {
-      category = "games";
-    }
+    const category = resolveScanCategory(app, catalogMatch, catalogService);
     await ScannedApp.findOneAndUpdate(
       { studentId, deviceId, packageName: app.packageName },
       {

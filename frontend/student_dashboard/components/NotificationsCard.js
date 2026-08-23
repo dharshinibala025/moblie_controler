@@ -41,6 +41,16 @@ export const NotificationsCard = ({ notifications = [], onViewAll, onPressNotifi
 
                 {/* Message Content */}
                 <View style={styles.contentWrapper}>
+                  {item.title ? (
+                    <Text
+                      style={[
+                        styles.titleText,
+                        !item.read && styles.unreadTitleText,
+                      ]}
+                    >
+                      {item.title}
+                    </Text>
+                  ) : null}
                   <Text
                     style={[
                       styles.messageText,
@@ -130,14 +140,25 @@ const styles = StyleSheet.create({
   contentWrapper: {
     flex: 1,
   },
-  messageText: {
+  titleText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.textSecondary,
     lineHeight: 18,
+    marginBottom: 2,
+  },
+  unreadTitleText: {
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  messageText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    lineHeight: 17,
   },
   unreadMessageText: {
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.textPrimary,
   },
   timeText: {

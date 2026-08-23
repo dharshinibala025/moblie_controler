@@ -20,9 +20,12 @@ const formatTime = (createdAt) => {
 };
 
 const mapNotifications = (notifs = []) =>
-  notifs.map((n) => ({
+  notifs
+    .filter((n) => n.type !== 'restriction')
+    .map((n) => ({
     id: n._id || n.id,
-    message: n.message || n.title || '',
+    title: n.title || '',
+    message: n.message || '',
     read: !!n.read,
     time: formatTime(n.createdAt || n.time),
   }));

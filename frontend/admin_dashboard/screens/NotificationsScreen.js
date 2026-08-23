@@ -121,7 +121,7 @@ const NotificationsScreen = ({ onBack }) => {
   };
 
   const handleMarkAllRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true, isRead: true })));
     try {
       await adminService.markAllNotificationsRead();
     } catch (err) {
@@ -136,6 +136,14 @@ const NotificationsScreen = ({ onBack }) => {
         subtitle="Broadcast announcements & system log alerts"
         rightElement={
           <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.markReadBtn}
+              onPress={handleMarkAllRead}
+              activeOpacity={0.8}
+            >
+              <Icon name="done-all" size={16} color={colors.primaryBlue} />
+              <Text style={styles.markReadText}>Mark All Read</Text>
+            </TouchableOpacity>
             {onBack ? (
               <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
                 <Icon name="arrow-back" size={18} color={colors.primaryBlue} />
@@ -151,7 +159,23 @@ const NotificationsScreen = ({ onBack }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-
+        {/* Broadcast Banner Button */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.broadcastBanner}
+            onPress={() => setAnnouncementModalVisible(true)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.broadcastBannerIcon}>
+              <Icon name="campaign" size={22} color={colors.white} />
+            </View>
+            <View style={styles.broadcastBannerText}>
+              <Text style={styles.broadcastBannerTitle}>Send Broadcast Announcement</Text>
+              <Text style={styles.broadcastBannerSubtitle}>Notify students about policies, exams, or events</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.primaryBlue} />
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.section}>
           <SearchBar
@@ -182,7 +206,7 @@ const NotificationsScreen = ({ onBack }) => {
             filteredList.map((item) => (
               <View
                 key={item.id}
-                style={[styles.notifCard, !item.isRead && styles.unreadCard]}
+                style={[styles.notifCard, !(item.read || item.isRead) && styles.unreadCard]}
               >
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconBox, { backgroundColor: item.iconBg }]}>
@@ -193,7 +217,7 @@ const NotificationsScreen = ({ onBack }) => {
                       <Text style={styles.notifTitle} numberOfLines={1}>
                         {item.title}
                       </Text>
-                      {!item.isRead ? <View style={styles.unreadDot} /> : null}
+                      {!(item.read || item.isRead) ? <View style={styles.unreadDot} /> : null}
                     </View>
                     <Text style={styles.notifMeta}>
                       Target: {item.target} &middot; {item.time}

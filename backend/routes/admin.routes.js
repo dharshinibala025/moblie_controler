@@ -227,6 +227,92 @@ router.post("/users/:id/reactivate", async (req, res, next) => {
   }
 });
 
+router.patch("/users/:id", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const allowedFields = [
+      "name",
+      "email",
+      "classId",
+      "registerNumber",
+      "employeeId",
+      "departmentId",
+      "academicYearId",
+      "sectionId",
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        user[field] = req.body[field];
+      }
+    }
+
+    await user.save();
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json(userObj);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/users/:id", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    await User.deleteOne({ _id: req.params.id });
+    res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/users/:id/block", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    user.status = "blocked";
+    user.isActive = false;
+    await user.save();
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json(userObj);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/users/:id/unblock", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    user.status = "active";
+    user.isActive = true;
+    await user.save();
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json(userObj);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ========== HIERARCHY MANAGEMENT ==========
 
 router.post("/departments", validate("createDepartment"), async (req, res, next) => {
@@ -836,6 +922,7 @@ router.get("/students/:id/social-apps", async (req, res, next) => {
     const Device = require("../models/Device");
     const Rule = require("../models/Rule");
     const User = require("../models/User");
+    const autoBlockService = require("../services/autoBlockService");
 
     const studentId = req.params.id;
     const student = await User.findById(studentId);
@@ -859,11 +946,13 @@ router.get("/students/:id/social-apps", async (req, res, next) => {
       status: "active",
     });
 
-    const blockedAppsSet = new Set();
+    // Resolve tokens to actual package names using autoBlockService
+    const resolvedRules = activeRules.map((r) => r.toObject());
+    const resolvedPackages = autoBlockService.resolvePackagesFromRules(resolvedRules);
+    const blockedAppsSet = new Set(resolvedPackages);
     let maxPolicyVersion = 0;
     activeRules.forEach((rule) => {
       maxPolicyVersion = Math.max(maxPolicyVersion, rule.policyVersion || 1);
-      rule.blockedApps.forEach((app) => blockedAppsSet.add(app));
     });
 
     const query = { studentId, removedAt: null };
@@ -1492,29 +1581,99 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
   try {
     const Rule = require("../models/Rule");
     const Device = require("../models/Device");
+    const Notification = require("../models/Notification");
     const auditService = require("../services/auditService");
     const { emitToClass } = require("../config/socket");
     const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    const fcmService = require("../services/fcmService");
 
     setEmergencyUnblock(true);
 
+    // Pause all active rules
     await Rule.updateMany({}, { $set: { status: "paused", startedAt: null } });
+    // Unblock all devices
     await Device.updateMany({}, { $set: { status: "active" } });
 
+    // Collect all student IDs and their class mappings for targeted socket + FCM
+    const students = await User.find({ role: "student", status: "active" })
+      .select("_id classId").lean();
+    const studentIds = students.map((s) => s._id);
+    const classIds = [...new Set(students.map((s) => s.classId).filter(Boolean))];
+
+    // Delete any prior unread restriction card so this replaces it cleanly
+    if (studentIds.length > 0) {
+      await Notification.deleteMany({
+        studentId: { $in: studentIds },
+        type: "restriction",
+        read: false,
+      });
+
+      // Send one clear emergency notification to every student
+      await Notification.insertMany(
+        studentIds.map((sId) => ({
+          studentId: sId,
+          title: "🔓 Emergency Access Granted",
+          message:
+            "Admin has unlocked all apps. All class restrictions have been lifted immediately.",
+          type: "restriction",
+          read: false,
+        }))
+      );
+    }
+
+    // Broadcast socket event per class so apps unblock in real-time
+    for (const cid of classIds) {
+      emitToClass(cid, "rule:update", {
+        action: "stop",
+        status: "paused",
+        blockedPackages: [],
+        emergency: true,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    // Also hit the ALL channel for any stragglers
     emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
+
+    // FCM multicast for background/killed apps
+    if (studentIds.length > 0) {
+      const devicesWithFcm = await Device.find({
+        userId: { $in: studentIds },
+        fcmToken: { $ne: null },
+      }).select("userId fcmToken").lean();
+
+      const emergencyPayload = {
+        action: "stop",
+        status: "paused",
+        blockedPackages: "[]",
+        emergency: "active",
+        policyVersion: "0",
+        scheduleStart: "09:00",
+        scheduleEnd: "16:00",
+        activeDays: '["Mon","Tue","Wed","Thu","Fri","Sat"]',
+        ruleId: "",
+        serverTimestamp: new Date().toISOString(),
+      };
+
+      for (const d of devicesWithFcm) {
+        if (d.fcmToken) {
+          fcmService.sendToDevice(d.fcmToken, emergencyPayload).catch(() => {});
+        }
+      }
+    }
 
     await auditService.logAction(
       req.user.userId,
       req.user.role,
       "emergency_unblock_all",
       { scope: "GLOBAL" },
-      { status: "ALL_DEVICES_UNBLOCKED" },
+      { status: "ALL_DEVICES_UNBLOCKED", affectedStudents: studentIds.length },
       req.scopeInstitutionId
     );
 
     res.json({
       success: true,
       message: "EMERGENCY UNBLOCK EXECUTED: All mobile restrictions lifted immediately across all devices.",
+      affectedStudents: studentIds.length,
     });
   } catch (err) {
     next(err);
@@ -1617,6 +1776,78 @@ router.post("/notifications/mark-read", async (req, res, next) => {
     const Notification = require("../models/Notification");
     await Notification.updateMany({ recipientId: req.user.userId, recipientRole: "admin" }, { $set: { read: true } });
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ========== ADMIN ACCOUNT ==========
+
+router.post("/change-password", async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "currentPassword and newPassword are required" });
+    }
+
+    const result = await authService.changePassword(req.user.userId, currentPassword, newPassword);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ========== ADMIN PROFILE ==========
+
+router.get("/profile", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.userId).select("name email employeeId departmentId phone status role");
+    if (!user) return res.status(404).json({ error: "Admin not found" });
+
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      employeeId: user.employeeId || "",
+      departmentId: user.departmentId || "",
+      phone: user.phone || "",
+      status: user.status,
+      role: user.role,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put("/profile", async (req, res, next) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ error: "name and email are required" });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: "Admin not found" });
+
+    if (email !== user.email) {
+      const existing = await User.findOne({ email, _id: { $ne: user._id } });
+      if (existing) {
+        return res.status(409).json({ error: "Email is already in use by another account" });
+      }
+    }
+
+    user.name = name;
+    user.email = email;
+    await user.save();
+
+    res.json({
+      message: "Profile updated successfully",
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+    });
   } catch (err) {
     next(err);
   }

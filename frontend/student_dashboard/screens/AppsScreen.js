@@ -9,7 +9,7 @@ import {
   Platform,
   StatusBar,
   NativeModules,
-  AppState,
+  DeviceEventEmitter,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../styles/theme';
@@ -33,16 +33,18 @@ const toMinutes = (hhmm) => {
   return (h || 0) * 60 + (m || 0);
 };
 
+// Mirrors the native accessibility service (RestrictionAccessibilityService.
+// shouldEnforceNow): blocking begins the moment the policy is applied and
+// auto-lifts at the end time. The start time is NOT a gate — only the end
+// time and the configured active days limit enforcement. This keeps the Apps
+// screen honest: after scheduleEnd the banner never says "Restrictions Active".
 const isWithinWindow = (policy, now) => {
   if (!policy) return false;
   const dayName = DAYS[now.getDay()];
   const activeDays = policy.activeDays && policy.activeDays.length ? policy.activeDays : [];
   if (activeDays.length > 0 && !activeDays.includes(dayName)) return false;
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  return (
-    currentMinutes >= toMinutes(policy.scheduleStart) &&
-    currentMinutes < toMinutes(policy.scheduleEnd)
-  );
+  return currentMinutes < toMinutes(policy.scheduleEnd);
 };
 
 const format12Hour = (timeStr) => {
@@ -65,15 +67,14 @@ export const AppsScreen = ({ data }) => {
   const [tick, setTick] = useState(Date.now());
 
   // Derived live restriction state recomputed on every tick (30s) + app resume.
-  // The server-computed scheduleActive (IST) takes priority so the banner stays
-  // consistent with the backend; device-local time is only a fallback for
-  // legacy payloads that lack scheduleActive.
+  // The local end-time/day check mirrors native enforcement so the banner and
+  // blocked badges never disagree with what the accessibility service actually
+  // does on the phone.
   const restriction = useMemo(() => {
     const now = new Date(tick);
     const p = policy || {};
     const status = p.status || 'inactive';
-    const within =
-      typeof p.scheduleActive === 'boolean' ? p.scheduleActive : isWithinWindow(p, now);
+    const within = isWithinWindow(p, now);
     const active = status === 'active' && within;
     return {
       active,
@@ -85,7 +86,7 @@ export const AppsScreen = ({ data }) => {
       activeDays: p.activeDays || [],
       source: p.source || 'default',
       nextUnlockAt: p.nextUnlockAt || null,
-      blockedPackages: active ? p.blockedPackages || [] : [],
+      blockedPackages: p.blockedPackages || [],
       emergency: p.emergency === 'active',
     };
   }, [policy, tick]);
@@ -166,29 +167,22 @@ export const AppsScreen = ({ data }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const init = async () => {
-      try {
-        const syncService = require('../../services/syncService').default;
-        await syncService.sync('apps_screen');
-      } catch (e) {
-        // continue with local fallbacks
-      }
-      if (isMounted) {
-        await refresh();
-      }
-    };
-    init();
+    // Initial load only (sync is handled by syncService globally)
+    refresh();
 
+    // 60s polling for fresh app list from server
     const interval = setInterval(() => {
       refresh();
     }, 60 * 1000);
 
+    // 30s ticker for live restriction badge updates
     const ticker = setInterval(() => {
       setTick(Date.now());
     }, 30 * 1000);
 
-    const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
+    // Listen for policy changes from syncService (replaces AppState listener)
+    const sub = DeviceEventEmitter.addListener('FocusSync:policyChanged', () => {
+      if (isMounted) {
         setTick(Date.now());
         refresh();
       }
@@ -203,8 +197,18 @@ export const AppsScreen = ({ data }) => {
   }, [refresh]);
 
   // Build unified apps list with per-app blocked property computed live.
+  // Dedupe by packageName (stale server rows from old device registrations can
+  // cause duplicates). Respect the server's per-app blocked flag as authoritative
+  // when available; fall back to local category-based blocking during active
+  // restriction windows.
+  //
+  // BLOCKING RULES:
+  //   - System apps are NEVER blocked (camera, phone, calculator, calendar, etc.)
+  //   - ONLY 'social' category apps are auto-blocked (WhatsApp, Instagram, etc.)
+  //   - Games and Entertainment are NOT auto-blocked from this screen
+  //   - Settings app (com.android.settings) is blocked during active restriction
   const allApps = useMemo(() => {
-    const source =
+    const rawSource =
       liveApps && liveApps.length > 0
         ? liveApps
         : data?.apps && data.apps.length > 0
@@ -213,11 +217,51 @@ export const AppsScreen = ({ data }) => {
         ? data.blockedApps
         : [];
 
+    // Dedupe by packageName — keep the latest entry.
+    const seenPkgs = new Set();
+    const source = [];
+    for (let i = rawSource.length - 1; i >= 0; i--) {
+      const pkg = rawSource[i]?.packageName || rawSource[i]?.package;
+      if (pkg && !seenPkgs.has(pkg)) {
+        seenPkgs.add(pkg);
+        source.unshift(rawSource[i]);
+      }
+    }
+
     const blockedSet = new Set(restriction.blockedPackages || []);
 
+    // Only auto-block social media (not games/entertainment)
+    const AUTO_BLOCK_CATEGORIES = ['social'];
+
+    // System apps that must NEVER be blocked
+    const PROTECTED_SYSTEM_PREFIXES = [
+      'com.android.phone', 'com.android.dialer', 'com.android.contacts',
+      'com.android.camera', 'com.android.calculator', 'com.android.calendar',
+      'com.android.deskclock', 'com.android.clock', 'com.android.systemui',
+      'com.android.launcher', 'com.android.inputmethod', 'com.google.android.dialer',
+      'com.google.android.contacts', 'com.miui.home', 'com.coloros.launcher',
+      'com.samsung.android.app.telephony', 'com.samsung.android.dialer',
+    ];
+
     return source.map((app) => {
-      const pkg = app.packageName || app.package;
-      const blocked = restriction.active ? blockedSet.has(pkg) : false;
+      const pkg = app.packageName || app.package || '';
+      const category = String(app.category || '').toLowerCase();
+      const isSystemApp = app.isSystemApp === true;
+
+      // Never block protected system apps
+      const isProtectedSystem =
+        isSystemApp &&
+        PROTECTED_SYSTEM_PREFIXES.some((prefix) => pkg.startsWith(prefix));
+
+      if (isProtectedSystem) {
+        return { ...app, name: app.name || app.appName || 'Application', blocked: false };
+      }
+
+      const categoryBlocked = AUTO_BLOCK_CATEGORIES.includes(category);
+      const blocked =
+        app.blocked === true ||
+        blockedSet.has(pkg) ||
+        categoryBlocked;
       return {
         ...app,
         name: app.name || app.appName || 'Application',
@@ -363,7 +407,7 @@ export const AppsScreen = ({ data }) => {
       </View>
 
       {/* App List */}
-      <AppGridCard apps={filteredApps} />
+      <AppGridCard apps={filteredApps} showStatusBadge={activeFilter !== 'all'} />
     </ScrollView>
   );
 };

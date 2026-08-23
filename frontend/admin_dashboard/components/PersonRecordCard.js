@@ -20,6 +20,7 @@ const PersonRecordCard = ({
   department,
   year,
   section,
+  accountStatus,
   deviceStatus = 'No Login',
   isBlocked = false,
   onView,
@@ -27,9 +28,10 @@ const PersonRecordCard = ({
   onDelete,
   onToggleBlock,
 }) => {
-  const isBlockedStatus = isBlocked || deviceStatus === 'Blocked' || deviceStatus === 'blocked';
-  const isLoggedIn = !isBlockedStatus && (deviceStatus === 'Logged In' || deviceStatus === 'Connected' || deviceStatus === 'active');
-  const displayStatus = isBlockedStatus ? 'Blocked' : isLoggedIn ? 'Logged In' : 'No Login';
+  const isBlockedStatus = isBlocked || accountStatus === 'Blocked' || deviceStatus === 'Blocked' || deviceStatus === 'blocked';
+  const isActive = accountStatus === 'Active' || accountStatus === 'active';
+  const isLoggedIn = !isBlockedStatus && (isActive || deviceStatus === 'Logged In' || deviceStatus === 'Connected' || deviceStatus === 'active');
+  const displayStatus = isBlockedStatus ? 'Blocked' : isLoggedIn ? 'Active' : 'No Login';
 
   return (
     <View style={[styles.card, isBlockedStatus && styles.blockedCard]}>
@@ -110,7 +112,7 @@ const PersonRecordCard = ({
         ) : null}
       </View>
 
-      {/* Footer Action Row: View, Edit, and Delete Options */}
+      {/* Footer Action Row: View, Edit, Block/Unblock, and Delete Options */}
       <View style={styles.actionRow}>
         {onView ? (
           <TouchableOpacity
@@ -131,6 +133,23 @@ const PersonRecordCard = ({
           >
             <MaterialIcons name="edit" size={15} color={colors.skyBlue || '#0284C7'} />
             <Text style={[styles.actionBtnText, { color: colors.skyBlue || '#0284C7' }]}>Edit</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {onToggleBlock ? (
+          <TouchableOpacity
+            style={[styles.actionBtn, isBlockedStatus ? styles.unblockBtn : styles.blockBtn]}
+            onPress={onToggleBlock}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons
+              name={isBlockedStatus ? 'lock-open' : 'block'}
+              size={15}
+              color={isBlockedStatus ? '#D97706' : colors.danger}
+            />
+            <Text style={[styles.actionBtnText, { color: isBlockedStatus ? '#D97706' : colors.danger }]}>
+              {isBlockedStatus ? 'Unblock' : 'Block'}
+            </Text>
           </TouchableOpacity>
         ) : null}
 
@@ -266,6 +285,14 @@ const styles = StyleSheet.create({
   deleteBtn: {
     borderColor: '#FCA5A5',
     backgroundColor: colors.dangerSoft,
+  },
+  blockBtn: {
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+  },
+  unblockBtn: {
+    borderColor: '#FCD34D',
+    backgroundColor: '#FFFBEB',
   },
   actionBtnText: {
     fontSize: 11,
