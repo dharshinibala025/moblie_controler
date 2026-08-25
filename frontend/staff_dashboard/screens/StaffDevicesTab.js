@@ -282,21 +282,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
           <View style={styles.divider} />
 
-          {activeRule && activeRule.blockedApps && activeRule.blockedApps.length > 0 && (
-            <>
-              <Text style={styles.labelTitle}>BLOCKED CATEGORIES</Text>
-              <View style={styles.categoriesContainer}>
-                {activeRule.blockedApps.map((cat, idx) => (
-                  <View key={idx} style={styles.categoryChip}>
-                    <VectorIcon name="block-helper" size={12} color="#DC2626" />
-                    <Text style={styles.categoryChipText}>{cat}</Text>
-                  </View>
-                ))}
-              </View>
-              <View style={styles.divider} />
-            </>
-          )}
-
           <Text style={styles.labelTitle}>RESTRICTION SCHEDULE</Text>
           <View style={styles.scheduleRow}>
             <View style={styles.timeInputBox}>
@@ -330,7 +315,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               disabled={actionLoading}
               activeOpacity={0.8}
             >
-              {actionLoading ? (
+              {actionLoading && pendingAction === 'apply' ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
@@ -346,7 +331,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                 onPress={handlePauseRestriction}
                 disabled={restrictionStatus !== 'ACTIVE' || actionLoading}
               >
-                {actionLoading && restrictionStatus !== 'ACTIVE' ? (
+                {actionLoading && pendingAction === 'pause' ? (
                   <ActivityIndicator size="small" color="#D97706" />
                 ) : (
                   <VectorIcon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#F59E0B'} />
@@ -358,7 +343,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                 onPress={handleResumeRestriction}
                 disabled={restrictionStatus !== 'PAUSED' || actionLoading}
               >
-                {actionLoading && restrictionStatus !== 'PAUSED' ? (
+                {actionLoading && pendingAction === 'resume' ? (
                   <ActivityIndicator size="small" color="#16A34A" />
                 ) : (
                   <VectorIcon name="play" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#16A34A'} />
@@ -366,41 +351,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                 <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>Resume</Text>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={[styles.removeRestrictionBtn, (restrictionStatus === 'IDLE' || actionLoading) && styles.btnDisabled]}
-              onPress={() => {
-                if (!activeRule || !activeRule._id) {
-                  Alert.alert('No Active Rule', 'There is no active restriction rule to remove.');
-                  return;
-                }
-                Alert.alert('Remove Restriction', 'Are you sure you want to remove the restriction for this class?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Remove',
-                    style: 'destructive',
-                    onPress: async () => {
-                      setActionLoading(true);
-                      try {
-                        await staffService.updateClassRule(classIdToQuery, activeRule._id, { status: 'stopped' });
-                        setRestrictionStatus('IDLE');
-                        setActiveRule(null);
-                        Alert.alert('Restriction Removed', 'Class restriction has been removed.');
-                      } catch (err) {
-                        Alert.alert('Remove Failed', err.message || 'Failed to remove restriction.');
-                      } finally {
-                        setActionLoading(false);
-                      }
-                    },
-                  },
-                ]);
-              }}
-              disabled={restrictionStatus === 'IDLE' || actionLoading}
-              activeOpacity={0.8}
-            >
-              <VectorIcon name="close-circle-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.removeRestrictionBtnText}>Remove Restriction</Text>
-            </TouchableOpacity>
           </View>
         </View>
 

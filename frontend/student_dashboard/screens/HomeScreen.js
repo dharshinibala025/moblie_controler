@@ -479,62 +479,6 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
           {/* 3. Restriction Schedule Info */}
           <ScheduleInfo scheduleText={`${formatTo12Hour(scheduleStart)} – ${formatTo12Hour(scheduleEnd)}`} />
-
-          {/* 4. Enforcement self-test — live native state + one-tap block preview */}
-          <View style={styles.selfTestCard}>
-            <View style={styles.selfTestHeader}>
-              <MaterialCommunityIcons name="shield-search" size={20} color="#2563EB" />
-              <Text style={styles.selfTestTitle}>Enforcement Self-Test</Text>
-            </View>
-
-            {enforcement ? (
-              <View style={styles.selfTestRows}>
-                <View style={styles.selfTestRow}>
-                  <Text style={styles.selfTestLabel}>Accessibility</Text>
-                  <Text
-                    style={[
-                      styles.selfTestValue,
-                      enforcement.accessibilityRunning ? styles.okText : styles.badText,
-                    ]}
-                  >
-                    {enforcement.accessibilityRunning
-                      ? 'RUNNING'
-                      : enforcement.accessibilityEnabled
-                        ? 'ON · not running'
-                        : 'OFF'}
-                  </Text>
-                </View>
-                <View style={styles.selfTestRow}>
-                  <Text style={styles.selfTestLabel}>Overlay</Text>
-                  <Text style={[styles.selfTestValue, enforcement.overlayEnabled ? styles.okText : styles.badText]}>
-                    {enforcement.overlayEnabled ? 'ON' : 'OFF'}
-                  </Text>
-                </View>
-                <View style={styles.selfTestRow}>
-                  <Text style={styles.selfTestLabel}>Native policy</Text>
-                  <Text
-                    style={[
-                      styles.selfTestValue,
-                      String(enforcement.status).toLowerCase() === 'active' ? styles.okText : styles.mutedText,
-                    ]}
-                  >
-                    {enforcement.status} · {enforcement.blockedAppCount} + {enforcement.categoryAppCount} categories
-                  </Text>
-                </View>
-                <View style={styles.selfTestRow}>
-                  <Text style={styles.selfTestLabel}>Unlocks at</Text>
-                  <Text style={styles.selfTestValue}>{enforcement.scheduleEnd}</Text>
-                </View>
-              </View>
-            ) : (
-              <Text style={styles.selfTestEmpty}>Pull down to refresh enforcement state</Text>
-            )}
-
-            <TouchableOpacity activeOpacity={0.8} style={styles.testBlockButton} onPress={runTestBlock}>
-              <MaterialCommunityIcons name="block-helper" size={18} color="#FFFFFF" />
-              <Text style={styles.testBlockButtonText}>Test Block — preview the block screen</Text>
-            </TouchableOpacity>
-          </View>
         </Animated.View>
       </ScrollView>
 

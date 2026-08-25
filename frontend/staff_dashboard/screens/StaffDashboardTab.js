@@ -216,17 +216,6 @@ export const StaffDashboardTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =
             <Text style={styles.statValue}>{displayBlocked}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Blocked</Text>
           </View>
-
-          <View style={styles.statCard}>
-            <View style={styles.statHeaderRow}>
-              <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                <VectorIcon name="clock-outline" size={14} color="#D97706" />
-              </View>
-              {displayRestricted > 0 ? <Text style={[styles.badgeText, { color: '#D97706' }]}>{displayTotal ? Math.round((displayRestricted / displayTotal) * 100) : 0}%</Text> : null}
-            </View>
-            <Text style={styles.statValue}>{displayRestricted}</Text>
-            <Text style={styles.statLabel} numberOfLines={1}>Restricted</Text>
-          </View>
         </View>
 
         <View style={styles.listContainer}>
@@ -273,8 +262,8 @@ const styles = StyleSheet.create({
   staffMetaText: { fontSize: 12, fontWeight: '600', color: '#64748B', marginTop: 10 },
   clockBannerText: { fontSize: 11, fontWeight: '600', color: colors.primary, marginTop: 8 },
   classIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, marginBottom: 16, width: '100%' },
-  statCard: { width: '47%', marginHorizontal: '1.5%', marginBottom: 8, backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 6, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden', ...shadows.soft },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 16, width: '100%' },
+  statCard: { width: '31%', marginBottom: 8, backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 6, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden', ...shadows.soft },
   statHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   statIconContainer: { width: 24, height: 24, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
   badgeText: { fontSize: 9, fontWeight: '700' },

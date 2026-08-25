@@ -179,9 +179,6 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
                 <TouchableOpacity onPress={() => setStatusFilter('blocked')} style={[styles.filterBadge, statusFilter === 'blocked' && [styles.filterBadgeActive, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]]}>
                   <Text style={[styles.filterBadgeText, statusFilter === 'blocked' && { color: '#DC2626', fontWeight: '700' }]}>Blocked ({liveStudents.filter((s) => s.status === 'blocked').length})</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setStatusFilter('restricted')} style={[styles.filterBadge, statusFilter === 'restricted' && [styles.filterBadgeActive, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]]}>
-                  <Text style={[styles.filterBadgeText, statusFilter === 'restricted' && { color: '#D97706', fontWeight: '700' }]}>Restricted ({liveStudents.filter((s) => s.status === 'restricted').length})</Text>
-                </TouchableOpacity>
                 <TouchableOpacity onPress={() => setStatusFilter('offline')} style={[styles.filterBadge, statusFilter === 'offline' && [styles.filterBadgeActive, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]]}>
                   <Text style={[styles.filterBadgeText, statusFilter === 'offline' && { color: '#475569', fontWeight: '700' }]}>Offline ({liveStudents.filter((s) => s.status === 'offline').length})</Text>
                 </TouchableOpacity>

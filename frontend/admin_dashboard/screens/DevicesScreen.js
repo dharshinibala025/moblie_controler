@@ -45,8 +45,8 @@ const DevicesScreen = () => {
 
   // Filter States
   const [selectedDept] = useState('CSE');
-  const [draftYear, setDraftYear] = useState('1st Year');
-  const [draftSection, setDraftSection] = useState('A');
+  const [draftYear, setDraftYear] = useState('All');
+  const [draftSection, setDraftSection] = useState('All');
 
   // Schedule
   const [startTime, setStartTime] = useState('09:00 AM');
