@@ -714,8 +714,12 @@ router.post("/rules/bulk", async (req, res, next) => {
       reason = "Classroom Policy Restriction",
     } = req.body;
 
+    const mongoose = require("mongoose");
     const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     setEmergencyUnblock(false);
+
+    const rawActorId = req.user?.userId || req.user?.id || req.user?._id;
+    const actorId = mongoose.Types.ObjectId.isValid(rawActorId) ? rawActorId : new mongoose.Types.ObjectId();
 
     const classesToApply = targetClassIds.length > 0 ? targetClassIds : ["ALL"];
     const createdRules = [];
@@ -733,7 +737,7 @@ router.post("/rules/bulk", async (req, res, next) => {
             activeDays,
             status,
             reason,
-            createdBy: req.user.userId,
+            createdBy: actorId,
             institutionId: req.scopeInstitutionId || "KSRCE",
             updatedAt: new Date(),
           },
@@ -746,21 +750,21 @@ router.post("/rules/bulk", async (req, res, next) => {
     const commandResult = await ruleService.batchRuleCommand({
       classIds: classesToApply,
       action: status === "paused" ? "pause" : "start",
-      actorId: req.user.userId,
+      actorId,
     });
 
     await auditService.logAction(
-      req.user.userId,
-      req.user.role,
+      actorId,
+      req.user?.role || "admin",
       "rule.bulk_apply",
-      { scope: "ADMIN", count: classesToApply.length },
-      { targetClassIds: classesToApply, scheduleStart, scheduleEnd },
+      { type: "rule", id: "bulk" },
+      { targetClassIds: classesToApply, scheduleStart, scheduleEnd, count: classesToApply.length },
       req.scopeInstitutionId
     );
 
     res.json({
       success: true,
-      applied: classesToApply.length,
+      applied: createdRules.length,
       total: targetClassIds.length || classesToApply.length,
       affectedRules: commandResult.affectedRules,
       timestamp: new Date().toISOString(),
@@ -773,6 +777,7 @@ router.post("/rules/bulk", async (req, res, next) => {
 // Admin Real-Time Emergency Overrides (Pause / Resume / Emergency Unlock)
 router.post("/override/pause", async (req, res, next) => {
   try {
+    const mongoose = require("mongoose");
     const { targetClassIds = [], classId, reason = "Administrator paused restrictions" } = req.body;
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     let scopeClassIds = classId ? [classId] : targetClassIds;
@@ -780,7 +785,10 @@ router.post("/override/pause", async (req, res, next) => {
       scopeClassIds = ["ALL"];
     }
 
-    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "pause", actorId: req.user.userId });
+    const rawActorId = req.user?.userId || req.user?.id || req.user?._id;
+    const actorId = mongoose.Types.ObjectId.isValid(rawActorId) ? rawActorId : new mongoose.Types.ObjectId();
+
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "pause", actorId });
     const { affectedClassIds, affectedRules } = result;
 
     for (const cid of affectedClassIds) {
@@ -788,9 +796,11 @@ router.post("/override/pause", async (req, res, next) => {
     }
 
     await auditService.logAction(
-      req.user.userId, req.user.role, "rule.pause",
-      { scope: "ADMIN", affectedClassIds },
-      { reason, affectedRules },
+      actorId,
+      req.user?.role || "admin",
+      "rule.pause",
+      { type: "rule", id: "bulk" },
+      { reason, affectedClassIds, affectedRules },
       req.scopeInstitutionId
     );
 
@@ -808,6 +818,7 @@ router.post("/override/pause", async (req, res, next) => {
 
 router.post("/override/resume", async (req, res, next) => {
   try {
+    const mongoose = require("mongoose");
     const { targetClassIds = [], classId } = req.body;
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     let scopeClassIds = classId ? [classId] : targetClassIds;
@@ -815,7 +826,10 @@ router.post("/override/resume", async (req, res, next) => {
       scopeClassIds = ["ALL"];
     }
 
-    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "start", actorId: req.user.userId });
+    const rawActorId = req.user?.userId || req.user?.id || req.user?._id;
+    const actorId = mongoose.Types.ObjectId.isValid(rawActorId) ? rawActorId : new mongoose.Types.ObjectId();
+
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "start", actorId });
     const { affectedClassIds, affectedRules } = result;
 
     for (const cid of affectedClassIds) {
@@ -823,9 +837,11 @@ router.post("/override/resume", async (req, res, next) => {
     }
 
     await auditService.logAction(
-      req.user.userId, req.user.role, "rule.start",
-      { scope: "ADMIN", affectedClassIds },
-      { affectedRules },
+      actorId,
+      req.user?.role || "admin",
+      "rule.start",
+      { type: "rule", id: "bulk" },
+      { affectedClassIds, affectedRules },
       req.scopeInstitutionId
     );
 
@@ -833,13 +849,6 @@ router.post("/override/resume", async (req, res, next) => {
       success: true,
       override: "resumed",
       affectedClassIds,
-      affectedRules,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err) {
-    next(err);
-  }
-});
       affectedRules,
       timestamp: new Date().toISOString(),
     });

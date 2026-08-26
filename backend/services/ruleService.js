@@ -263,25 +263,28 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
   const targetStudentIds = [];
   const studentClassMap = new Map();
   if (affectedClassIds.length > 0) {
+    const mongoose = require("mongoose");
     const studentOrConditions = affectedClassIds.map((cid) => {
       if (!cid || cid === "ALL" || String(cid).toLowerCase().includes("all")) {
         return { role: "student" };
       }
+      const isValidObjId = mongoose.Types.ObjectId.isValid(cid);
       const parts = String(cid).split("-");
       if (parts.length === 3) {
         const [dept, yr, sec] = parts;
         const yearMap = { "1": "1st Year", "2": "2nd Year", "3": "3rd Year", "4": "4th Year" };
         const fullYr = yearMap[yr] || `${yr} Year`;
-        return {
-          $or: [
-            { classId: cid },
-            { classRoomId: cid },
-            { classId: `${fullYr} ${dept} - Section ${sec}` },
-            { department: dept, year: fullYr, section: sec },
-          ],
-        };
+        const conds = [
+          { classId: cid },
+          { classId: `${fullYr} ${dept} - Section ${sec}` },
+          { department: dept, year: fullYr, section: sec },
+        ];
+        if (isValidObjId) conds.push({ classRoomId: cid });
+        return { $or: conds };
       }
-      return { $or: [{ classId: cid }, { classRoomId: cid }] };
+      const conds = [{ classId: cid }];
+      if (isValidObjId) conds.push({ classRoomId: cid });
+      return { $or: conds };
     });
 
     let students = await User.find({ role: "student", $or: studentOrConditions }).select("_id classId");
@@ -333,6 +336,17 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
         .sendToMultipleDevices(tokens, payload)
         .catch(() => {});
     }
+
+const resolveActorLabel = async (actorId) => {
+  if (!actorId) return "Administrator";
+  try {
+    const user = await User.findById(actorId).select("name role").lean();
+    if (!user) return "Administrator";
+    return user.role === "staff" ? `Staff ${user.name}` : `Admin ${user.name}`;
+  } catch (err) {
+    return "Administrator";
+  }
+};
 
     // One restriction notification per student, replacing any prior unread one
     // (max one card per student, so repeated set/pause/resume never stacks).
@@ -416,12 +430,11 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
         const fullYr = yearMap[yr] || `${yr} Year`;
         userQuery.$or = [
           { classId: targetId },
-          { classRoomId: targetId },
           { classId: `${fullYr} ${dept} - Section ${sec}` },
           { department: dept, year: fullYr, section: sec },
         ];
       } else {
-        userQuery.$or = [{ classId: targetId }, { classRoomId: targetId }];
+        userQuery.classId = targetId;
       }
     }
   } else if (scopeType === "department") {
