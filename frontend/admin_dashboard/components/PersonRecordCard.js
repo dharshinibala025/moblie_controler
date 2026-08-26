@@ -29,9 +29,8 @@ const PersonRecordCard = ({
   onToggleBlock,
 }) => {
   const isBlockedStatus = isBlocked || accountStatus === 'Blocked' || deviceStatus === 'Blocked' || deviceStatus === 'blocked';
-  const isActive = accountStatus === 'Active' || accountStatus === 'active';
-  const isLoggedIn = !isBlockedStatus && (isActive || deviceStatus === 'Logged In' || deviceStatus === 'Connected' || deviceStatus === 'active');
-  const displayStatus = isBlockedStatus ? 'Blocked' : isLoggedIn ? 'Active' : 'No Login';
+  const isLoggedIn = !isBlockedStatus && (deviceStatus === 'Logged In' || deviceStatus === 'Connected' || deviceStatus === 'active' || accountStatus === 'Logged In');
+  const displayStatus = isBlockedStatus ? 'Blocked' : isLoggedIn ? 'Logged In' : 'No Login';
 
   return (
     <View style={[styles.card, isBlockedStatus && styles.blockedCard]}>

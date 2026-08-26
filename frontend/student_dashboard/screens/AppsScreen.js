@@ -257,15 +257,17 @@ export const AppsScreen = ({ data }) => {
         return { ...app, name: app.name || app.appName || 'Application', blocked: false };
       }
 
-      const categoryBlocked = AUTO_BLOCK_CATEGORIES.includes(category);
+      // Apps are ONLY blocked when an active restriction is enforced by Admin/Staff.
+      // When restrictions are inactive, 0 apps are blocked.
+      const categoryBlocked = restriction.active && AUTO_BLOCK_CATEGORIES.includes(category);
       const blocked =
-        app.blocked === true ||
-        blockedSet.has(pkg) ||
-        categoryBlocked;
+        restriction.active &&
+        (app.blocked === true || blockedSet.has(pkg) || categoryBlocked);
+
       return {
         ...app,
         name: app.name || app.appName || 'Application',
-        blocked,
+        blocked: Boolean(blocked),
       };
     });
   }, [liveApps, data, restriction]);
@@ -407,7 +409,7 @@ export const AppsScreen = ({ data }) => {
       </View>
 
       {/* App List */}
-      <AppGridCard apps={filteredApps} showStatusBadge={activeFilter !== 'all'} />
+      <AppGridCard apps={filteredApps} showStatusBadge={true} />
     </ScrollView>
   );
 };
