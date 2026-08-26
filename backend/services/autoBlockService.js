@@ -231,12 +231,17 @@ const getStudentPolicy = async ({ student, device = null, now }) => {
   // ever been configured, by the built-in default 09:00 - 16:00 window.
   let scheduleActive = false;
   if (activeRules.length > 0) {
-    // Manual-start: "Set Restriction Timing" must block immediately. Auto-stop
-    // happens when the schedule engine pauses the rule at its end time; the
-    // phone's native service also self-limits to the end time as a safety net.
-    scheduleActive = true;
-  } else if (!hasAnyRule) {
-    scheduleActive = isDefaultWindowActive(istNow);
+    const currentMinutes = istNow.getHours() * 60 + istNow.getMinutes();
+    const endMinutes = toMinutes(scheduleEnd || "16:00");
+    // Auto-unblock automatically at 04:00 PM (or end of schedule window):
+    if (currentMinutes >= endMinutes) {
+      scheduleActive = false;
+    } else {
+      scheduleActive = true;
+    }
+  } else {
+    // If Admin/Staff has NOT manually applied a restriction policy, apps remain 100% UNBLOCKED.
+    scheduleActive = false;
   }
 
   let status;

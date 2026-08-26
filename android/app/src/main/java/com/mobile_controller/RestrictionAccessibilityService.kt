@@ -148,11 +148,9 @@ class RestrictionAccessibilityService : AccessibilityService() {
     // is configured the service stays quiet (fail-closed).
     private fun shouldEnforceNow(): Boolean {
         val storage = policyStorage ?: return false
-        val start = storage.getScheduleStart()
         val end = storage.getScheduleEnd()
 
         try {
-            val startParts = start.split(":").map { it.toInt() }
             val endParts = end.split(":").map { it.toInt() }
             val cal = Calendar.getInstance()
 
@@ -165,10 +163,11 @@ class RestrictionAccessibilityService : AccessibilityService() {
             if (activeDays.isNotEmpty() && !activeDays.contains(dayName)) return false
 
             val currentMinutesOfDay = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-            val startMinutesOfDay = startParts[0] * 60 + startParts[1]
             val endMinutesOfDay = endParts[0] * 60 + endParts[1]
 
-            return currentMinutesOfDay >= startMinutesOfDay && currentMinutesOfDay < endMinutesOfDay
+            // Manual-start: "Set Restriction Timing" blocks immediately when pressed.
+            // Auto-stop: Automatically unblocks at 04:00 PM (endMinutesOfDay).
+            return currentMinutesOfDay < endMinutesOfDay
         } catch (e: Exception) {
             return false
         }
