@@ -306,10 +306,10 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <TouchableOpacity
                 style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
                 onPress={handlePauseRestriction}
-                disabled={restrictionStatus !== 'ACTIVE' || actionLoading}
+                disabled={actionLoading}
               >
-                {actionLoading && pendingAction === 'pause' ? (
-                  <ActivityIndicator size="small" color="#D97706" />
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
                 ) : (
                   <VectorIcon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#F59E0B'} />
                 )}
@@ -318,10 +318,10 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
               <TouchableOpacity
                 style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
                 onPress={handleResumeRestriction}
-                disabled={restrictionStatus !== 'PAUSED' || actionLoading}
+                disabled={actionLoading}
               >
-                {actionLoading && pendingAction === 'resume' ? (
-                  <ActivityIndicator size="small" color="#16A34A" />
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#16A34A'} />
                 ) : (
                   <VectorIcon name="play" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#16A34A'} />
                 )}
