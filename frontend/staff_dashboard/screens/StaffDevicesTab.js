@@ -98,7 +98,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
     fetchRule();
     fetchStudents();
-    const liveInterval = setInterval(() => { fetchRule(); fetchStudents(); }, 15 * 1000);
+    const liveInterval = setInterval(() => { fetchRule(); fetchStudents(); }, 5 * 1000);
     return () => clearInterval(liveInterval);
   }, [staffInfo]);
 

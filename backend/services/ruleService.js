@@ -346,17 +346,20 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
   }
 
   for (const cid of affectedClassIds) {
+    const pData = buildPolicyData(
+      action,
+      newStatus,
+      blockedPackagesByClass[cid] || [],
+      rulesByClass[cid] ? rulesByClass[cid][0] : null,
+      serverTimestamp
+    );
     emitToClass(cid, "rule:update", {
       action,
       status: newStatus,
-      ...buildPolicyData(
-        action,
-        newStatus,
-        blockedPackagesByClass[cid] || [],
-        rulesByClass[cid] ? rulesByClass[cid][0] : null,
-        serverTimestamp
-      ),
+      ...pData,
     });
+    emitToClass("ALL", "policy:updated", { classId: cid, action, status: newStatus, ...pData });
+    emitToClass("ALL", "device:statusChanged", { classId: cid, action, status: newStatus });
   }
 
   logger.info(`Batch [${action}] applied to ${affectedRules.length} rules across ${affectedClassIds.length} classes.`);
@@ -423,6 +426,17 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
     ruleId: rule._id,
     action,
     ...socketPolicyData,
+  });
+  emitToClass("ALL", "policy:updated", {
+    classId: rule.targetClassId,
+    ruleId: rule._id,
+    action,
+    ...socketPolicyData,
+  });
+  emitToClass("ALL", "device:statusChanged", {
+    classId: rule.targetClassId,
+    action,
+    status: rule.status,
   });
 
   if (targetDevices.length > 0) {
