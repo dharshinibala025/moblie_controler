@@ -263,10 +263,34 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
   const targetStudentIds = [];
   const studentClassMap = new Map();
   if (affectedClassIds.length > 0) {
-    const students = await User.find({ role: "student", classId: { $in: affectedClassIds } }).select("_id classId");
+    const studentOrConditions = affectedClassIds.map((cid) => {
+      if (!cid || cid === "ALL" || String(cid).toLowerCase().includes("all")) {
+        return { role: "student" };
+      }
+      const parts = String(cid).split("-");
+      if (parts.length === 3) {
+        const [dept, yr, sec] = parts;
+        const yearMap = { "1": "1st Year", "2": "2nd Year", "3": "3rd Year", "4": "4th Year" };
+        const fullYr = yearMap[yr] || `${yr} Year`;
+        return {
+          $or: [
+            { classId: cid },
+            { classRoomId: cid },
+            { classId: `${fullYr} ${dept} - Section ${sec}` },
+            { department: dept, year: fullYr, section: sec },
+          ],
+        };
+      }
+      return { $or: [{ classId: cid }, { classRoomId: cid }] };
+    });
+
+    let students = await User.find({ role: "student", $or: studentOrConditions }).select("_id classId");
+    if (students.length === 0) {
+      students = await User.find({ role: "student" }).select("_id classId");
+    }
     for (const s of students) {
       targetStudentIds.push(s._id);
-      studentClassMap.set(s._id.toString(), s.classId);
+      studentClassMap.set(s._id.toString(), s.classId || affectedClassIds[0]);
     }
   }
 
@@ -380,10 +404,25 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
   if (scopeType === "student") {
     if (isValidObjId) userQuery._id = targetId;
   } else if (scopeType === "class") {
-    if (isValidObjId) {
+    if (!targetId || targetId === "ALL" || String(targetId).toLowerCase().includes("all")) {
+      // Target all students
+    } else if (isValidObjId) {
       userQuery.$or = [{ classId: targetId }, { classRoomId: targetId }];
     } else {
-      userQuery.classId = targetId;
+      const parts = String(targetId).split("-");
+      if (parts.length === 3) {
+        const [dept, yr, sec] = parts;
+        const yearMap = { "1": "1st Year", "2": "2nd Year", "3": "3rd Year", "4": "4th Year" };
+        const fullYr = yearMap[yr] || `${yr} Year`;
+        userQuery.$or = [
+          { classId: targetId },
+          { classRoomId: targetId },
+          { classId: `${fullYr} ${dept} - Section ${sec}` },
+          { department: dept, year: fullYr, section: sec },
+        ];
+      } else {
+        userQuery.$or = [{ classId: targetId }, { classRoomId: targetId }];
+      }
     }
   } else if (scopeType === "department") {
     if (isValidObjId) userQuery.departmentId = targetId;
@@ -393,7 +432,10 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
     userQuery.institutionId = targetId;
   }
 
-  const targetStudents = await User.find(userQuery).select("_id");
+  let targetStudents = await User.find(userQuery).select("_id");
+  if (targetStudents.length === 0) {
+    targetStudents = await User.find({ role: "student" }).select("_id");
+  }
   const targetStudentIds = targetStudents.map((s) => s._id);
 
   // Retrieve target devices
