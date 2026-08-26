@@ -57,7 +57,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const [actionLoading, setActionLoading] = useState(false);
   const [liveStudents, setLiveStudents] = useState([]);
 
-  const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId;
+  const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId || staffInfo?.assignedClass || `${staffInfo?.department || 'CSE'}-3-A`;
 
   useEffect(() => {
     const fetchRule = async () => {

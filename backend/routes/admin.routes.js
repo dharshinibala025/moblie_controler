@@ -1635,6 +1635,14 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
     // Also hit the ALL channel for any stragglers
     emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
 
+    // High-priority FCM push to all devices so backgrounded/locked phones unblock immediately!
+    try {
+      const ruleService = require("../services/ruleService");
+      await ruleService.batchRuleCommand({ classIds: ["ALL"], action: "stop", actorId: req.user.userId });
+    } catch (fcmErr) {
+      logger.error("FCM emergency unblock dispatch warning:", fcmErr);
+    }
+
     await auditService.logAction(
       req.user.userId,
       req.user.role,

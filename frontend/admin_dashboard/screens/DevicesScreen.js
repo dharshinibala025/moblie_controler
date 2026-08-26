@@ -346,7 +346,7 @@ const DevicesScreen = () => {
   const computeTargetClassIds = useCallback(() => {
     const yearChars = draftYear === 'All' ? ['1', '2', '3', '4'] : [draftYear.charAt(0)];
     const sections = draftSection === 'All'
-      ? getSectionOptions(null)
+      ? getSectionOptions(null).filter((s) => s !== 'All')
       : [draftSection];
     const ids = [];
     yearChars.forEach((yc) => {
