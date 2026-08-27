@@ -63,7 +63,7 @@ export const StaffStudentsTab = ({ staffInfo: propStaffInfo, onNavigateTab }) =>
     };
 
     fetchLiveStatus(true);
-    const interval = setInterval(() => fetchLiveStatus(false), 10000);
+    const interval = setInterval(() => fetchLiveStatus(false), 5000);
     return () => clearInterval(interval);
   }, [staffInfo]);
 

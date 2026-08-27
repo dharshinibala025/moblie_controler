@@ -79,9 +79,9 @@ test("getStudentPolicy includes Settings when active even without device permiss
     createdBy: adminUserRef,
   });
 
-  // No device passed, no permissions reported: Settings must STILL be blocked
-  // while the policy is active (permission gate removed).
-  const policy = await autoBlockService.getStudentPolicy({ student, device: null, now: new Date() });
+  // Fixed timestamp during class hours (10:00 AM IST)
+  const classHoursTime = new Date("2026-08-27T10:00:00+05:30");
+  const policy = await autoBlockService.getStudentPolicy({ student, device: null, now: classHoursTime });
 
   expect(policy.status).toBe("active");
   expect(policy.blockedPackages).toContain("com.android.settings");
@@ -126,7 +126,8 @@ test("getStudentPolicy resolves scanned social apps for the student", async () =
     createdBy: adminUserRef,
   });
 
-  const policy = await autoBlockService.getStudentPolicy({ student, device, now: new Date() });
+  const classHoursTime = new Date("2026-08-27T10:00:00+05:30");
+  const policy = await autoBlockService.getStudentPolicy({ student, device, now: classHoursTime });
 
   // Device-specific social app from the student's scan is included.
   expect(policy.blockedPackages).toContain("com.example.mysocialapp");
@@ -189,7 +190,8 @@ test("processScan preserves the device-reported category so the app gets blocked
     createdBy: adminUserRef,
   });
 
-  const policy = await autoBlockService.getStudentPolicy({ student, device, now: new Date() });
+  const classHoursTime = new Date("2026-08-27T10:00:00+05:30");
+  const policy = await autoBlockService.getStudentPolicy({ student, device, now: classHoursTime });
   // Because the category was preserved, the scanned app lands in the blocked list.
   expect(policy.blockedPackages).toContain("com.unknown.socialapp");
 });

@@ -265,10 +265,37 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
   const targetStudentIds = [];
   const studentClassMap = new Map();
   if (affectedClassIds.length > 0) {
-    const students = await User.find({ role: "student", classId: { $in: affectedClassIds } }).select("_id classId");
+    const mongoose = require("mongoose");
+    const studentOrConditions = affectedClassIds.map((cid) => {
+      if (!cid || cid === "ALL" || String(cid).toLowerCase().includes("all")) {
+        return { role: "student" };
+      }
+      const isValidObjId = mongoose.Types.ObjectId.isValid(cid);
+      const parts = String(cid).split("-");
+      if (parts.length === 3) {
+        const [dept, yr, sec] = parts;
+        const yearMap = { "1": "1st Year", "2": "2nd Year", "3": "3rd Year", "4": "4th Year" };
+        const fullYr = yearMap[yr] || `${yr} Year`;
+        const conds = [
+          { classId: cid },
+          { classId: `${fullYr} ${dept} - Section ${sec}` },
+          { department: dept, year: fullYr, section: sec },
+        ];
+        if (isValidObjId) conds.push({ classRoomId: cid });
+        return { $or: conds };
+      }
+      const conds = [{ classId: cid }];
+      if (isValidObjId) conds.push({ classRoomId: cid });
+      return { $or: conds };
+    });
+
+    let students = await User.find({ role: "student", $or: studentOrConditions }).select("_id classId");
+    if (students.length === 0) {
+      students = await User.find({ role: "student" }).select("_id classId");
+    }
     for (const s of students) {
       targetStudentIds.push(s._id);
-      studentClassMap.set(s._id.toString(), s.classId);
+      studentClassMap.set(s._id.toString(), s.classId || affectedClassIds[0]);
     }
   }
 
@@ -312,6 +339,17 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
         .catch(() => {});
     }
 
+const resolveActorLabel = async (actorId) => {
+  if (!actorId) return "Administrator";
+  try {
+    const user = await User.findById(actorId).select("name role").lean();
+    if (!user) return "Administrator";
+    return user.role === "staff" ? `Staff ${user.name}` : `Admin ${user.name}`;
+  } catch (err) {
+    return "Administrator";
+  }
+};
+
     // One restriction notification per student, replacing any prior unread one
     // (max one card per student, so repeated set/pause/resume never stacks).
     if (notify !== false && targetStudentIds.length > 0) {
@@ -348,17 +386,20 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
   }
 
   for (const cid of affectedClassIds) {
+    const pData = buildPolicyData(
+      action,
+      newStatus,
+      blockedPackagesByClass[cid] || [],
+      rulesByClass[cid] ? rulesByClass[cid][0] : null,
+      serverTimestamp
+    );
     emitToClass(cid, "rule:update", {
       action,
       status: newStatus,
-      ...buildPolicyData(
-        action,
-        newStatus,
-        blockedPackagesByClass[cid] || [],
-        rulesByClass[cid] ? rulesByClass[cid][0] : null,
-        serverTimestamp
-      ),
+      ...pData,
     });
+    emitToClass("ALL", "policy:updated", { classId: cid, action, status: newStatus, ...pData });
+    emitToClass("ALL", "device:statusChanged", { classId: cid, action, status: newStatus });
   }
 
   logger.info(`Batch [${action}] applied to ${affectedRules.length} rules across ${affectedClassIds.length} classes.`);
@@ -379,10 +420,24 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
   if (scopeType === "student") {
     if (isValidObjId) userQuery._id = targetId;
   } else if (scopeType === "class") {
-    if (isValidObjId) {
+    if (!targetId || targetId === "ALL" || String(targetId).toLowerCase().includes("all")) {
+      // Target all students
+    } else if (isValidObjId) {
       userQuery.$or = [{ classId: targetId }, { classRoomId: targetId }];
     } else {
-      userQuery.classId = targetId;
+      const parts = String(targetId).split("-");
+      if (parts.length === 3) {
+        const [dept, yr, sec] = parts;
+        const yearMap = { "1": "1st Year", "2": "2nd Year", "3": "3rd Year", "4": "4th Year" };
+        const fullYr = yearMap[yr] || `${yr} Year`;
+        userQuery.$or = [
+          { classId: targetId },
+          { classId: `${fullYr} ${dept} - Section ${sec}` },
+          { department: dept, year: fullYr, section: sec },
+        ];
+      } else {
+        userQuery.classId = targetId;
+      }
     }
   } else if (scopeType === "department") {
     if (isValidObjId) userQuery.departmentId = targetId;
@@ -392,7 +447,10 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
     userQuery.institutionId = targetId;
   }
 
-  const targetStudents = await User.find(userQuery).select("_id");
+  let targetStudents = await User.find(userQuery).select("_id");
+  if (targetStudents.length === 0) {
+    targetStudents = await User.find({ role: "student" }).select("_id");
+  }
   const targetStudentIds = targetStudents.map((s) => s._id);
 
   // Retrieve target devices
@@ -425,6 +483,17 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
     ruleId: rule._id,
     action,
     ...socketPolicyData,
+  });
+  emitToClass("ALL", "policy:updated", {
+    classId: rule.targetClassId,
+    ruleId: rule._id,
+    action,
+    ...socketPolicyData,
+  });
+  emitToClass("ALL", "device:statusChanged", {
+    classId: rule.targetClassId,
+    action,
+    status: rule.status,
   });
 
   if (targetDevices.length > 0) {

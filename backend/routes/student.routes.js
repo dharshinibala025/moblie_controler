@@ -298,8 +298,14 @@ router.get('/dashboard', async (req, res, next) => {
       details: `${log.packageName} — ${Math.round(log.durationMs / 1000)}s`,
     }));
 
+    await pruneDuplicateRestrictions(req.user.userId);
     const unreadNotificationCount = await Notification.countDocuments({
-      studentId: req.user.userId,
+      $or: [
+        { studentId: req.user.userId },
+        { recipientId: req.user.userId },
+        { recipientRole: "student" },
+        { recipientRole: "all" },
+      ],
       read: false,
     });
 

@@ -244,6 +244,27 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       }
     }).catch(() => {});
 
+    if (data?.restrictionStatus) {
+      if (data.restrictionStatus.isActive !== undefined) {
+        policyActiveRef.current = data.restrictionStatus.isActive;
+      }
+      if (data.restrictionStatus.schedule) {
+        const parts = data.restrictionStatus.schedule.split('–').map((s) => s.trim());
+        if (parts.length === 2) {
+          const parse12To24 = (t12) => {
+            const p = t12.split(' ');
+            if (p.length < 2) return t12;
+            let [h, m] = p[0].split(':').map(Number);
+            if (p[1] === 'PM' && h < 12) h += 12;
+            if (p[1] === 'AM' && h === 12) h = 0;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          };
+          handleScheduleStartChange(parse12To24(parts[0]));
+          handleScheduleEndChange(parse12To24(parts[1]));
+        }
+      }
+    }
+
     loadEnforcementState();
 
     // Listen for real-time policy changes so the clock updates immediately
@@ -256,6 +277,7 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
           if (data.scheduleEnd) handleScheduleEndChange(data.scheduleEnd);
           if (data.activeDays && data.activeDays.length) activeDaysRef.current = data.activeDays;
           loadEnforcementState();
+          updateState();
         }
       } catch (e) { /* ignore */ }
     });

@@ -701,14 +701,94 @@ router.post("/rules/:id/command", validate("commandBody"), async (req, res, next
   }
 });
 
+// Admin Bulk Restriction Policy Application (Applies to all target classes at once)
+router.post("/rules/bulk", async (req, res, next) => {
+  try {
+    const {
+      targetClassIds = [],
+      blockedApps = ["SocialMedia"],
+      scheduleStart = "09:00",
+      scheduleEnd = "16:00",
+      activeDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      status = "active",
+      reason = "Classroom Policy Restriction",
+    } = req.body;
+
+    const mongoose = require("mongoose");
+    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+
+    const rawActorId = req.user?.userId || req.user?.id || req.user?._id;
+    const actorId = mongoose.Types.ObjectId.isValid(rawActorId) ? rawActorId : new mongoose.Types.ObjectId();
+
+    const classesToApply = targetClassIds.length > 0 ? targetClassIds : ["ALL"];
+    const createdRules = [];
+
+    for (const cid of classesToApply) {
+      setClassEmergencyUnblock(cid, false);
+      const rule = await Rule.findOneAndUpdate(
+        { targetClassId: cid },
+        {
+          $set: {
+            targetClassId: cid,
+            blockedApps,
+            scheduleStart,
+            scheduleEnd,
+            activeDays,
+            status,
+            reason,
+            createdBy: actorId,
+            institutionId: req.scopeInstitutionId || "KSRCE",
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true, new: true }
+      );
+      createdRules.push(rule);
+    }
+
+    const commandResult = await ruleService.batchRuleCommand({
+      classIds: classesToApply,
+      action: status === "paused" ? "pause" : "start",
+      actorId,
+    });
+
+    await auditService.logAction(
+      actorId,
+      req.user?.role || "admin",
+      "rule.bulk_apply",
+      { type: "rule", id: "bulk" },
+      { targetClassIds: classesToApply, scheduleStart, scheduleEnd, count: classesToApply.length },
+      req.scopeInstitutionId
+    );
+
+    res.json({
+      success: true,
+      applied: createdRules.length,
+      total: targetClassIds.length || classesToApply.length,
+      affectedRules: commandResult.affectedRules,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Admin Real-Time Emergency Overrides (Pause / Resume / Emergency Unlock)
 router.post("/override/pause", async (req, res, next) => {
   try {
+    const mongoose = require("mongoose");
     const { targetClassIds = [], classId, reason = "Administrator paused restrictions" } = req.body;
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
-    const scopeClassIds = classId ? [classId] : targetClassIds;
+    let scopeClassIds = classId ? [classId] : targetClassIds;
+    if (!scopeClassIds || scopeClassIds.length === 0) {
+      scopeClassIds = ["ALL"];
+    }
 
-    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "pause", actorId: req.user.userId });
+    const rawActorId = req.user?.userId || req.user?.id || req.user?._id;
+    const actorId = mongoose.Types.ObjectId.isValid(rawActorId) ? rawActorId : new mongoose.Types.ObjectId();
+
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "pause", actorId });
     const { affectedClassIds, affectedRules } = result;
 
     for (const cid of affectedClassIds) {
@@ -716,9 +796,11 @@ router.post("/override/pause", async (req, res, next) => {
     }
 
     await auditService.logAction(
-      req.user.userId, req.user.role, "rule.pause",
-      { scope: "ADMIN", affectedClassIds },
-      { reason, affectedRules },
+      actorId,
+      req.user?.role || "admin",
+      "rule.pause",
+      { type: "rule", id: "bulk" },
+      { reason, affectedClassIds, affectedRules },
       req.scopeInstitutionId
     );
 
@@ -736,11 +818,18 @@ router.post("/override/pause", async (req, res, next) => {
 
 router.post("/override/resume", async (req, res, next) => {
   try {
+    const mongoose = require("mongoose");
     const { targetClassIds = [], classId } = req.body;
     const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
-    const scopeClassIds = classId ? [classId] : targetClassIds;
+    let scopeClassIds = classId ? [classId] : targetClassIds;
+    if (!scopeClassIds || scopeClassIds.length === 0) {
+      scopeClassIds = ["ALL"];
+    }
 
-    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "start", actorId: req.user.userId });
+    const rawActorId = req.user?.userId || req.user?.id || req.user?._id;
+    const actorId = mongoose.Types.ObjectId.isValid(rawActorId) ? rawActorId : new mongoose.Types.ObjectId();
+
+    const result = await ruleService.batchRuleCommand({ classIds: scopeClassIds, action: "start", actorId });
     const { affectedClassIds, affectedRules } = result;
 
     for (const cid of affectedClassIds) {
@@ -748,9 +837,11 @@ router.post("/override/resume", async (req, res, next) => {
     }
 
     await auditService.logAction(
-      req.user.userId, req.user.role, "rule.start",
-      { scope: "ADMIN", affectedClassIds },
-      { affectedRules },
+      actorId,
+      req.user?.role || "admin",
+      "rule.start",
+      { type: "rule", id: "bulk" },
+      { affectedClassIds, affectedRules },
       req.scopeInstitutionId
     );
 
@@ -1636,31 +1727,12 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
     // Also hit the ALL channel for any stragglers
     emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
 
-    // FCM multicast for background/killed apps
-    if (studentIds.length > 0) {
-      const devicesWithFcm = await Device.find({
-        userId: { $in: studentIds },
-        fcmToken: { $ne: null },
-      }).select("userId fcmToken").lean();
-
-      const emergencyPayload = {
-        action: "stop",
-        status: "paused",
-        blockedPackages: "[]",
-        emergency: "active",
-        policyVersion: "0",
-        scheduleStart: "09:00",
-        scheduleEnd: "16:00",
-        activeDays: '["Mon","Tue","Wed","Thu","Fri","Sat"]',
-        ruleId: "",
-        serverTimestamp: new Date().toISOString(),
-      };
-
-      for (const d of devicesWithFcm) {
-        if (d.fcmToken) {
-          fcmService.sendToDevice(d.fcmToken, emergencyPayload).catch(() => {});
-        }
-      }
+    // High-priority FCM push to all devices so backgrounded/locked phones unblock immediately!
+    try {
+      const ruleService = require("../services/ruleService");
+      await ruleService.batchRuleCommand({ classIds: ["ALL"], action: "pause", actorId: req.user.userId });
+    } catch (fcmErr) {
+      console.error("FCM emergency unblock dispatch warning:", fcmErr);
     }
 
     await auditService.logAction(

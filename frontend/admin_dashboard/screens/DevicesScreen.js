@@ -346,7 +346,7 @@ const DevicesScreen = () => {
   const computeTargetClassIds = useCallback(() => {
     const yearChars = draftYear === 'All' ? ['1', '2', '3', '4'] : [draftYear.charAt(0)];
     const sections = draftSection === 'All'
-      ? getSectionOptions(null)
+      ? getSectionOptions(null).filter((s) => s !== 'All')
       : [draftSection];
     const ids = [];
     yearChars.forEach((yc) => {
@@ -551,7 +551,7 @@ const DevicesScreen = () => {
               <TouchableOpacity
                 style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
                 onPress={handlePauseRestriction}
-                disabled={restrictionStatus !== 'ACTIVE' || actionLoading}
+                disabled={actionLoading}
                 activeOpacity={0.8}
               >
                 {actionLoading ? (
@@ -566,7 +566,7 @@ const DevicesScreen = () => {
               <TouchableOpacity
                 style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
                 onPress={handleResumeRestriction}
-                disabled={restrictionStatus !== 'PAUSED' || actionLoading}
+                disabled={actionLoading}
                 activeOpacity={0.8}
               >
                 {actionLoading ? (

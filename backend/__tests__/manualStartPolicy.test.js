@@ -82,16 +82,13 @@ describe("Manual-start semantics (apply = block immediately)", () => {
     expect(policy.blockedPackages).toEqual([]);
   });
 
-  test("active rule with past end time is still 'active' server-side (native safety handles auto-stop)", async () => {
-    // The schedule engine pauses the rule at its end time; until that tick the
-    // policy stays active but the phone's native service self-limits to < end.
+  test("active rule with past end time auto-stops server-side once end time passes", async () => {
     await makeActiveRule();
     const policy = await autoBlockService.getStudentPolicy({
       student: studentUser,
       now: pastEndTime(),
     });
-    expect(policy.status).toBe("active");
-    expect(policy.nextUnlockAt).not.toBeNull();
+    expect(policy.status).toBe("inactive");
   });
 
   test("getClassWindow counts an active rule outside its start window as active (no auto-pause on apply)", async () => {
