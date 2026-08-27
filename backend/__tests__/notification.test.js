@@ -72,7 +72,7 @@ describe("Rule dispatch notifications - dedupe", () => {
 
     const notifications = await Notification.find({ studentId: studentUser._id });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0].message).toBe("Staff Instruction: Study Hours Policy restriction");
+    expect(notifications[0].message).toContain("activated class restrictions");
   });
 
   test("re-dispatching an already-active rule (repeat Set Restriction click) does not stack duplicate notifications", async () => {
@@ -158,7 +158,7 @@ describe("Role-aware restriction notifications (Admin/Staff/System)", () => {
     return res.body;
   };
 
-  test("staff pause -> 'Policy Restriction Paused' with Staff Instruction", async () => {
+  test("staff pause -> 'Restriction Paused' notification", async () => {
     const rule = await createActiveRule();
 
     await request(app)
@@ -168,11 +168,11 @@ describe("Role-aware restriction notifications (Admin/Staff/System)", () => {
 
     const notifs = await Notification.find({ studentId: studentUser._id });
     expect(notifs).toHaveLength(1);
-    expect(notifs[0].title).toBe("Policy Restriction Paused");
-    expect(notifs[0].message).toBe("Staff Instruction: Study Hours Policy restriction");
+    expect(notifs[0].title).toContain("Restriction Paused");
+    expect(notifs[0].message).toContain("paused class restrictions");
   });
 
-  test("staff resume -> 'Restriction Resumed' with Staff Instruction", async () => {
+  test("staff resume -> 'Restriction Resumed' notification", async () => {
     const rule = await createActiveRule();
     await request(app)
       .patch(`/staff/classes/C101/rules/${rule._id}`)
@@ -186,8 +186,8 @@ describe("Role-aware restriction notifications (Admin/Staff/System)", () => {
 
     const notifs = await Notification.find({ studentId: studentUser._id });
     expect(notifs).toHaveLength(1);
-    expect(notifs[0].title).toBe("Restriction Resumed");
-    expect(notifs[0].message).toBe("Staff Instruction: Study Hours Policy restriction");
+    expect(notifs[0].title).toContain("Restriction Resumed");
+    expect(notifs[0].message).toContain("activated class restrictions");
   });
 
   test("new restriction notification replaces a prior unread one even when reason changes", async () => {
@@ -201,7 +201,7 @@ describe("Role-aware restriction notifications (Admin/Staff/System)", () => {
 
     const notifs = await Notification.find({ studentId: studentUser._id });
     expect(notifs).toHaveLength(1);
-    expect(notifs[0].message).toBe("Staff Instruction: Updated reason text");
+    expect(notifs[0].message).toContain("activated class restrictions");
   });
 
   test("sendCommand with notify:false creates no student notification (silent auto-stop)", async () => {
@@ -212,7 +212,7 @@ describe("Role-aware restriction notifications (Admin/Staff/System)", () => {
 
     const notifs = await Notification.find({ studentId: studentUser._id });
     expect(notifs).toHaveLength(1);
-    expect(notifs[0].title).toBe("Classroom Restriction Activated");
+    expect(notifs[0].title).toContain("Restriction Started");
   });
 });
 

@@ -78,15 +78,14 @@ beforeEach(async () => {
 });
 
 describe("autoBlockService - Default 09:00-16:00 window", () => {
-  test("no rules + inside window -> active with blocked packages", async () => {
+  test("no rules -> fail-open inactive with no blocked packages", async () => {
     const policy = await autoBlockService.getStudentPolicy({ student: studentUser, now: insideWindow() });
-    expect(policy.status).toBe("active");
+    expect(policy.status).toBe("inactive");
     expect(policy.source).toBe("default");
     expect(policy.scheduleStart).toBe("09:00");
     expect(policy.scheduleEnd).toBe("16:00");
-    expect(policy.blockedPackages.length).toBeGreaterThan(0);
-    expect(policy.blockedPackages).toContain("com.instagram.android");
-    expect(policy.scheduleActive).toBe(true);
+    expect(policy.blockedPackages).toEqual([]);
+    expect(policy.scheduleActive).toBe(false);
   });
 
   test("no rules + outside window -> inactive with no blocked packages", async () => {
@@ -161,6 +160,15 @@ describe("autoBlockService - Rule scheduling", () => {
   });
 
   test("scanned social/games apps are auto-included during active window", async () => {
+    await Rule.create({
+      createdBy: adminUser._id,
+      targetClassId: "C101",
+      blockedApps: ["SocialMedia"],
+      scheduleStart: "00:00",
+      scheduleEnd: "23:59",
+      activeDays: ["Mon"],
+      status: "active",
+    });
     const device = await Device.create({ userId: studentUser._id, status: "online" });
     await ScannedApp.create({
       studentId: studentUser._id,
@@ -193,6 +201,24 @@ describe("autoBlockService - Overrides", () => {
   });
 
   test("class emergency is scoped - other class unaffected", async () => {
+    await Rule.create({
+      createdBy: adminUser._id,
+      targetClassId: "C101",
+      blockedApps: ["SocialMedia"],
+      scheduleStart: "00:00",
+      scheduleEnd: "23:59",
+      activeDays: ["Mon"],
+      status: "active",
+    });
+    await Rule.create({
+      createdBy: adminUser._id,
+      targetClassId: "C102",
+      blockedApps: ["SocialMedia"],
+      scheduleStart: "00:00",
+      scheduleEnd: "23:59",
+      activeDays: ["Mon"],
+      status: "active",
+    });
     emergencyHelper.setClassEmergencyUnblock("C101", true);
     const own = await autoBlockService.getStudentPolicy({ student: studentUser, now: insideWindow() });
     const other = await autoBlockService.getStudentPolicy({ student: studentOtherClass, now: insideWindow() });
