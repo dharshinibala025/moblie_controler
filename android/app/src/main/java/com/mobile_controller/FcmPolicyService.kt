@@ -109,9 +109,9 @@ class FcmPolicyService : FirebaseMessagingService() {
         if (raw.isNullOrBlank()) return emptyList()
         return try {
             val arr = JSONArray(raw)
-            (0 until arr.length()).map { arr.getString(it) }
+            (0 until arr.length()).map { arr.getString(it) }.filter { it.isNotBlank() }
         } catch (e: Exception) {
-            emptyList()
+            raw.split(",").map { it.trim().removeSurrounding("\"").removeSurrounding("'").removeSurrounding("[").removeSurrounding("]") }.filter { it.isNotBlank() }
         }
     }
 

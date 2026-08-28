@@ -35,7 +35,11 @@ class DeviceService {
       if (deviceInfo) device.deviceInfo = deviceInfo;
       await device.save();
     } else {
-      await Device.updateMany({ userId, status: "online" }, { status: "offline" });
+      // Deactivate stale FCM tokens on older devices for this user
+      await Device.updateMany(
+        { userId, deviceFingerprint: { $ne: deviceFingerprint } },
+        { status: "offline", fcmToken: null }
+      );
 
       device = await Device.create({
         userId,

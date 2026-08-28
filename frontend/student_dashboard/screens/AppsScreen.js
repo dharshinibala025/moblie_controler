@@ -267,6 +267,9 @@ export const AppsScreen = ({ data }) => {
       'com.android.launcher', 'com.android.inputmethod', 'com.google.android.dialer',
       'com.google.android.contacts', 'com.miui.home', 'com.coloros.launcher',
       'com.samsung.android.app.telephony', 'com.samsung.android.dialer',
+      'com.oppo.launcher', 'com.vivo.launcher', 'com.bbk.launcher2',
+      'com.hihonor.launcher', 'com.huawei.android.launcher',
+      'com.transsion.hilauncher', 'com.realme.launcher', 'com.sec.android.app.launcher',
     ];
 
     return source.map((app) => {
