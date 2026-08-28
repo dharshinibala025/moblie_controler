@@ -343,22 +343,10 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         setStatusMode('ACTIVE');
         setRemainingSeconds(remaining);
         setProgress(Math.min(1, Math.max(0, prog)));
-      } else if (currentSec >= endSec || (policyActiveRef.current && !dayOk)) {
+      } else {
         setStatusMode('LIFTED');
         setRemainingSeconds(0);
         setProgress(1.0);
-      } else if (policyActiveRef.current && currentSec >= startSec && currentSec < endSec) {
-        const remaining = endSec - currentSec;
-        const prog = remaining / totalDuration;
-        setStatusMode('ACTIVE');
-        setRemainingSeconds(remaining);
-        setProgress(prog);
-      } else {
-        const remaining = startSec - currentSec;
-        const prog = remaining / startSec;
-        setStatusMode('BEFORE');
-        setRemainingSeconds(remaining);
-        setProgress(prog);
       }
     };
 

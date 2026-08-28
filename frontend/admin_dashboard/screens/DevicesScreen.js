@@ -521,7 +521,7 @@ const DevicesScreen = () => {
                 restrictionStatus === 'PAUSED' && styles.textPaused,
                 restrictionStatus === 'IDLE' && styles.textIdle,
               ]}>
-                {restrictionStatus === 'ACTIVE' && '🟢 ACTIVE - Apps Blocked'}
+                {restrictionStatus === 'ACTIVE' && '🔴 ACTIVE - Apps Blocked'}
                 {restrictionStatus === 'PAUSED' && '🟡 PAUSED - Apps Unblocked'}
                 {restrictionStatus === 'IDLE' && '⚪ IDLE - No Restriction'}
               </Text>
@@ -807,8 +807,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusActive: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#16A34A',
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
   },
   statusPaused: {
     backgroundColor: '#FEF3C7',
@@ -824,7 +824,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   dotActive: {
-    backgroundColor: '#16A34A',
+    backgroundColor: '#DC2626',
   },
   dotPaused: {
     backgroundColor: '#F59E0B',
@@ -834,10 +834,10 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   textActive: {
-    color: '#16A34A',
+    color: '#DC2626',
   },
   textPaused: {
     color: '#D97706',

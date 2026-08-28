@@ -17,13 +17,17 @@ export const RestrictionStatusCard = ({
   controlledBy = 'Department Admin (HOD)',
 }) => {
   let badgeText = 'ACTIVE';
-  let badgeBg = colors.activeLight; // #DCFCE7
-  let badgeColor = colors.active; // #22C55E
+  let badgeBg = '#FEF2F2'; // Light Red
+  let badgeColor = '#DC2626'; // Deep Red
 
-  if (statusMode === 'LIFTED') {
+  if (statusMode === 'LIFTED' || statusMode === 'INACTIVE') {
     badgeText = 'LIFTED';
-    badgeBg = '#DCFCE7';
-    badgeColor = '#16A34A';
+    badgeBg = '#F0FDF4'; // Light Green
+    badgeColor = '#16A34A'; // Green
+  } else if (statusMode === 'PAUSED') {
+    badgeText = 'PAUSED';
+    badgeBg = '#FEF3C7'; // Light Yellow/Amber
+    badgeColor = '#D97706'; // Amber
   } else if (statusMode === 'BEFORE') {
     badgeText = 'UPCOMING';
     badgeBg = colors.primaryLight; // #EFF6FF

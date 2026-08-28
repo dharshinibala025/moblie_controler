@@ -207,6 +207,20 @@ export const AppsScreen = ({ data }) => {
   //   - ONLY 'social' category apps are auto-blocked (WhatsApp, Instagram, etc.)
   //   - Games and Entertainment are NOT auto-blocked from this screen
   //   - Settings app (com.android.settings) is blocked during active restriction
+  // Standard default blocked catalog apps to ensure Blocked tab is populated even if local device scan is partial.
+  const DEFAULT_CATALOG_BLOCKED = [
+    { packageName: 'com.instagram.android', name: 'Instagram', category: 'social' },
+    { packageName: 'com.whatsapp', name: 'WhatsApp', category: 'social' },
+    { packageName: 'org.telegram.messenger', name: 'Telegram', category: 'social' },
+    { packageName: 'com.snapchat.android', name: 'Snapchat', category: 'social' },
+    { packageName: 'com.twitter.android', name: 'X / Twitter', category: 'social' },
+    { packageName: 'com.facebook.katana', name: 'Facebook', category: 'social' },
+    { packageName: 'com.google.android.youtube', name: 'YouTube', category: 'social' },
+    { packageName: 'com.instagram.barcelona', name: 'Threads', category: 'social' },
+    { packageName: 'com.discord', name: 'Discord', category: 'social' },
+    { packageName: 'com.android.settings', name: 'Android Settings', category: 'system' },
+  ];
+
   const allApps = useMemo(() => {
     const rawSource =
       liveApps && liveApps.length > 0
@@ -215,16 +229,28 @@ export const AppsScreen = ({ data }) => {
         ? data.apps
         : data?.blockedApps && data.blockedApps.length > 0
         ? data.blockedApps
-        : [];
+        : DEFAULT_CATALOG_BLOCKED;
 
     // Dedupe by packageName — keep the latest entry.
     const seenPkgs = new Set();
     const source = [];
+
+    // First add items from rawSource
     for (let i = rawSource.length - 1; i >= 0; i--) {
       const pkg = rawSource[i]?.packageName || rawSource[i]?.package;
       if (pkg && !seenPkgs.has(pkg)) {
         seenPkgs.add(pkg);
         source.unshift(rawSource[i]);
+      }
+    }
+
+    // Ensure standard blocked catalog apps are present when restriction is active
+    if (restriction.active) {
+      for (const defaultApp of DEFAULT_CATALOG_BLOCKED) {
+        if (!seenPkgs.has(defaultApp.packageName)) {
+          seenPkgs.add(defaultApp.packageName);
+          source.push(defaultApp);
+        }
       }
     }
 
@@ -260,9 +286,10 @@ export const AppsScreen = ({ data }) => {
       // Apps are ONLY blocked when an active restriction is enforced by Admin/Staff.
       // When restrictions are inactive, 0 apps are blocked.
       const categoryBlocked = restriction.active && AUTO_BLOCK_CATEGORIES.includes(category);
+      const isSettingsApp = pkg === 'com.android.settings';
       const blocked =
         restriction.active &&
-        (app.blocked === true || blockedSet.has(pkg) || categoryBlocked);
+        (app.blocked === true || blockedSet.has(pkg) || categoryBlocked || isSettingsApp);
 
       return {
         ...app,
