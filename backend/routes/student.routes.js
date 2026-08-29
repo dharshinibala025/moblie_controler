@@ -181,6 +181,49 @@ router.post(
   },
 );
 
+router.post('/heartbeat', async (req, res, next) => {
+  try {
+    const { deviceId, isAccessibilityEnabled, isOverlayEnabled } = req.body;
+
+    let query = { userId: req.user.userId };
+    if (deviceId) {
+      query = { $or: [{ _id: deviceId }, { userId: req.user.userId }] };
+    }
+
+    const device = await Device.findOneAndUpdate(
+      query,
+      {
+        $set: {
+          'deviceInfo.accessibilityEnabled': !!isAccessibilityEnabled,
+          'deviceInfo.overlayEnabled': !!isOverlayEnabled,
+          updatedAt: new Date()
+        }
+      },
+      { new: true }
+    );
+
+    // If student disabled service during 9 AM - 4 PM, mark non-compliant
+    const currentHour = new Date().getHours();
+    const isClassTime = currentHour >= 9 && currentHour < 16;
+    if (isClassTime && (!isAccessibilityEnabled || !isOverlayEnabled)) {
+      await auditService.logAction(
+        req.user.userId,
+        req.user.role || 'student',
+        'COMPLIANCE_VIOLATION',
+        { type: 'device', id: device?._id || deviceId },
+        'Accessibility or Overlay permission disabled during class hours (9 AM - 4 PM)'
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      isCompliant: !!(isAccessibilityEnabled && isOverlayEnabled)
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post(
   '/scan',
   verifyDevice,

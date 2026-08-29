@@ -18,6 +18,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -79,16 +80,21 @@ class RestrictionAccessibilityService : AccessibilityService() {
         try {
             if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
+            // 1. Time Check: After 4:00 PM / outside 9 AM - 4 PM automatic unblock
+            if (!PolicyStorage.isCollegeHours()) {
+                if (blockOverlay != null) {
+                    dismissBlockOverlay()
+                }
+                return
+            }
+
             val packageName = event.packageName?.toString() ?: return
 
             val storage = policyStorage ?: PolicyStorage(applicationContext).also {
                 policyStorage = it
             }
 
-            // ── System UI: ignore — these are transient transition artifacts,
-            // not real user navigation.  Previously this caused the overlay to
-            // be dismissed during app-launch transitions and re-shown by the
-            // app's second activity window, producing the "popup twice" bug.
+            // ── System UI: ignore — transient transition artifacts
             if (packageName.startsWith("com.android.systemui") ||
                 packageName == "com.mobile_controller") {
                 return
@@ -100,25 +106,32 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 return
             }
 
+            // 2. Settings App Access Tamper Protection (9 AM - 4 PM)
+            if (packageName == "com.android.settings") {
+                val rootNode = rootInActiveWindow
+                if (rootNode != null && isAccessibilityOrAppSetting(rootNode)) {
+                    if (shouldLaunch(packageName)) {
+                        Log.w("RestrictionService", "Blocking Settings access during class hours (9 AM - 4 PM)")
+                        showBlockOverlay(packageName)
+                    }
+                    return
+                }
+            }
+
             // ── Compute the enforced set ──────────────────────────────────
-            // Only block when a real admin/staff policy exists AND is active.
-            // No fallback list — fresh installs with no policy = no blocking.
             val blockedSet = if (storage.isConfigured() && storage.isPolicyActive()) {
                 storage.getEnforcedApps()
             } else {
                 emptySet()
             }
 
-            // ── Dismiss the overlay when the student navigates to ANY
-            //    non-blocked app (including home/launcher).  No longer
-            //    restricted to home only — the old guard left the overlay
-            //    stuck over allowed apps.
-            if (blockOverlay != null && !blockedSet.contains(packageName)) {
+            // ── Dismiss the overlay when the student navigates to ANY non-blocked app
+            if (blockOverlay != null && !blockedSet.contains(packageName) && packageName != "com.android.settings") {
                 dismissBlockOverlay()
                 return
             }
 
-            // ── Show the overlay for blocked apps ─────────────────────────
+            // 3. Restricted Apps Interception
             if (blockedSet.contains(packageName)) {
                 if (shouldEnforceNow()) {
                     if (shouldLaunch(packageName)) {
@@ -131,6 +144,21 @@ class RestrictionAccessibilityService : AccessibilityService() {
             }
         } catch (e: Exception) {
             Log.e("RestrictionService", "Error handling accessibility event", e)
+        }
+    }
+
+    private fun isAccessibilityOrAppSetting(node: AccessibilityNodeInfo): Boolean {
+        val textList = mutableListOf<String>()
+        findTextNodes(node, textList)
+        val keywords = listOf("Accessibility", "Installed apps", "FocusSync", "Force stop", "Uninstall")
+        return textList.any { text -> keywords.any { key -> text.contains(key, ignoreCase = true) } }
+    }
+
+    private fun findTextNodes(node: AccessibilityNodeInfo?, list: MutableList<String>) {
+        if (node == null) return
+        if (!node.text.isNullOrEmpty()) list.add(node.text.toString())
+        for (i in 0 until node.childCount) {
+            findTextNodes(node.getChild(i), list)
         }
     }
 

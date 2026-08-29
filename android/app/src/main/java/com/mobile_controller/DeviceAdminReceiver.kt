@@ -9,6 +9,10 @@ class DeviceAdminReceiver : DeviceAdminReceiver() {
         super.onEnabled(context, intent)
     }
 
+    override fun onDisableRequested(context: Context, intent: Intent): CharSequence {
+        return "Warning: Disabling FocusSync Admin privileges will revoke classroom compliance status."
+    }
+
     override fun onDisabled(context: Context, intent: Intent) {
         super.onDisabled(context, intent)
     }
