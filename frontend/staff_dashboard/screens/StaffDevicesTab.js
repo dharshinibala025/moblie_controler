@@ -327,28 +327,28 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
             <View style={styles.secondaryControlsRow}>
               <TouchableOpacity
-                style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
+                style={[styles.pauseBtn, restrictionStatus === 'PAUSED' && styles.pauseBtnActive]}
                 onPress={handlePauseRestriction}
                 disabled={actionLoading}
               >
                 {actionLoading ? (
-                  <ActivityIndicator size="small" color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
+                  <ActivityIndicator size="small" color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#D97706'} />
                 ) : (
-                  <VectorIcon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#F59E0B'} />
+                  <VectorIcon name="pause" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#F59E0B'} />
                 )}
-                <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>Pause</Text>
+                <Text style={[styles.pauseBtnText, restrictionStatus === 'PAUSED' && styles.pauseBtnTextActive]}>Pause</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
+                style={[styles.resumeBtn, restrictionStatus === 'ACTIVE' && styles.resumeBtnActive]}
                 onPress={handleResumeRestriction}
                 disabled={actionLoading}
               >
                 {actionLoading ? (
-                  <ActivityIndicator size="small" color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#16A34A'} />
+                  <ActivityIndicator size="small" color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#16A34A'} />
                 ) : (
-                  <VectorIcon name="play" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#16A34A'} />
+                  <VectorIcon name="play" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#16A34A'} />
                 )}
-                <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>Resume</Text>
+                <Text style={[styles.resumeBtnText, restrictionStatus === 'ACTIVE' && styles.resumeBtnTextActive]}>Resume</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -160,6 +160,14 @@ class PolicyStorage(context: Context) {
         return timeDrift > (3 * 60 * 1000)
     }
 
+    fun setPaused(isPaused: Boolean) {
+        prefs.edit().putBoolean("is_paused", isPaused).apply()
+    }
+
+    fun isPaused(): Boolean {
+        return prefs.getBoolean("is_paused", false)
+    }
+
     companion object {
         fun isCollegeHours(): Boolean {
             val calendar = java.util.Calendar.getInstance()

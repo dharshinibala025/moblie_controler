@@ -350,6 +350,35 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun saveSimplePolicy(blockedApps: ReadableArray, isPaused: Boolean, promise: Promise) {
+        try {
+            val blockedList = mutableListOf<String>()
+            for (i in 0 until blockedApps.size()) {
+                val app = blockedApps.getString(i)
+                if (app != null) blockedList.add(app)
+            }
+            val policyStorage = PolicyStorage(reactContext)
+            policyStorage.savePolicy(
+                "local_rule",
+                blockedList,
+                "09:00",
+                "16:00",
+                listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat"),
+                "MDM Restriction",
+                1,
+                if (isPaused) "paused" else "active",
+                false
+            )
+            policyStorage.setPaused(isPaused)
+            val result = Arguments.createMap()
+            result.putBoolean("success", true)
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("SAVE_SIMPLE_POLICY_ERROR", e.localizedMessage, e)
+        }
+    }
+
+    @ReactMethod
     fun clearPolicy(promise: Promise) {
         try {
             val policyStorage = PolicyStorage(reactContext)

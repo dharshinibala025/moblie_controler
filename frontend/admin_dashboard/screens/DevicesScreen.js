@@ -87,8 +87,8 @@ const DevicesScreen = () => {
     try {
       const rules = await adminService.getRules();
       if (draftYear === 'All' || draftSection === 'All') {
-        // For "All", show the most recent rule overall
-        const classRule = (rules || [])[0];
+        // For "All", show the active rule or most recent rule
+        const classRule = (rules || []).find((r) => r.status === 'active') || (rules || [])[0];
         if (classRule) {
           setStartTime(formatTo12Hour(classRule.scheduleStart));
           setEndTime(formatTo12Hour(classRule.scheduleEnd));
@@ -549,32 +549,32 @@ const DevicesScreen = () => {
 
             <View style={styles.secondaryControlsRow}>
               <TouchableOpacity
-                style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
+                style={[styles.pauseBtn, restrictionStatus === 'PAUSED' && styles.pauseBtnActive]}
                 onPress={handlePauseRestriction}
                 disabled={actionLoading}
                 activeOpacity={0.8}
               >
                 {actionLoading ? (
-                  <ActivityIndicator size="small" color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
+                  <ActivityIndicator size="small" color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#D97706'} />
                 ) : (
-                  <Icon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
+                  <Icon name="pause" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#D97706'} />
                 )}
-                <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>
+                <Text style={[styles.pauseBtnText, restrictionStatus === 'PAUSED' && styles.pauseBtnTextActive]}>
                   Pause
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
+                style={[styles.resumeBtn, restrictionStatus === 'ACTIVE' && styles.resumeBtnActive]}
                 onPress={handleResumeRestriction}
                 disabled={actionLoading}
                 activeOpacity={0.8}
               >
                 {actionLoading ? (
-                  <ActivityIndicator size="small" color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
+                  <ActivityIndicator size="small" color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#15803D'} />
                 ) : (
-                  <Icon name="play-arrow" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
+                  <Icon name="play-arrow" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#15803D'} />
                 )}
-                <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>
+                <Text style={[styles.resumeBtnText, restrictionStatus === 'ACTIVE' && styles.resumeBtnTextActive]}>
                   Resume
                 </Text>
               </TouchableOpacity>
