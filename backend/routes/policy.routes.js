@@ -13,7 +13,7 @@ router.use(authMiddleware);
 // In-memory replay guard cache (deviceId -> timestamp)
 const lastRequestCache = new Map();
 
-router.get("/latest", async (req, res, next) => {
+router.get(["/latest", "/device-policy", "/"], async (req, res, next) => {
   try {
     const { deviceId, syncType = "periodic" } = req.query;
     if (!deviceId) {

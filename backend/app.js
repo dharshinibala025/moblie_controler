@@ -73,11 +73,31 @@ app.get("/health/smtp-test", async (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+const policyRoutes = require("./routes/policy.routes");
+
 app.use("/auth", authRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api", authRoutes);
+
 app.use("/admin", userLimiter, adminRoutes);
+app.use("/api/admin", userLimiter, adminRoutes);
+
 app.use("/staff", userLimiter, staffRoutes);
+app.use("/api/staff", userLimiter, staffRoutes);
+
 app.use("/student", userLimiter, studentRoutes);
-app.use("/policy", userLimiter, require("./routes/policy.routes"));
+app.use("/api/student", userLimiter, studentRoutes);
+
+app.use("/policy", userLimiter, policyRoutes);
+app.use("/api/policy", userLimiter, policyRoutes);
+app.use("/device-policy", userLimiter, policyRoutes);
+app.use("/api/device-policy", userLimiter, policyRoutes);
+
+// Direct top-level route forwarders for /login, /refresh, /logout
+app.post("/login", (req, res, next) => { req.url = "/login"; authRoutes(req, res, next); });
+app.post("/refresh", (req, res, next) => { req.url = "/refresh"; authRoutes(req, res, next); });
+app.post("/logout", (req, res, next) => { req.url = "/logout"; authRoutes(req, res, next); });
+
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });

@@ -1,0 +1,91 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Smart Classroom Mobile Controller Backend API",
+    "version": "1.0.0",
+    "description": "API endpoints for authentication, policy controls, student, staff, and admin management."
+  },
+  "servers": [
+    {
+      "url": "https://mobile-controller-backend.onrender.com",
+      "description": "Render Backend Server"
+    }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "summary": "User Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "example": "student@example.com" },
+                  "password": { "type": "string", "example": "password123" },
+                  "role": { "type": "string", "example": "student" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Successful login" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "summary": "Refresh Access Token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Tokens refreshed" }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "summary": "User Logout",
+        "responses": {
+          "200": { "description": "Logged out successfully" }
+        }
+      }
+    },
+    "/api/policy/latest": {
+      "get": {
+        "summary": "Get Latest Device Policy",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "syncType",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "default": "periodic" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Returns active policy" }
+        }
+      }
+    }
+  }
+}
