@@ -221,7 +221,7 @@ export const LoginScreen = ({ onBack, onLoginSuccess }) => {
             <View style={styles.footerSection}>
               <Text style={styles.footerLine}>FocusSync System</Text>
               <Text style={styles.footerLine}>Department Mobile Controller</Text>
-              <Text style={styles.footerLine}>Version 1.0</Text>
+              <Text style={styles.footerLine}>Version 1.2.33</Text>
             </View>
           </Animated.View>
         </ScrollView>

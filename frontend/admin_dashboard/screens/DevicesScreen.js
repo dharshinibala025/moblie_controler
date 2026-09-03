@@ -299,7 +299,7 @@ const DevicesScreen = () => {
     setActionLoading(true);
     try {
       const policyData = {
-        blockedApps: ['SocialMedia'],
+        blockedApps: ['com.instagram.android', 'com.whatsapp', 'com.google.android.youtube', 'com.facebook.katana', 'SocialMedia'],
         scheduleStart: formatTimeForBackend(startTime),
         scheduleEnd: formatTimeForBackend(endTime),
         activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],

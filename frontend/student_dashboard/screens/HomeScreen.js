@@ -269,8 +269,12 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
     // Listen for real-time policy changes so the clock updates immediately
     // when staff/admin applies, pauses, or stops a restriction.
+    let lastPolicyEventTime = 0;
     const policySub = DeviceEventEmitter.addListener('FocusSync:policyChanged', (data) => {
       try {
+        const now = Date.now();
+        if (now - lastPolicyEventTime < 1000) return;
+        lastPolicyEventTime = now;
         if (data) {
           if (data.status) policyActiveRef.current = data.status === 'active';
           if (data.scheduleStart) handleScheduleStartChange(data.scheduleStart);
