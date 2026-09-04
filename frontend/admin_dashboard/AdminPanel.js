@@ -37,12 +37,39 @@ const TABS = [
 const AdminPanel = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [adminProfile, setAdminProfile] = useState(null);
+  const [notifBadgeCount, setNotifBadgeCount] = useState(0);
 
   useEffect(() => {
     adminService.getAdminProfile().then((data) => {
       if (data) setAdminProfile(data);
     }).catch(() => {});
   }, []);
+
+  // Fetch notification count on mount and every 60 seconds
+  useEffect(() => {
+    const fetchNotifCount = async () => {
+      try {
+        const data = await adminService.getAdminNotifications();
+        if (Array.isArray(data)) {
+          // Count unread notifications (those without a readAt timestamp)
+          const unread = data.filter((n) => !n.readAt && !n.isRead).length;
+          setNotifBadgeCount(unread > 0 ? unread : 0);
+        }
+      } catch (e) {
+        // Ignore errors — badge is cosmetic
+      }
+    };
+    fetchNotifCount();
+    const interval = setInterval(fetchNotifCount, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Clear badge when user opens notifications tab
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      setNotifBadgeCount(0);
+    }
+  }, [activeTab]);
 
   const navigateToNotifications = () => setActiveTab('notifications');
 
@@ -68,7 +95,12 @@ const AdminPanel = ({ onLogout }) => {
           <SettingsScreen adminData={adminProfile} onLogout={onLogout} />
         </View>
       </View>
-      <BottomTabBar tabs={TABS} activeTab={activeTab} onTabPress={setActiveTab} />
+      <BottomTabBar
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabPress={setActiveTab}
+        badgeCounts={{ notifications: notifBadgeCount }}
+      />
     </SafeAreaView>
   );
 };

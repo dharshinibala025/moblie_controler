@@ -42,10 +42,14 @@ const isWithinWindow = (policy, now) => {
   if (!policy) return false;
   const dayName = DAYS[now.getDay()];
   const activeDays = policy.activeDays && policy.activeDays.length ? policy.activeDays : [];
+  // Treat empty activeDays as "all days" — matches native RestrictionAccessibilityService behavior
   if (activeDays.length > 0 && !activeDays.includes(dayName)) return false;
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  // Policy is active from the moment it's applied until scheduleEnd
+  // (scheduleStart is not a gate — admin clicking "Set Restriction Timing" blocks immediately)
   return currentMinutes < toMinutes(policy.scheduleEnd);
 };
+
 
 const format12Hour = (timeStr) => {
   if (!timeStr) return '';

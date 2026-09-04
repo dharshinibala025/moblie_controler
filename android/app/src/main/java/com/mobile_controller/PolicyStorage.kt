@@ -168,12 +168,5 @@ class PolicyStorage(context: Context) {
         return prefs.getBoolean("is_paused", false)
     }
 
-    companion object {
-        fun isCollegeHours(): Boolean {
-            val calendar = java.util.Calendar.getInstance()
-            val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
-            return hour in 9..15
-        }
-    }
 }
 

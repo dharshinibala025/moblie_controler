@@ -18,14 +18,16 @@ import { spacing } from '../styles/globalStyles';
  * - tabs: Array<{ key: string, label: string, icon: string }>
  * - activeTab: string
  * - onTabPress: function(key: string)
+ * - badgeCounts: object<tabKey, number> — optional badge counts per tab key
  */
-const BottomTabBar = ({ tabs, activeTab, onTabPress }) => {
+const BottomTabBar = ({ tabs, activeTab, onTabPress, badgeCounts = {} }) => {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
       {tabs.map((tab) => {
         const isActive = tab.key === activeTab;
+        const badgeCount = badgeCounts[tab.key] || 0;
         return (
           <TouchableOpacity
             key={tab.key}
@@ -33,11 +35,20 @@ const BottomTabBar = ({ tabs, activeTab, onTabPress }) => {
             onPress={() => onTabPress(tab.key)}
             activeOpacity={0.7}
           >
-            <Icon
-              name={tab.icon}
-              size={22}
-              color={isActive ? colors.primaryBlue : colors.textMuted}
-            />
+            <View style={styles.iconWrapper}>
+              <Icon
+                name={tab.icon}
+                size={22}
+                color={isActive ? colors.primaryBlue : colors.textMuted}
+              />
+              {badgeCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {badgeCount > 99 ? '99+' : String(badgeCount)}
+                  </Text>
+                </View>
+              )}
+            </View>
             <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
           </TouchableOpacity>
         );
@@ -55,8 +66,34 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  iconWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: colors.background,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 12,
+  },
   label: { ...typography.tabLabel, color: colors.textMuted, marginTop: 2 },
   labelActive: { color: colors.primaryBlue },
 });
 
 export default BottomTabBar;
+

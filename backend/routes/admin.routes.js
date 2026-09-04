@@ -597,53 +597,7 @@ router.post("/rules", validate("createRule"), async (req, res, next) => {
   }
 });
 
-// Bulk apply a restriction policy to many classes in a single request
-// (used by the admin "Set Restriction Timing" flow for all years/sections).
-router.post("/rules/bulk", async (req, res, next) => {
-  try {
-    const { targetClassIds = [], ...policyData } = req.body;
-    if (!Array.isArray(targetClassIds) || targetClassIds.length === 0) {
-      return res.status(400).json({ error: "targetClassIds array is required" });
-    }
-    if (!policyData.scheduleStart || !policyData.scheduleEnd) {
-      return res.status(400).json({ error: "scheduleStart and scheduleEnd are required" });
-    }
-
-    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
-
-    if (req.scopeInstitutionId) {
-      policyData.institutionId = req.scopeInstitutionId;
-    }
-
-    const uniqueIds = [...new Set(targetClassIds)].filter(Boolean);
-    const results = await ruleService.applyBulkRulePolicy(uniqueIds, policyData, req.user.userId);
-
-    const succeeded = results.filter((r) => r.success);
-    await auditService.logAction(
-      req.user.userId,
-      req.user.role,
-      "rule.create",
-      { scope: "ADMIN" },
-      {
-        targetClassCount: uniqueIds.length,
-        created: succeeded.filter((r) => r.created).length,
-        updated: succeeded.filter((r) => r.updated).length,
-        failed: results.length - succeeded.length,
-      },
-      req.scopeInstitutionId || policyData.institutionId
-    );
-
-    res.status(200).json({
-      success: true,
-      results,
-      applied: succeeded.length,
-      total: uniqueIds.length,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+// Bulk apply route is defined below at /rules/bulk (the complete implementation)
 
 router.get("/rules", async (req, res, next) => {
   try {
@@ -795,6 +749,25 @@ router.post("/override/pause", async (req, res, next) => {
       setClassEmergencyUnblock(cid, false);
     }
 
+    // Real-time socket broadcast: notify all student devices immediately
+    try {
+      const io = getIO();
+      if (io) {
+        io.emit("rule:update", {
+          action: "pause",
+          status: "paused",
+          blockedPackages: [],
+          scheduleStart: "09:00",
+          scheduleEnd: "16:00",
+          activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+          affectedClassIds,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (socketErr) {
+      // Non-critical — periodic sync will catch up
+    }
+
     await auditService.logAction(
       actorId,
       req.user?.role || "admin",
@@ -834,6 +807,29 @@ router.post("/override/resume", async (req, res, next) => {
 
     for (const cid of affectedClassIds) {
       setClassEmergencyUnblock(cid, false);
+    }
+
+    // Real-time socket broadcast: notify all student devices immediately
+    try {
+      const io = getIO();
+      if (io) {
+        // Fetch a representative rule to get the current blocked packages
+        const Rule = require("../models/Rule");
+        const activeRule = await Rule.findOne({ status: "active" }).lean().catch(() => null);
+        io.emit("rule:update", {
+          action: "start",
+          status: "active",
+          blockedPackages: activeRule?.blockedApps || ["com.instagram.android", "com.whatsapp", "com.google.android.youtube", "com.facebook.katana", "SocialMedia"],
+          scheduleStart: activeRule?.scheduleStart || "09:00",
+          scheduleEnd: activeRule?.scheduleEnd || "16:00",
+          activeDays: activeRule?.activeDays || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+          affectedClassIds,
+          policyVersion: (activeRule?.version || 1) + 1,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (socketErr) {
+      // Non-critical — periodic sync will catch up
     }
 
     await auditService.logAction(

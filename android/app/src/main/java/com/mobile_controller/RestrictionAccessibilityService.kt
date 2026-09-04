@@ -80,21 +80,13 @@ class RestrictionAccessibilityService : AccessibilityService() {
         try {
             if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
-            // 1. Time Check: After 4:00 PM / outside 9 AM - 4 PM automatic unblock
-            if (!PolicyStorage.isCollegeHours()) {
-                if (blockOverlay != null) {
-                    dismissBlockOverlay()
-                }
-                return
-            }
-
             val packageName = event.packageName?.toString() ?: return
 
             val storage = policyStorage ?: PolicyStorage(applicationContext).also {
                 policyStorage = it
             }
 
-            // ── System UI: ignore — transient transition artifacts
+            // ── System UI & our own package: ignore — transient transition artifacts
             if (packageName.startsWith("com.android.systemui") ||
                 packageName == "com.mobile_controller") {
                 return
@@ -125,9 +117,23 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 emptySet()
             }
 
-            // ── Dismiss the overlay when the student navigates to ANY non-blocked app
-            if (blockOverlay != null && !blockedSet.contains(packageName) && packageName != "com.android.settings") {
+            // ── Dismiss the overlay ONLY when the student navigates to a genuine
+            // non-blocked user app. Do NOT dismiss for launchers/home/system packages
+            // — those events fire as side-effects of pressing Back/Home while the
+            // overlay is showing and should NOT be treated as intentional navigation.
+            if (blockOverlay != null &&
+                !blockedSet.contains(packageName) &&
+                packageName != "com.android.settings" &&
+                !isLauncherOrSystemPackage(packageName)
+            ) {
                 dismissBlockOverlay()
+                return
+            }
+
+            // ── If overlay is showing and the event is from a launcher package,
+            // redirect to home instead of dismissing the overlay (prevents escape).
+            if (blockOverlay != null && isLauncherOrSystemPackage(packageName)) {
+                goHome()
                 return
             }
 
@@ -670,7 +676,49 @@ class RestrictionAccessibilityService : AccessibilityService() {
         return (value * resources.displayMetrics.density).toInt()
     }
 
+    /**
+     * Returns true for launcher/home/system packages that should NOT trigger
+     * overlay dismissal. When the student presses Back or Home while the overlay
+     * is showing, Android fires window events from these packages — they are
+     * side-effects of our goHome() call, NOT intentional navigation away from
+     * the blocked app.
+     */
+    private fun isLauncherOrSystemPackage(pkg: String): Boolean {
+        val launchers = setOf(
+            homePackage(),
+            "com.android.launcher",
+            "com.android.launcher2",
+            "com.android.launcher3",
+            "com.google.android.apps.nexuslauncher",
+            "com.sec.android.app.launcher",
+            "com.samsung.android.app.launcher",
+            "com.miui.home",
+            "com.coloros.launcher",
+            "com.oppo.launcher",
+            "com.vivo.launcher",
+            "com.bbk.launcher2",
+            "com.hihonor.launcher",
+            "com.huawei.android.launcher",
+            "com.transsion.hilauncher",
+            "com.realme.launcher",
+            "com.oneplus.launcher",
+            "net.oneplus.launcher",
+            "com.motorola.launcher3",
+            "com.nothing.launcher",
+            "app.lawnchair",
+            "ch.deletescape.lawnchair.plah",
+            "com.teslacoilsw.launcher",    // Nova Launcher
+            "org.lineageos.trebuchet",
+            "com.action.launcher",
+            "com.android.settings",        // Settings also handled separately but include here for safety
+        )
+        return launchers.contains(pkg) ||
+            pkg.contains("launcher", ignoreCase = true) ||
+            pkg.contains("home", ignoreCase = true)
+    }
+
     override fun onInterrupt() {}
+
 
     override fun onUnbind(intent: Intent?): Boolean {
         stopPeriodicEval()

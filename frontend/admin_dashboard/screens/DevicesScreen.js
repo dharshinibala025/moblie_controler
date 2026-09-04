@@ -344,6 +344,11 @@ const DevicesScreen = () => {
 
   // Compute target class IDs based on current filter selection
   const computeTargetClassIds = useCallback(() => {
+    // When both year and section are 'All', use 'ALL' to match the DB record
+    // created by handleApplyRestriction (which also uses 'ALL' for all-classes)
+    if (draftYear === 'All' && draftSection === 'All') {
+      return ['ALL'];
+    }
     const yearChars = draftYear === 'All' ? ['1', '2', '3', '4'] : [draftYear.charAt(0)];
     const sections = draftSection === 'All'
       ? getSectionOptions(null).filter((s) => s !== 'All')
@@ -549,32 +554,56 @@ const DevicesScreen = () => {
 
             <View style={styles.secondaryControlsRow}>
               <TouchableOpacity
-                style={[styles.pauseBtn, restrictionStatus === 'ACTIVE' && styles.pauseBtnActive]}
+                style={[
+                  styles.pauseBtn,
+                  restrictionStatus === 'ACTIVE' && styles.pauseBtnActive,
+                  restrictionStatus !== 'ACTIVE' && styles.pauseBtnDimmed,
+                ]}
                 onPress={handlePauseRestriction}
-                disabled={actionLoading}
+                disabled={actionLoading || restrictionStatus === 'IDLE'}
                 activeOpacity={0.8}
               >
-                {actionLoading ? (
-                  <ActivityIndicator size="small" color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
+                {actionLoading && restrictionStatus === 'ACTIVE' ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Icon name="pause" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#D97706'} />
+                  <Icon
+                    name="pause"
+                    size={16}
+                    color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#94A3B8'}
+                  />
                 )}
-                <Text style={[styles.pauseBtnText, restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive]}>
+                <Text style={[
+                  styles.pauseBtnText,
+                  restrictionStatus === 'ACTIVE' && styles.pauseBtnTextActive,
+                  restrictionStatus !== 'ACTIVE' && styles.pauseBtnTextDimmed,
+                ]}>
                   Pause
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.resumeBtn, restrictionStatus === 'PAUSED' && styles.resumeBtnActive]}
+                style={[
+                  styles.resumeBtn,
+                  restrictionStatus === 'PAUSED' && styles.resumeBtnActive,
+                  restrictionStatus !== 'PAUSED' && styles.resumeBtnDimmed,
+                ]}
                 onPress={handleResumeRestriction}
-                disabled={actionLoading}
+                disabled={actionLoading || restrictionStatus === 'IDLE'}
                 activeOpacity={0.8}
               >
-                {actionLoading ? (
-                  <ActivityIndicator size="small" color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
+                {actionLoading && restrictionStatus === 'PAUSED' ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Icon name="play-arrow" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#15803D'} />
+                  <Icon
+                    name="play-arrow"
+                    size={16}
+                    color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#94A3B8'}
+                  />
                 )}
-                <Text style={[styles.resumeBtnText, restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive]}>
+                <Text style={[
+                  styles.resumeBtnText,
+                  restrictionStatus === 'PAUSED' && styles.resumeBtnTextActive,
+                  restrictionStatus !== 'PAUSED' && styles.resumeBtnTextDimmed,
+                ]}>
                   Resume
                 </Text>
               </TouchableOpacity>
@@ -675,9 +704,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
     paddingVertical: spacing.sm + 2,
     borderRadius: radius.md,
     gap: 4,
@@ -685,24 +714,37 @@ const styles = StyleSheet.create({
   pauseBtnActive: {
     backgroundColor: '#F59E0B',
     borderColor: '#D97706',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  pauseBtnDimmed: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    opacity: 0.5,
   },
   pauseBtnText: {
     ...typography.button,
-    color: '#D97706',
+    color: '#94A3B8',
     fontSize: 13,
     fontWeight: '700',
   },
   pauseBtnTextActive: {
     color: '#FFFFFF',
   },
+  pauseBtnTextDimmed: {
+    color: '#CBD5E1',
+  },
   resumeBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#DCFCE7',
-    borderWidth: 1,
-    borderColor: '#16A34A',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
     paddingVertical: spacing.sm + 2,
     borderRadius: radius.md,
     gap: 4,
@@ -710,15 +752,28 @@ const styles = StyleSheet.create({
   resumeBtnActive: {
     backgroundColor: '#16A34A',
     borderColor: '#15803D',
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  resumeBtnDimmed: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    opacity: 0.5,
   },
   resumeBtnText: {
     ...typography.button,
-    color: '#15803D',
+    color: '#94A3B8',
     fontSize: 13,
     fontWeight: '700',
   },
   resumeBtnTextActive: {
     color: '#FFFFFF',
+  },
+  resumeBtnTextDimmed: {
+    color: '#CBD5E1',
   },
   emergencyBtn: {
     flex: 1,
