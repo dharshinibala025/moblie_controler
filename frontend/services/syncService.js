@@ -62,7 +62,7 @@ class SyncService {
       }
       nativeInfo = nativeInfo || {
         osVersion: '14',
-        appVersion: '1.0.0',
+        appVersion: '1.2.35',
         deviceModel: 'Android Device',
         deviceId: 'default-device-id',
       };
