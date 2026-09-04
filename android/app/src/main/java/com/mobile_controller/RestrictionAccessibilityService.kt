@@ -483,6 +483,12 @@ class RestrictionAccessibilityService : AccessibilityService() {
 
     private fun dismissBlockOverlay() {
         try {
+            val intent = Intent("com.mobile_controller.ACTION_DISMISS_BLOCK_OVERLAY").apply {
+                setPackage(packageName)
+            }
+            sendBroadcast(intent)
+        } catch (e: Exception) { /* ignore */ }
+        try {
             overlayTicker?.let { overlayHandler.removeCallbacks(it) }
             overlayTicker = null
             windowManager?.removeView(blockOverlay)

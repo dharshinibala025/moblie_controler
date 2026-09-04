@@ -26,8 +26,25 @@ class BlockOverlayActivity : AppCompatActivity() {
     private var countdownTicker: Runnable? = null
     private var countdownText: TextView? = null
 
+    private val dismissReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if ("com.mobile_controller.ACTION_DISMISS_BLOCK_OVERLAY" == intent?.action) {
+                finish()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        try {
+            val filter = android.content.IntentFilter("com.mobile_controller.ACTION_DISMISS_BLOCK_OVERLAY")
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(dismissReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(dismissReceiver, filter)
+            }
+        } catch (e: Exception) { /* ignore */ }
 
         val packageName = intent.getStringExtra("packageName") ?: "this application"
         val reason = intent.getStringExtra("reason") ?: "Institutional policy during class hours."
@@ -212,6 +229,9 @@ class BlockOverlayActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        try {
+            unregisterReceiver(dismissReceiver)
+        } catch (e: Exception) { /* ignore */ }
         countdownTicker?.let { handler.removeCallbacks(it) }
         countdownTicker = null
         super.onDestroy()

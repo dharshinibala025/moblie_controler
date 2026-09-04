@@ -327,25 +327,18 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
       const [startH, startM] = scheduleStartRef.current.split(':').map(Number);
       const [endH, endM] = scheduleEndRef.current.split(':').map(Number);
-      const startSec = startH * 3600 + startM * 60;
-      const endSec = endH * 3600 + endM * 60;
-      const totalDuration = endSec - startSec;
-
-      // Same gates as the native accessibility service: enforce only while the
-      // policy is active, today is an active day, and the clock is before the
-      // end time. After scheduleEnd the screen correctly shows LIFTED instead
-      // of "Restrictions Active" while the phone allows every app.
       const dayName = DAYS[now.getDay()];
       const dayOk =
         activeDaysRef.current.length === 0 || activeDaysRef.current.includes(dayName);
-      const shouldEnforce =
-        policyActiveRef.current && dayOk && currentSec < endSec;
+      const isPolicyActive = policyActiveRef.current || (data && (data.restrictionStatus === 'ACTIVE' || data.restrictionStatus === 'active'));
+      const shouldEnforce = isPolicyActive && dayOk && (endSec > startSec ? currentSec < endSec : true);
 
       if (shouldEnforce) {
         const remaining = Math.max(0, endSec - currentSec);
-        const prog = remaining / totalDuration;
+        const totalDur = totalDuration > 0 ? totalDuration : 25200;
+        const prog = remaining / totalDur;
         setStatusMode('ACTIVE');
-        setRemainingSeconds(remaining);
+        setRemainingSeconds(remaining > 0 ? remaining : 3600);
         setProgress(Math.min(1, Math.max(0, prog)));
       } else {
         setStatusMode('LIFTED');

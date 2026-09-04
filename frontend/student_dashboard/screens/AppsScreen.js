@@ -286,13 +286,13 @@ export const AppsScreen = ({ data }) => {
         return { ...app, name: app.name || app.appName || 'Application', blocked: false };
       }
 
-      // Apps are ONLY blocked when an active restriction is enforced by Admin/Staff.
-      // When restrictions are inactive, 0 apps are blocked.
-      const categoryBlocked = restriction.active && AUTO_BLOCK_CATEGORIES.includes(category);
+      const isSocialPkg = pkg.includes('instagram') || pkg.includes('whatsapp') || pkg.includes('youtube') || pkg.includes('facebook') || pkg.includes('snapchat') || pkg.includes('twitter') || pkg.includes('telegram') || pkg.includes('discord') || pkg.includes('tiktok');
+      const isCategoryMatch = (blockedSet.has('SocialMedia') || restriction.active) && (isSocialPkg || category === 'social');
+      const categoryBlocked = restriction.active && (AUTO_BLOCK_CATEGORIES.includes(category) || isCategoryMatch);
       const isSettingsApp = pkg === 'com.android.settings';
       const blocked =
         restriction.active &&
-        (app.blocked === true || blockedSet.has(pkg) || categoryBlocked || isSettingsApp);
+        (app.blocked === true || blockedSet.has(pkg) || categoryBlocked || isSettingsApp || isSocialPkg);
 
       return {
         ...app,
