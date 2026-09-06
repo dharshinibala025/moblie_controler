@@ -17,7 +17,7 @@ const RestrictionActionModal = ({ visible, type, title, message, onDismiss }) =>
       ]).start();
 
       const timer = setTimeout(() => {
-        onDismiss && onDismiss();
+        handleDismiss();
       }, 3000);
       return () => clearTimeout(timer);
     } else {
@@ -26,7 +26,14 @@ const RestrictionActionModal = ({ visible, type, title, message, onDismiss }) =>
     }
   }, [visible]);
 
-  if (!visible) return null;
+  const handleDismiss = () => {
+    Animated.parallel([
+      Animated.timing(scaleAnim, { toValue: 0.8, duration: 150, useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+    ]).start(() => {
+      onDismiss && onDismiss();
+    });
+  };
 
   const config = {
     success: { icon: 'check-circle', color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' },
@@ -36,8 +43,8 @@ const RestrictionActionModal = ({ visible, type, title, message, onDismiss }) =>
   }[type] || { icon: 'info', color: '#2563EB', bg: '#EFF6FF', border: '#BFDBFE' };
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onDismiss}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onDismiss}>
+    <Modal transparent visible={!!visible} animationType="fade" onRequestClose={handleDismiss}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={handleDismiss}>
         <Animated.View
           style={[
             styles.modalCard,

@@ -2,7 +2,10 @@ package com.mobile_controller
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
@@ -52,6 +55,13 @@ class RestrictionAccessibilityService : AccessibilityService() {
     private val overlayHandler = Handler(Looper.getMainLooper())
     private var cachedHomePackage: String? = null
 
+    private val dismissOverlayReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Log.i("RestrictionService", "Received ACTION_DISMISS_BLOCK_OVERLAY broadcast")
+            dismissBlockOverlay()
+        }
+    }
+
     // ── Periodic re-evaluation loop ─────────────────────────────────────────
     // Polls every 2s to: dismiss the overlay when the policy is paused/inactive,
     // show it if the foreground app is blocked (resume-while-inside), and free
@@ -64,6 +74,16 @@ class RestrictionAccessibilityService : AccessibilityService() {
         super.onCreate()
         policyStorage = PolicyStorage(applicationContext)
         startPeriodicEval()
+        try {
+            val filter = IntentFilter("com.mobile_controller.ACTION_DISMISS_BLOCK_OVERLAY")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(dismissOverlayReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(dismissOverlayReceiver, filter)
+            }
+        } catch (e: Exception) {
+            Log.w("RestrictionService", "Failed to register dismissOverlayReceiver", e)
+        }
         Log.i("RestrictionService", "RestrictionAccessibilityService created")
     }
 
@@ -86,15 +106,24 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 policyStorage = it
             }
 
-            // ── System UI & our own package: ignore — transient transition artifacts
-            if (packageName.startsWith("com.android.systemui") ||
-                packageName == "com.mobile_controller") {
+            // ── Our own package: immediately dismiss any active overlay and return
+            if (packageName == "com.mobile_controller") {
+                if (blockOverlay != null) {
+                    dismissBlockOverlay()
+                }
                 return
             }
 
-            // ── Emergency unblock always wins ──────────────────────────────
-            if (storage.getEmergency()) {
-                dismissBlockOverlay()
+            // ── System UI: ignore transient transition artifacts
+            if (packageName.startsWith("com.android.systemui")) {
+                return
+            }
+
+            // ── Emergency unblock, inactive/paused policy, or outside schedule: ALWAYS dismiss and never block!
+            if (storage.getEmergency() || !storage.isPolicyActive() || !shouldEnforceNow()) {
+                if (blockOverlay != null) {
+                    dismissBlockOverlay()
+                }
                 return
             }
 
@@ -597,6 +626,11 @@ class RestrictionAccessibilityService : AccessibilityService() {
     }
 
     private fun goHome() {
+        val storage = policyStorage ?: PolicyStorage(applicationContext).also { policyStorage = it }
+        if (storage.getEmergency() || !storage.isPolicyActive() || !shouldEnforceNow()) {
+            Log.i("RestrictionService", "goHome suppressed: policy inactive, paused, or emergency active")
+            return
+        }
         try {
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
@@ -728,6 +762,9 @@ class RestrictionAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        try {
+            unregisterReceiver(dismissOverlayReceiver)
+        } catch (e: Exception) { /* ignore */ }
         stopPeriodicEval()
         lastBlockedAt.clear()
         dismissBlockOverlay()

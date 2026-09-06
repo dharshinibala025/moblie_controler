@@ -247,12 +247,17 @@ const getStudentPolicy = async ({ student, device = null, now }) => {
   let status;
   let restrictionReason;
 
-  if (device && device.status === "blocked") {
-    status = "active";
-    restrictionReason = "Device blocked manually by administrator";
-  } else if (emergencyActive) {
+  const isPaused = hasAnyRule && activeRules.length === 0 && rules.some((r) => r.status === "paused");
+
+  if (emergencyActive) {
     status = "inactive";
     restrictionReason = "Emergency unblock active (restrictions temporarily lifted)";
+  } else if (isPaused) {
+    status = "inactive";
+    restrictionReason = "Class restrictions paused by staff/administrator";
+  } else if (device && device.status === "blocked") {
+    status = "active";
+    restrictionReason = "Device blocked manually by administrator";
   } else if (scheduleActive) {
     status = "active";
     restrictionReason = hasAnyRule

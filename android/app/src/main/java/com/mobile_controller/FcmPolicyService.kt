@@ -52,6 +52,7 @@ class FcmPolicyService : FirebaseMessagingService() {
                         status = "paused",
                         emergency = false  // Explicitly NOT emergency
                     )
+                    sendDismissBroadcast()
                 }
                 "stop" -> {
                     // Emergency unblock sends "stop" with emergency: "active"
@@ -73,14 +74,25 @@ class FcmPolicyService : FirebaseMessagingService() {
                             emergency = false
                         )
                     }
+                    sendDismissBroadcast()
                 }
                 else -> {
                     policyStorage.clearPolicy()
+                    sendDismissBroadcast()
                 }
             }
         } catch (e: Exception) {
             // A failed push must never crash the app.
         }
+    }
+
+    private fun sendDismissBroadcast() {
+        try {
+            val dismissIntent = android.content.Intent("com.mobile_controller.ACTION_DISMISS_BLOCK_OVERLAY").apply {
+                setPackage(applicationContext.packageName)
+            }
+            applicationContext.sendBroadcast(dismissIntent)
+        } catch (e: Exception) { /* ignore */ }
     }
 
     override fun onNewToken(token: String) {
