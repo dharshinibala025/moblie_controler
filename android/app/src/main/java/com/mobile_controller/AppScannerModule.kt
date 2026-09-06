@@ -336,6 +336,16 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                 emergency
             )
 
+            // If paused, emergency, or no blocked apps: broadcast immediate dismissal of block overlay
+            if (!policyActive || emergency || blockedList.isEmpty()) {
+                try {
+                    val dismissIntent = Intent("com.mobile_controller.ACTION_DISMISS_BLOCK_OVERLAY").apply {
+                        setPackage(reactContext.packageName)
+                    }
+                    reactContext.sendBroadcast(dismissIntent)
+                } catch (e: Exception) { /* ignore */ }
+            }
+
             // 2. Call Enterprise EMM Device Policy Manager (sets package suspension if app is Device Owner)
             val mdmPolicyManager = MdmPolicyManager(reactContext)
             val mdmEnforced = mdmPolicyManager.applyAppRestrictions(blockedList, policyActive)
@@ -370,6 +380,16 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                 false
             )
             policyStorage.setPaused(isPaused)
+
+            if (isPaused || blockedList.isEmpty()) {
+                try {
+                    val dismissIntent = Intent("com.mobile_controller.ACTION_DISMISS_BLOCK_OVERLAY").apply {
+                        setPackage(reactContext.packageName)
+                    }
+                    reactContext.sendBroadcast(dismissIntent)
+                } catch (e: Exception) { /* ignore */ }
+            }
+
             val result = Arguments.createMap()
             result.putBoolean("success", true)
             promise.resolve(result)
@@ -384,6 +404,13 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
             val policyStorage = PolicyStorage(reactContext)
             val blockedBeforeClear = policyStorage.getBlockedApps().toList()
             policyStorage.clearPolicy()
+
+            try {
+                val dismissIntent = Intent("com.mobile_controller.ACTION_DISMISS_BLOCK_OVERLAY").apply {
+                    setPackage(reactContext.packageName)
+                }
+                reactContext.sendBroadcast(dismissIntent)
+            } catch (e: Exception) { /* ignore */ }
 
             val mdmPolicyManager = MdmPolicyManager(reactContext)
             mdmPolicyManager.clearAppRestrictions(blockedBeforeClear)

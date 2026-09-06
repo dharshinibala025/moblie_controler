@@ -1670,23 +1670,47 @@ router.post("/emergency-unblock-all", async (req, res, next) => {
       );
     }
 
-    // Broadcast socket event per class so apps unblock in real-time
+    // Broadcast socket event per class and globally so apps unblock in real-time
     for (const cid of classIds) {
       emitToClass(cid, "rule:update", {
         action: "stop",
         status: "paused",
         blockedPackages: [],
-        emergency: true,
+        emergency: "active",
+        emergencyBool: true,
         timestamp: new Date().toISOString(),
       });
     }
-    // Also hit the ALL channel for any stragglers
+    // Also hit the ALL channel for any listeners
+    emitToClass("ALL", "rule:update", {
+      action: "stop",
+      status: "paused",
+      blockedPackages: [],
+      emergency: "active",
+      emergencyBool: true,
+      timestamp: new Date().toISOString(),
+    });
     emitToClass("ALL", "emergency:unblock_all", { timestamp: new Date() });
 
     // High-priority FCM push to all devices so backgrounded/locked phones unblock immediately!
     try {
-      const ruleService = require("../services/ruleService");
-      await ruleService.batchRuleCommand({ classIds: ["ALL"], action: "pause", actorId: req.user.userId });
+      const activeDevices = await Device.find({ fcmToken: { $ne: null } }).select("fcmToken").lean();
+      const tokens = [...new Set(activeDevices.map((d) => d.fcmToken).filter(Boolean))];
+      if (tokens.length > 0) {
+        const emergencyPayload = {
+          action: "stop",
+          status: "inactive",
+          emergency: "active",
+          blockedPackages: "[]",
+          scheduleStart: "09:00",
+          scheduleEnd: "16:00",
+          activeDays: JSON.stringify(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]),
+          reason: "Emergency unblock executed by administrator",
+          policyVersion: "1",
+          serverTimestamp: new Date().toISOString(),
+        };
+        await fcmService.sendToMultipleDevices(tokens, emergencyPayload);
+      }
     } catch (fcmErr) {
       console.error("FCM emergency unblock dispatch warning:", fcmErr);
     }

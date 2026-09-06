@@ -8,6 +8,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  NativeModules,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -369,15 +370,31 @@ const DevicesScreen = () => {
   };
 
   const handlePauseRestriction = async () => {
-    const targetClassIds = computeTargetClassIds();
+    let targetClassIds = computeTargetClassIds();
+    if (draftYear === 'All' && draftSection === 'All') {
+      targetClassIds = ['ALL', ...targetClassIds];
+    }
     // Optimistic UI: instantly show paused
     setRestrictionStatus('PAUSED');
     setActionLoading(true);
     setPendingAction('pause');
     try {
+      if (NativeModules.AppScanner && NativeModules.AppScanner.savePolicy) {
+        NativeModules.AppScanner.savePolicy(
+          'local',
+          [],
+          '09:00',
+          '16:00',
+          ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+          'Paused by Administrator',
+          1,
+          'paused',
+          false,
+        ).catch(() => null);
+      }
       await adminService.pauseRestriction(targetClassIds);
       await Promise.all([loadRules(), loadDevices()]);
-      showRestrictionModal('success', 'Restriction Paused', `All blocked apps temporarily unblocked for ${targetClassIds.length} class(es).`);
+      showRestrictionModal('success', 'Restriction Paused', 'All blocked apps temporarily unblocked. Devices can access apps.');
     } catch (err) {
       setRestrictionStatus('ACTIVE');
       showRestrictionModal('error', 'Pause Failed', 'Failed to pause restriction: ' + err.message);
@@ -388,7 +405,10 @@ const DevicesScreen = () => {
   };
 
   const handleResumeRestriction = async () => {
-    const targetClassIds = computeTargetClassIds();
+    let targetClassIds = computeTargetClassIds();
+    if (draftYear === 'All' && draftSection === 'All') {
+      targetClassIds = ['ALL', ...targetClassIds];
+    }
     // Optimistic UI: instantly show active
     setRestrictionStatus('ACTIVE');
     setActionLoading(true);
@@ -396,7 +416,7 @@ const DevicesScreen = () => {
     try {
       await adminService.resumeRestriction(targetClassIds);
       await Promise.all([loadRules(), loadDevices()]);
-      showRestrictionModal('success', 'Restriction Resumed', `Mobile restriction is now active for ${targetClassIds.length} class(es). Apps are blocked.`);
+      showRestrictionModal('success', 'Restriction Resumed', 'Mobile restriction is now active. Restricted apps are blocked.');
     } catch (err) {
       setRestrictionStatus('PAUSED');
       showRestrictionModal('error', 'Resume Failed', 'Failed to resume restriction: ' + err.message);
@@ -416,13 +436,22 @@ const DevicesScreen = () => {
           text: 'Emergency Unblock All',
           style: 'destructive',
           onPress: async () => {
+            setActionLoading(true);
+            setPendingAction('emergency');
             try {
+              if (NativeModules.AppScanner && NativeModules.AppScanner.clearPolicy) {
+                await NativeModules.AppScanner.clearPolicy().catch(() => null);
+              }
               await adminService.emergencyUnblockAll();
               setRestrictionStatus('IDLE');
               setDevices((prev) => prev.map((d) => ({ ...d, isBlocked: false })));
+              await Promise.all([loadRules(), loadDevices()]);
               showRestrictionModal('success', 'Emergency Unblock Executed', 'All mobile restrictions lifted immediately across ALL student devices.');
             } catch (err) {
               showRestrictionModal('error', 'Emergency Unblock Failed', err.message || 'Failed to execute emergency unblock. Please try again.');
+            } finally {
+              setActionLoading(false);
+              setPendingAction(null);
             }
           },
         },

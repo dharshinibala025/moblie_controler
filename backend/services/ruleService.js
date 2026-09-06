@@ -225,16 +225,20 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
   const newStatus = action === "pause" ? "paused" : "active";
   const deviceStatus = action === "pause" ? "active" : "blocked";
 
+  const isAll = !classIds || classIds.length === 0 || classIds.includes("ALL");
   const query = { status: fromStatus };
-  if (classIds && classIds.length > 0) {
-    query.targetClassId = { $in: classIds };
+  if (!isAll) {
+    query.$or = [
+      { targetClassId: { $in: classIds } },
+      { "targetScope.targetId": { $in: classIds } },
+    ];
   }
 
   const affectedRules = await Rule.find(query)
     .select("_id targetClassId reason blockedApps scheduleStart scheduleEnd activeDays policyVersion")
     .lean();
 
-  const affectedClassIds = [...new Set(affectedRules.map((r) => r.targetClassId).filter(Boolean))];
+  let affectedClassIds = [...new Set(affectedRules.map((r) => r.targetClassId).filter(Boolean))];
 
   // Group rules by class so we can send each class a complete, accurate
   // blocked-package list (manual-start: start immediately from apply).
@@ -264,7 +268,17 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
 
   const targetStudentIds = [];
   const studentClassMap = new Map();
-  if (affectedClassIds.length > 0) {
+
+  if (isAll) {
+    const allStudents = await User.find({ role: "student", status: "active" }).select("_id classId").lean();
+    for (const s of allStudents) {
+      targetStudentIds.push(s._id);
+      studentClassMap.set(s._id.toString(), s.classId || "ALL");
+    }
+    if (affectedClassIds.length === 0) {
+      affectedClassIds = [...new Set(allStudents.map((s) => s.classId).filter(Boolean))];
+    }
+  } else if (affectedClassIds.length > 0) {
     const mongoose = require("mongoose");
     const studentOrConditions = affectedClassIds.map((cid) => {
       if (!cid || cid === "ALL" || String(cid).toLowerCase().includes("all")) {
@@ -400,6 +414,21 @@ const resolveActorLabel = async (actorId) => {
     });
     emitToClass("ALL", "policy:updated", { classId: cid, action, status: newStatus, ...pData });
     emitToClass("ALL", "device:statusChanged", { classId: cid, action, status: newStatus });
+  }
+
+  if (isAll) {
+    const pDataAll = buildPolicyData(
+      action,
+      newStatus,
+      action === "start" ? autoBlockService.resolvePackagesFromRules(affectedRules) : [],
+      affectedRules[0] || null,
+      serverTimestamp
+    );
+    emitToClass("ALL", "rule:update", {
+      action,
+      status: newStatus,
+      ...pDataAll,
+    });
   }
 
   logger.info(`Batch [${action}] applied to ${affectedRules.length} rules across ${affectedClassIds.length} classes.`);

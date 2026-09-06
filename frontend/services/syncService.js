@@ -349,7 +349,7 @@ class SyncService {
           } = data;
 
           // Emergency unblock takes priority - clear policy completely
-          if (emergency === 'active') {
+          if (emergency === 'active' || emergency === true || data.emergencyBool === true) {
             console.log('FocusSync: Emergency unblock received via rule:update');
             if (AppScannerModule && AppScannerModule.clearPolicy) {
               await AppScannerModule.clearPolicy().catch(() => null);
