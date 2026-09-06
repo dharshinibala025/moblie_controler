@@ -259,6 +259,19 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
         : [];
   }
 
+  if (action === "start" && affectedRules.length > 0) {
+    const istNow = require("../utils/istTime").getISTDate(new Date());
+    const currentMinutes = istNow.getHours() * 60 + istNow.getMinutes();
+    for (const r of affectedRules) {
+      const [eh, em] = (r.scheduleEnd || "16:00").split(":").map(Number);
+      const endMinutes = (eh || 0) * 60 + (em || 0);
+      if (currentMinutes >= endMinutes) {
+        r.scheduleEnd = "22:00";
+        await Rule.updateOne({ _id: r._id }, { $set: { scheduleEnd: "22:00" } });
+      }
+    }
+  }
+
   if (affectedRules.length > 0) {
     await Rule.updateMany(
       { _id: { $in: affectedRules.map((r) => r._id) } },
@@ -446,6 +459,15 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
   if (action === "start") {
     const { setEmergencyUnblock } = require("../utils/emergencyHelper");
     setEmergencyUnblock(false);
+
+    const istNow = require("../utils/istTime").getISTDate(new Date());
+    const currentMinutes = istNow.getHours() * 60 + istNow.getMinutes();
+    const [eh, em] = (rule.scheduleEnd || "16:00").split(":").map(Number);
+    const endMinutes = (eh || 0) * 60 + (em || 0);
+    if (currentMinutes >= endMinutes) {
+      rule.scheduleEnd = "22:00";
+      await Rule.updateOne({ _id: rule._id }, { $set: { scheduleEnd: "22:00" } });
+    }
   }
 
   // Resolve scope target

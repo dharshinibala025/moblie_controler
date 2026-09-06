@@ -53,6 +53,11 @@ const parseTo24Hour = (timeStr) => {
   return `${hours.toString().padStart(2, '0')}:${match[2]}`;
 };
 
+const getDefaultEndTime = () => {
+  const currentHour = new Date().getHours();
+  return currentHour >= 16 ? '10:00 PM' : '04:00 PM';
+};
+
 const DevicesScreen = () => {
   const [devices, setDevices] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,7 +70,7 @@ const DevicesScreen = () => {
 
   // Schedule
   const [startTime, setStartTime] = useState('09:00 AM');
-  const [endTime, setEndTime] = useState('04:00 PM');
+  const [endTime, setEndTime] = useState(getDefaultEndTime());
   const [restrictionStatus, setRestrictionStatus] = useState('IDLE');
   const [actionLoading, setActionLoading] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
