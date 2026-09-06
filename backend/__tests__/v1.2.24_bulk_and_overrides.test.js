@@ -1,3 +1,6 @@
+process.env.JWT_SECRET = "test-secret-for-jest";
+process.env.NODE_ENV = "test";
+
 const request = require("supertest");
 const mongoose = require("mongoose");
 const { connect, closeDatabase } = require("./setup");

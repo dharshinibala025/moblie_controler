@@ -360,7 +360,7 @@ class SyncService {
               status: 'inactive',
               scheduleStart: scheduleStart || '09:00',
               scheduleEnd: scheduleEnd || '16:00',
-              activeDays: normalizeDays(activeDays) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+              activeDays: normalizeDays(activeDays) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
               scheduleActive: false,
               source: 'realtime',
               emergency: true,
@@ -383,6 +383,7 @@ class SyncService {
                 'Thu',
                 'Fri',
                 'Sat',
+                'Sun',
               ];
               await AppScannerModule.savePolicy(
                 (policyVersion || 0).toString(),
@@ -520,6 +521,7 @@ class SyncService {
                 'Thu',
                 'Fri',
                 'Sat',
+                'Sun',
               ];
               await AppScannerModule.savePolicy(
                 (policyVersion || 1).toString(),
@@ -589,7 +591,7 @@ class SyncService {
             status: 'inactive',
             scheduleStart: '09:00',
             scheduleEnd: '16:00',
-            activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+            activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
             scheduleActive: false,
             source: 'realtime',
             emergency: true,

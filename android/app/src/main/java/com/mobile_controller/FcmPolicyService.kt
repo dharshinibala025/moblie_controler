@@ -128,6 +128,6 @@ class FcmPolicyService : FirebaseMessagingService() {
     }
 
     companion object {
-        private val DEFAULT_ACTIVE_DAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+        private val DEFAULT_ACTIVE_DAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     }
 }

@@ -451,7 +451,8 @@ router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, ne
 // POST: Resume restriction for a class (re-block apps for that class)
 router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, next) => {
   try {
-    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
     setClassEmergencyUnblock(req.params.id, false);
 
     const result = await ruleService.batchRuleCommand({ classIds: [req.params.id], action: "start", actorId: req.user.userId });

@@ -129,7 +129,7 @@ exports.sendCommand = async (ruleId, action, actorId, institutionId, options = {
 
 const BATCH_SIZE = 5;
 
-const DEFAULT_ACTIVE_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DEFAULT_ACTIVE_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // Resolve the acting user's label for student notifications. Unknown/string
 // actors (e.g. the schedule engine) fall back to "System".
@@ -224,6 +224,11 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
   }
   const newStatus = action === "pause" ? "paused" : "active";
   const deviceStatus = action === "pause" ? "active" : "blocked";
+
+  if (action === "start") {
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+  }
 
   const isAll = !classIds || classIds.length === 0 || classIds.includes("ALL");
   const query = { status: fromStatus };
@@ -437,6 +442,11 @@ const resolveActorLabel = async (actorId) => {
 
 async function dispatchRule(rule, action, { actorId = null, transition = action, notify = true } = {}) {
   const serverTimestamp = new Date();
+
+  if (action === "start") {
+    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+  }
 
   // Resolve scope target
   const scopeType = rule.targetScope?.type || "class";

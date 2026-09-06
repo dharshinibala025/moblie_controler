@@ -50,7 +50,7 @@ class PolicySyncWorker(appContext: Context, workerParams: WorkerParameters) :
                     blockedApps = blocked,
                     scheduleStart = policy.optString("scheduleStart", "09:00"),
                     scheduleEnd = policy.optString("scheduleEnd", "16:00"),
-                    activeDays = if (days.isEmpty()) listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat") else days,
+                    activeDays = if (days.isEmpty()) listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun") else days,
                     reason = policy.optString("restrictionReason", ""),
                     version = policy.optInt("policyVersion", 1),
                     status = policy.optString("status", "inactive"),

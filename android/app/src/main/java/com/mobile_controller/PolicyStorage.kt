@@ -127,7 +127,7 @@ class PolicyStorage(context: Context) {
     fun getEmergency(): Boolean = prefs.getBoolean("emergency", false)
 
     fun getActiveDays(): Set<String> {
-        val raw = prefs.getString("active_days", "[\"Mon\",\"Tue\",\"Wed\",\"Thu\",\"Fri\",\"Sat\"]") ?: "[]"
+        val raw = prefs.getString("active_days", "[\"Mon\",\"Tue\",\"Wed\",\"Thu\",\"Fri\",\"Sat\",\"Sun\"]") ?: "[]"
         val set = mutableSetOf<String>()
         try {
             val jsonArray = JSONArray(raw)
@@ -138,7 +138,7 @@ class PolicyStorage(context: Context) {
             e.printStackTrace()
         }
         if (set.isEmpty()) {
-            set.addAll(listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat"))
+            set.addAll(listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
         }
         return set
     }

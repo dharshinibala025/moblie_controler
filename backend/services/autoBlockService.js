@@ -9,7 +9,7 @@ const logger = require("../utils/logger");
 const DEFAULT_WINDOW = {
   scheduleStart: "09:00",
   scheduleEnd: "16:00",
-  activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
 };
 
 const SOCIAL_MEDIA_PACKAGES = [

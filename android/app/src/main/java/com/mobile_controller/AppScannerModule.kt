@@ -373,7 +373,7 @@ class AppScannerModule(private val reactContext: ReactApplicationContext) :
                 blockedList,
                 "09:00",
                 "16:00",
-                listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat"),
+                listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
                 "MDM Restriction",
                 1,
                 if (isPaused) "paused" else "active",

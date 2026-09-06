@@ -776,7 +776,8 @@ router.post("/override/resume", async (req, res, next) => {
   try {
     const mongoose = require("mongoose");
     const { targetClassIds = [], classId } = req.body;
-    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
     let scopeClassIds = classId ? [classId] : targetClassIds;
     if (!scopeClassIds || scopeClassIds.length === 0) {
       scopeClassIds = ["ALL"];
