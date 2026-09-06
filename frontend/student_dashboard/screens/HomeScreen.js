@@ -267,6 +267,41 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
 
     loadEnforcementState();
 
+    const updateState = () => {
+      const now = new Date();
+      setCurrentTime(now);
+
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+      const currentSec = hours * 3600 + minutes * 60 + seconds;
+
+      const [startH, startM] = scheduleStartRef.current.split(':').map(Number);
+      const [endH, endM] = scheduleEndRef.current.split(':').map(Number);
+      const startSec = startH * 3600 + startM * 60;
+      const endSec = endH * 3600 + endM * 60;
+      const totalDuration = endSec > startSec ? endSec - startSec : 25200;
+
+      const dayName = DAYS[now.getDay()];
+      const dayOk =
+        activeDaysRef.current.length === 0 || activeDaysRef.current.includes(dayName);
+      const isPolicyActive = policyActiveRef.current || (data && (data.restrictionStatus === 'ACTIVE' || data.restrictionStatus === 'active'));
+      const shouldEnforce = isPolicyActive && dayOk && (endSec > startSec ? currentSec >= startSec && currentSec < endSec : true);
+
+      if (shouldEnforce) {
+        const remaining = Math.max(0, endSec - currentSec);
+        const totalDur = totalDuration > 0 ? totalDuration : 25200;
+        const prog = remaining / totalDur;
+        setStatusMode('ACTIVE');
+        setRemainingSeconds(remaining > 0 ? remaining : 3600);
+        setProgress(Math.min(1, Math.max(0, prog)));
+      } else {
+        setStatusMode('LIFTED');
+        setRemainingSeconds(0);
+        setProgress(1.0);
+      }
+    };
+
     // Listen for real-time policy changes so the clock updates immediately
     // when staff/admin applies, pauses, or stops a restriction.
     let lastPolicyEventTime = 0;
@@ -315,37 +350,6 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       duration: 400,
       useNativeDriver: true,
     }).start();
-
-    const updateState = () => {
-      const now = new Date();
-      setCurrentTime(now);
-
-      const hours = now.getHours();
-      const minutes = now.getMinutes();
-      const seconds = now.getSeconds();
-      const currentSec = hours * 3600 + minutes * 60 + seconds;
-
-      const [startH, startM] = scheduleStartRef.current.split(':').map(Number);
-      const [endH, endM] = scheduleEndRef.current.split(':').map(Number);
-      const dayName = DAYS[now.getDay()];
-      const dayOk =
-        activeDaysRef.current.length === 0 || activeDaysRef.current.includes(dayName);
-      const isPolicyActive = policyActiveRef.current || (data && (data.restrictionStatus === 'ACTIVE' || data.restrictionStatus === 'active'));
-      const shouldEnforce = isPolicyActive && dayOk && (endSec > startSec ? currentSec < endSec : true);
-
-      if (shouldEnforce) {
-        const remaining = Math.max(0, endSec - currentSec);
-        const totalDur = totalDuration > 0 ? totalDuration : 25200;
-        const prog = remaining / totalDur;
-        setStatusMode('ACTIVE');
-        setRemainingSeconds(remaining > 0 ? remaining : 3600);
-        setProgress(Math.min(1, Math.max(0, prog)));
-      } else {
-        setStatusMode('LIFTED');
-        setRemainingSeconds(0);
-        setProgress(1.0);
-      }
-    };
 
     updateState();
     const interval = setInterval(updateState, 5000);

@@ -38,6 +38,20 @@ const formatTo12Hour = (timeStr) => {
   return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
 };
 
+const TIME_REGEX = /^\d{1,2}:\d{2}\s*(AM|PM)$/i;
+
+const parseTo24Hour = (timeStr) => {
+  if (!timeStr) return null;
+  const clean = timeStr.trim().toUpperCase();
+  const match = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (!match) return null;
+  let hours = parseInt(match[1], 10);
+  if (hours < 1 || hours > 12) return null;
+  if (match[3] === 'PM' && hours < 12) hours += 12;
+  if (match[3] === 'AM' && hours === 12) hours = 0;
+  return `${hours.toString().padStart(2, '0')}:${match[2]}`;
+};
+
 const DevicesScreen = () => {
   const [devices, setDevices] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,6 +67,7 @@ const DevicesScreen = () => {
   const [endTime, setEndTime] = useState('04:00 PM');
   const [restrictionStatus, setRestrictionStatus] = useState('IDLE');
   const [actionLoading, setActionLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalConfig, setModalConfig] = useState({ type: 'success', title: '', message: '' });
 
@@ -272,36 +287,46 @@ const DevicesScreen = () => {
     }
   };
 
-  const handleApplyRestriction = async () => {
-    const formatTimeForBackend = (timeStr) => {
-      const parts = timeStr.split(' ');
-      if (parts.length < 2) return timeStr;
-      const timeVal = parts[0];
-      const modifier = parts[1];
-      let [hours, minutes] = timeVal.split(':');
-      if (hours === '12') hours = '00';
-      if (modifier === 'PM') hours = String(parseInt(hours, 10) + 12);
-      return `${hours.padStart(2, '0')}:${minutes}`;
-    };
-
-    // Build list of target class IDs based on filter
+  // Compute target class IDs based on current filter selection
+  const computeTargetClassIds = useCallback(() => {
     const yearChars = draftYear === 'All' ? ['1', '2', '3', '4'] : [draftYear.charAt(0)];
     const sections = draftSection === 'All'
-      ? getSectionOptions(null).filter(s => s !== 'All')
+      ? getSectionOptions(null).filter((s) => s !== 'All')
       : [draftSection];
-    const targetClassIds = [];
-    yearChars.forEach(yc => {
-      sections.forEach(sec => {
-        targetClassIds.push(`${selectedDept}-${yc}-${sec}`);
+    const ids = [];
+    yearChars.forEach((yc) => {
+      sections.forEach((sec) => {
+        ids.push(`${selectedDept}-${yc}-${sec}`);
       });
     });
+    return ids;
+  }, [selectedDept, draftYear, draftSection]);
+
+  const handleApplyRestriction = async () => {
+    if (!TIME_REGEX.test(startTime.trim())) {
+      Alert.alert('Invalid Start Time', 'Please enter time in format like "09:00 AM" or "02:30 PM".');
+      return;
+    }
+    if (!TIME_REGEX.test(endTime.trim())) {
+      Alert.alert('Invalid End Time', 'Please enter time in format like "04:00 PM" or "10:30 PM".');
+      return;
+    }
+    const parsedStart = parseTo24Hour(startTime);
+    const parsedEnd = parseTo24Hour(endTime);
+    if (!parsedStart || !parsedEnd) {
+      Alert.alert('Invalid Time', 'Please use valid 12-hour format (e.g. "09:00 AM").');
+      return;
+    }
+
+    const targetClassIds = computeTargetClassIds();
 
     setActionLoading(true);
+    setPendingAction('apply');
     try {
       const policyData = {
         blockedApps: ['com.instagram.android', 'com.whatsapp', 'com.google.android.youtube', 'com.facebook.katana', 'SocialMedia'],
-        scheduleStart: formatTimeForBackend(startTime),
-        scheduleEnd: formatTimeForBackend(endTime),
+        scheduleStart: parsedStart,
+        scheduleEnd: parsedEnd,
         activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         targetClassIds,
         status: 'active',
@@ -339,34 +364,16 @@ const DevicesScreen = () => {
       showRestrictionModal('error', 'Apply Failed', err.message || 'Failed to apply restriction policy. Please try again.');
     } finally {
       setActionLoading(false);
+      setPendingAction(null);
     }
   };
-
-  // Compute target class IDs based on current filter selection
-  const computeTargetClassIds = useCallback(() => {
-    // When both year and section are 'All', use 'ALL' to match the DB record
-    // created by handleApplyRestriction (which also uses 'ALL' for all-classes)
-    if (draftYear === 'All' && draftSection === 'All') {
-      return ['ALL'];
-    }
-    const yearChars = draftYear === 'All' ? ['1', '2', '3', '4'] : [draftYear.charAt(0)];
-    const sections = draftSection === 'All'
-      ? getSectionOptions(null).filter((s) => s !== 'All')
-      : [draftSection];
-    const ids = [];
-    yearChars.forEach((yc) => {
-      sections.forEach((sec) => {
-        ids.push(`${selectedDept}-${yc}-${sec}`);
-      });
-    });
-    return ids;
-  }, [selectedDept, draftYear, draftSection]);
 
   const handlePauseRestriction = async () => {
     const targetClassIds = computeTargetClassIds();
     // Optimistic UI: instantly show paused
     setRestrictionStatus('PAUSED');
     setActionLoading(true);
+    setPendingAction('pause');
     try {
       await adminService.pauseRestriction(targetClassIds);
       await Promise.all([loadRules(), loadDevices()]);
@@ -376,6 +383,7 @@ const DevicesScreen = () => {
       showRestrictionModal('error', 'Pause Failed', 'Failed to pause restriction: ' + err.message);
     } finally {
       setActionLoading(false);
+      setPendingAction(null);
     }
   };
 
@@ -384,6 +392,7 @@ const DevicesScreen = () => {
     // Optimistic UI: instantly show active
     setRestrictionStatus('ACTIVE');
     setActionLoading(true);
+    setPendingAction('resume');
     try {
       await adminService.resumeRestriction(targetClassIds);
       await Promise.all([loadRules(), loadDevices()]);
@@ -393,6 +402,7 @@ const DevicesScreen = () => {
       showRestrictionModal('error', 'Resume Failed', 'Failed to resume restriction: ' + err.message);
     } finally {
       setActionLoading(false);
+      setPendingAction(null);
     }
   };
 
@@ -506,35 +516,6 @@ const DevicesScreen = () => {
 
           <View style={styles.divider} />
 
-          {/* Restriction Status Indicator */}
-          <View style={styles.statusIndicatorRow}>
-            <View style={[
-              styles.statusBadge,
-              restrictionStatus === 'ACTIVE' && styles.statusActive,
-              restrictionStatus === 'PAUSED' && styles.statusPaused,
-              restrictionStatus === 'IDLE' && styles.statusIdle,
-            ]}>
-              <View style={[
-                styles.statusDot,
-                restrictionStatus === 'ACTIVE' && styles.dotActive,
-                restrictionStatus === 'PAUSED' && styles.dotPaused,
-                restrictionStatus === 'IDLE' && styles.dotIdle,
-              ]} />
-              <Text style={[
-                styles.statusBadgeText,
-                restrictionStatus === 'ACTIVE' && styles.textActive,
-                restrictionStatus === 'PAUSED' && styles.textPaused,
-                restrictionStatus === 'IDLE' && styles.textIdle,
-              ]}>
-                {restrictionStatus === 'ACTIVE' && '🔴 ACTIVE - Apps Blocked'}
-                {restrictionStatus === 'PAUSED' && '🟡 PAUSED - Apps Unblocked'}
-                {restrictionStatus === 'IDLE' && '⚪ IDLE - No Restriction'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
           <View style={styles.controlsGroup}>
             <TouchableOpacity
               style={[styles.applyBtn, actionLoading && styles.applyBtnDisabled]}
@@ -542,13 +523,13 @@ const DevicesScreen = () => {
               disabled={actionLoading}
               activeOpacity={0.8}
             >
-              {actionLoading ? (
+              {actionLoading && pendingAction === 'apply' ? (
                 <ActivityIndicator size="small" color={colors.white} />
               ) : (
                 <Icon name="access-time" size={18} color={colors.white} />
               )}
               <Text style={styles.applyBtnText}>
-                {actionLoading ? 'Applying…' : 'Set Restriction Timing'}
+                {actionLoading && pendingAction === 'apply' ? 'Applying…' : 'Set Restriction Timing'}
               </Text>
             </TouchableOpacity>
 
@@ -563,7 +544,7 @@ const DevicesScreen = () => {
                 disabled={actionLoading || restrictionStatus === 'IDLE'}
                 activeOpacity={0.8}
               >
-                {actionLoading && restrictionStatus === 'ACTIVE' ? (
+                {actionLoading && pendingAction === 'pause' ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Icon
@@ -590,7 +571,7 @@ const DevicesScreen = () => {
                 disabled={actionLoading || restrictionStatus === 'IDLE'}
                 activeOpacity={0.8}
               >
-                {actionLoading && restrictionStatus === 'PAUSED' ? (
+                {actionLoading && pendingAction === 'resume' ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Icon

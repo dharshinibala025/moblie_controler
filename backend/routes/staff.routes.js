@@ -217,6 +217,78 @@ router.post("/classes/:id/rules/:ruleId/command", verifyClassScope, async (req, 
   }
 });
 
+// POST: Staff Class Emergency Overrides (Pause / Resume for the assigned class)
+router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, next) => {
+  try {
+    const classId = req.params.id;
+    const actorId = req.user.userId || req.user.id || req.user._id;
+
+    const result = await ruleService.batchRuleCommand({
+      classIds: [classId],
+      action: "pause",
+      actorId,
+    });
+
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    setClassEmergencyUnblock(classId, false);
+
+    await auditService.logAction(
+      actorId,
+      req.user.role || "staff",
+      "rule.pause",
+      { type: "rule", id: classId },
+      { classId, affectedRules: result.affectedRules },
+      req.user.institutionId
+    );
+
+    res.json({
+      success: true,
+      override: "paused",
+      classId,
+      affectedRules: result.affectedRules,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, next) => {
+  try {
+    const classId = req.params.id;
+    const actorId = req.user.userId || req.user.id || req.user._id;
+
+    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    setEmergencyUnblock(false);
+    setClassEmergencyUnblock(classId, false);
+
+    const result = await ruleService.batchRuleCommand({
+      classIds: [classId],
+      action: "start",
+      actorId,
+    });
+
+    await auditService.logAction(
+      actorId,
+      req.user.role || "staff",
+      "rule.start",
+      { type: "rule", id: classId },
+      { classId, affectedRules: result.affectedRules },
+      req.user.institutionId
+    );
+
+    res.json({
+      success: true,
+      override: "resumed",
+      classId,
+      affectedRules: result.affectedRules,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST: Staff changes their own password
 router.post("/change-password", async (req, res, next) => {
   try {

@@ -30,7 +30,7 @@ const schemas = {
   }),
 
   registerDevice: Joi.object({
-    fcmToken: Joi.string().required(),
+    fcmToken: Joi.string().allow(null, "").optional(),
     deviceInfo: Joi.object({
       platform: Joi.string().valid("android", "ios").default("android"),
       osVersion: Joi.string().allow(null, "").default(""),

@@ -55,6 +55,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
   const [activeRule, setActiveRule] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
   const [liveStudents, setLiveStudents] = useState([]);
 
   const classIdToQuery = staffInfo?.classRoomId || staffInfo?.classId || staffInfo?.assignedClass || `${staffInfo?.department || 'CSE'}-3-A`;
@@ -141,9 +142,10 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
     }
 
     setActionLoading(true);
+    setPendingAction('apply');
     try {
       const payload = {
-        blockedApps: activeRule?.blockedApps || ['SocialMedia'],
+        blockedApps: activeRule?.blockedApps?.length ? activeRule.blockedApps : ['com.instagram.android', 'com.whatsapp', 'com.google.android.youtube', 'com.facebook.katana', 'SocialMedia'],
         scheduleStart: parsedStart,
         scheduleEnd: parsedEnd,
         activeDays: activeRule?.activeDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -162,7 +164,8 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
         ruleResult = await staffService.createClassRule(classIdToQuery, payload);
       }
 
-      if (ruleResult && ruleResult._id) {
+      // Only dispatch manual start if rule is not already active
+      if (ruleResult && ruleResult._id && activeRule?.status !== 'active') {
         try {
           await staffService.sendClassRuleCommand(classIdToQuery, ruleResult._id, 'start');
         } catch (cmdErr) {
@@ -177,6 +180,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       Alert.alert('Apply Failed', err.message || 'Failed to apply restriction. Please try again.');
     } finally {
       setActionLoading(false);
+      setPendingAction(null);
     }
   };
 
@@ -188,6 +192,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
     // Optimistic UI: instantly show paused
     setRestrictionStatus('PAUSED');
     setActionLoading(true);
+    setPendingAction('pause');
     try {
       await staffService.pauseClassRestriction(classIdToQuery);
       Alert.alert('Restriction Paused', 'Mobile restriction temporarily paused.');
@@ -196,6 +201,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       Alert.alert('Pause Failed', err.message || 'Failed to pause restriction.');
     } finally {
       setActionLoading(false);
+      setPendingAction(null);
     }
   };
 
@@ -207,6 +213,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
     // Optimistic UI: instantly show active
     setRestrictionStatus('ACTIVE');
     setActionLoading(true);
+    setPendingAction('resume');
     try {
       await staffService.resumeClassRestriction(classIdToQuery);
       Alert.alert('Restriction Resumed', 'Mobile restriction is active again.');
@@ -215,6 +222,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
       Alert.alert('Resume Failed', err.message || 'Failed to resume restriction.');
     } finally {
       setActionLoading(false);
+      setPendingAction(null);
     }
   };
 
@@ -233,35 +241,6 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.flatFormContainer}>
-          {/* Restriction Status Indicator */}
-          <View style={styles.statusIndicatorRow}>
-            <View style={[
-              styles.statusBadge,
-              restrictionStatus === 'ACTIVE' && styles.statusActive,
-              restrictionStatus === 'PAUSED' && styles.statusPaused,
-              restrictionStatus === 'IDLE' && styles.statusIdle,
-            ]}>
-              <View style={[
-                styles.statusDot,
-                restrictionStatus === 'ACTIVE' && styles.dotActive,
-                restrictionStatus === 'PAUSED' && styles.dotPaused,
-                restrictionStatus === 'IDLE' && styles.dotIdle,
-              ]} />
-              <Text style={[
-                styles.statusBadgeText,
-                restrictionStatus === 'ACTIVE' && styles.textActive,
-                restrictionStatus === 'PAUSED' && styles.textPaused,
-                restrictionStatus === 'IDLE' && styles.textIdle,
-              ]}>
-                {restrictionStatus === 'ACTIVE' && 'ACTIVE - Apps Blocked'}
-                {restrictionStatus === 'PAUSED' && 'PAUSED - Apps Unblocked'}
-                {restrictionStatus === 'IDLE' && 'IDLE - No Restriction'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
           <Text style={styles.labelTitle}>Target Supervision Class</Text>
           <View style={styles.targetClassRow}>
             <View style={styles.lockedField}>
@@ -331,7 +310,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                 onPress={handlePauseRestriction}
                 disabled={actionLoading}
               >
-                {actionLoading ? (
+                {actionLoading && pendingAction === 'pause' ? (
                   <ActivityIndicator size="small" color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#D97706'} />
                 ) : (
                   <VectorIcon name="pause" size={16} color={restrictionStatus === 'PAUSED' ? '#FFFFFF' : '#F59E0B'} />
@@ -343,7 +322,7 @@ export const StaffDevicesTab = ({ staffInfo: propStaffInfo, onNavigateTab }) => 
                 onPress={handleResumeRestriction}
                 disabled={actionLoading}
               >
-                {actionLoading ? (
+                {actionLoading && pendingAction === 'resume' ? (
                   <ActivityIndicator size="small" color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#16A34A'} />
                 ) : (
                   <VectorIcon name="play" size={16} color={restrictionStatus === 'ACTIVE' ? '#FFFFFF' : '#16A34A'} />

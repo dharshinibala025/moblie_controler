@@ -125,10 +125,21 @@ export const markNotificationRead = async (id) => {
   });
 };
 
+/**
+ * POST /student/notifications/mark-read
+ * Marks all notifications for the current student as read.
+ */
+export const markAllNotificationsRead = async () => {
+  return fetchWithRefresh('/student/notifications/mark-read', {
+    method: 'POST',
+  });
+};
+
 export default {
   fetchDashboard,
   fetchApps,
   fetchNotifications,
   fetchUnreadCount,
   markNotificationRead,
+  markAllNotificationsRead,
 };

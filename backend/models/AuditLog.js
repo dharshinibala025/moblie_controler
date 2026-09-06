@@ -33,6 +33,7 @@ const auditLogSchema = new mongoose.Schema(
         "rule.pause",
         "rule.start",
         "rule.stop",
+        "rule.bulk_apply",
         "emergency_unblock_all",
         "notification_broadcast",
         "admin_broadcast",

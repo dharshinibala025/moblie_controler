@@ -80,6 +80,24 @@ export const StudentDashboardScreen = ({ onLogout }) => {
 
   const handleOpenProfile = useCallback(() => handleTabChange('profile'), [handleTabChange]);
 
+  const handleNotificationRead = useCallback((notificationId) => {
+    setDashboardData((prev) => ({
+      ...prev,
+      notifications: (prev.notifications || []).filter(
+        (n) => (n._id || n.id) !== notificationId,
+      ),
+    }));
+  }, []);
+
+  const handleClearAllNotifications = useCallback(() => {
+    setDashboardData((prev) => ({
+      ...prev,
+      notifications: (prev.notifications || []).filter(
+        (n) => n.type === 'restriction',
+      ),
+    }));
+  }, []);
+
   const renderActiveScreen = useMemo(() => {
     switch (activeTab) {
       case 'home':
@@ -94,7 +112,14 @@ export const StudentDashboardScreen = ({ onLogout }) => {
       case 'apps':
         return <AppsScreen key="apps" data={dashboardData} />;
       case 'notifications':
-        return <NotificationsScreen key="notifications" data={dashboardData} />;
+        return (
+          <NotificationsScreen
+            key="notifications"
+            data={dashboardData}
+            onNotificationRead={handleNotificationRead}
+            onClearAll={handleClearAllNotifications}
+          />
+        );
       case 'profile':
         return (
           <ProfileScreen
@@ -113,10 +138,21 @@ export const StudentDashboardScreen = ({ onLogout }) => {
           />
         );
     }
-  }, [activeTab, dashboardData, onLogout, handleTabChange, handleOpenProfile]);
+  }, [
+    activeTab,
+    dashboardData,
+    onLogout,
+    handleTabChange,
+    handleOpenProfile,
+    handleNotificationRead,
+    handleClearAllNotifications,
+  ]);
 
   const unreadNotificationsCount = useMemo(
-    () => (dashboardData?.notifications || []).filter((n) => !n.read).length,
+    () =>
+      (dashboardData?.notifications || []).filter(
+        (n) => !n.read && n.type !== 'restriction',
+      ).length,
     [dashboardData?.notifications],
   );
 

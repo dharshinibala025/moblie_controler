@@ -95,3 +95,9 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# ==========================
+# Build Artifacts / APKs
+# ==========================
+*.apk
+!backend/public/download/*.apk

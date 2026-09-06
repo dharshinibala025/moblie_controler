@@ -39,6 +39,19 @@ const pruneDuplicateRestrictions = async userId => {
   }
 };
 
+const studentNotificationFilter = (userId, extra = {}) => ({
+  $or: [
+    { studentId: userId },
+    { recipientId: userId },
+    {
+      studentId: { $in: [null, undefined] },
+      recipientId: { $in: [null, undefined] },
+      recipientRole: { $in: ['student', 'all'] },
+    },
+  ],
+  ...extra,
+});
+
 const verifyDevice = async (req, res, next) => {
   try {
     const device = await deviceService.getDeviceByUser(req.user.userId);
@@ -76,7 +89,7 @@ router.post(
       // Validate student has classId assigned - required for Socket.io room join
       const User = require('../models/User');
       const student = await User.findById(req.user.userId).select(
-        'classId classRoomId',
+        'name classId classRoomId institutionId departmentId academicYearId sectionId',
       );
       if (!student || (!student.classId && !student.classRoomId)) {
         logger.warn(
@@ -96,19 +109,15 @@ router.post(
         deviceFingerprint,
       );
       const currentCommand = await dispatchService.getLatestCommand(
-        req.user.classId,
+        student.classId || student.classRoomId,
       );
 
       // Create notifications if permissions were revoked
       if ((prevAccess && !newAccess) || (prevOverlay && !newOverlay)) {
-        const User = require('../models/User');
         const Notification = require('../models/Notification');
         const StaffAssignment = require('../models/StaffAssignment');
         const { emitToClass } = require('../config/socket');
 
-        const student = await User.findById(req.user.userId).select(
-          'name classId institutionId departmentId academicYearId sectionId',
-        );
         if (student) {
           const permissionName =
             prevAccess && !newAccess ? 'Accessibility' : 'Display Over Apps';
@@ -342,15 +351,9 @@ router.get('/dashboard', async (req, res, next) => {
     }));
 
     await pruneDuplicateRestrictions(req.user.userId);
-    const unreadNotificationCount = await Notification.countDocuments({
-      $or: [
-        { studentId: req.user.userId },
-        { recipientId: req.user.userId },
-        { recipientRole: "student" },
-        { recipientRole: "all" },
-      ],
-      read: false,
-    });
+    const unreadNotificationCount = await Notification.countDocuments(
+      studentNotificationFilter(req.user.userId, { read: false, type: { $ne: 'restriction' } })
+    );
 
     const isActive = policy.scheduleActive;
     let remainingTime = 'No active restriction window';
@@ -463,14 +466,9 @@ router.get('/notifications', async (req, res, next) => {
   try {
     const Notification = require('../models/Notification');
     await pruneDuplicateRestrictions(req.user.userId);
-    const notifications = await Notification.find({
-      $or: [
-        { studentId: req.user.userId },
-        { recipientId: req.user.userId },
-        { recipientRole: 'student' },
-        { recipientRole: 'all' },
-      ],
-    })
+    const notifications = await Notification.find(
+      studentNotificationFilter(req.user.userId)
+    )
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -484,15 +482,9 @@ router.get('/notifications/unread-count', async (req, res, next) => {
   try {
     const Notification = require('../models/Notification');
     await pruneDuplicateRestrictions(req.user.userId);
-    const unreadCount = await Notification.countDocuments({
-      $or: [
-        { studentId: req.user.userId },
-        { recipientId: req.user.userId },
-        { recipientRole: 'student' },
-        { recipientRole: 'all' },
-      ],
-      read: false,
-    });
+    const unreadCount = await Notification.countDocuments(
+      studentNotificationFilter(req.user.userId, { read: false })
+    );
 
     res.json({ unreadCount });
   } catch (err) {
@@ -507,8 +499,21 @@ router.post('/notifications/:id/read', async (req, res, next) => {
     // Only the owning student can clear the notification.
     await Notification.deleteOne({
       _id: req.params.id,
-      $or: [{ studentId: req.user.userId }, { recipientId: req.user.userId }],
+      ...studentNotificationFilter(req.user.userId),
     });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/notifications/mark-read', async (req, res, next) => {
+  try {
+    const Notification = require('../models/Notification');
+    await Notification.updateMany(
+      studentNotificationFilter(req.user.userId, { read: false }),
+      { $set: { read: true } }
+    );
     res.json({ success: true });
   } catch (err) {
     next(err);

@@ -19,6 +19,8 @@ const Section = require("../models/Section");
 const ClassRoom = require("../models/ClassRoom");
 const StaffAssignment = require("../models/StaffAssignment");
 const Device = require("../models/Device");
+const Rule = require("../models/Rule");
+const Notification = require("../models/Notification");
 
 const router = express.Router();
 
@@ -749,25 +751,6 @@ router.post("/override/pause", async (req, res, next) => {
       setClassEmergencyUnblock(cid, false);
     }
 
-    // Real-time socket broadcast: notify all student devices immediately
-    try {
-      const io = getIO();
-      if (io) {
-        io.emit("rule:update", {
-          action: "pause",
-          status: "paused",
-          blockedPackages: [],
-          scheduleStart: "09:00",
-          scheduleEnd: "16:00",
-          activeDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-          affectedClassIds,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    } catch (socketErr) {
-      // Non-critical — periodic sync will catch up
-    }
-
     await auditService.logAction(
       actorId,
       req.user?.role || "admin",
@@ -807,29 +790,6 @@ router.post("/override/resume", async (req, res, next) => {
 
     for (const cid of affectedClassIds) {
       setClassEmergencyUnblock(cid, false);
-    }
-
-    // Real-time socket broadcast: notify all student devices immediately
-    try {
-      const io = getIO();
-      if (io) {
-        // Fetch a representative rule to get the current blocked packages
-        const Rule = require("../models/Rule");
-        const activeRule = await Rule.findOne({ status: "active" }).lean().catch(() => null);
-        io.emit("rule:update", {
-          action: "start",
-          status: "active",
-          blockedPackages: activeRule?.blockedApps || ["com.instagram.android", "com.whatsapp", "com.google.android.youtube", "com.facebook.katana", "SocialMedia"],
-          scheduleStart: activeRule?.scheduleStart || "09:00",
-          scheduleEnd: activeRule?.scheduleEnd || "16:00",
-          activeDays: activeRule?.activeDays || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-          affectedClassIds,
-          policyVersion: (activeRule?.version || 1) + 1,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    } catch (socketErr) {
-      // Non-critical — periodic sync will catch up
     }
 
     await auditService.logAction(
