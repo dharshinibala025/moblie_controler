@@ -52,24 +52,9 @@ class SpreadsheetService {
     const errors = [];
     const createdUsersForEmail = [];
 
-    // First, remove old student members, their devices, scanned apps, usage logs, blocked attempts, and notifications
-    const Device = require("../models/Device");
-    const ScannedApp = require("../models/ScannedApp");
-    const UsageLog = require("../models/UsageLog");
-    const BlockedAttempt = require("../models/BlockedAttempt");
-    const Notification = require("../models/Notification");
-    const oldStudentList = await User.find({ role: "student" }).select("_id email studentId");
-    const oldStudentIds = oldStudentList.map((s) => s._id);
-    if (oldStudentIds.length > 0) {
-      await Promise.all([
-        User.deleteMany({ _id: { $in: oldStudentIds } }),
-        Device.deleteMany({ userId: { $in: oldStudentIds } }),
-        ScannedApp.deleteMany({ studentId: { $in: oldStudentIds } }),
-        UsageLog.deleteMany({ studentId: { $in: oldStudentIds } }),
-        BlockedAttempt.deleteMany({ studentId: { $in: oldStudentIds } }),
-        Notification.deleteMany({ studentId: { $in: oldStudentIds } }),
-      ]);
-    }
+    // Note: uploads are additive/non-destructive. Existing students and their devices,
+    // usage logs, and notifications are preserved; rows matching existing emails or
+    // register numbers are skipped as duplicates in the loop below.
 
     // Pre-fetch all existing departments, years, sections, classrooms into memory maps
     const allDepts = await Department.find({ institutionId: "KSRCE" });
@@ -350,9 +335,6 @@ class SpreadsheetService {
       ).catch((err) => logger.warn(`Audit log notice: ${err.message}`));
     }
 
-    // Clean up unused structural entities to prevent showing orphaned mock data
-    await this._cleanupUnusedStructuralEntities();
-
     const credentialsRoster = usersToInsert.map((item) => ({
       studentId: item.userData.studentId,
       name: item.userData.name,
@@ -412,16 +394,9 @@ class SpreadsheetService {
     const errors = [];
     const createdUsersForEmail = [];
 
-    // First, remove old staff members, their assignments, and their devices
-    const StaffAssignment = require("../models/StaffAssignment");
-    const Device = require("../models/Device");
-    const oldStaffList = await User.find({ role: "staff" });
-    const oldStaffIds = oldStaffList.map((s) => s._id);
-    if (oldStaffIds.length > 0) {
-      await User.deleteMany({ _id: { $in: oldStaffIds } });
-      await StaffAssignment.deleteMany({ staffId: { $in: oldStaffIds } });
-      await Device.deleteMany({ userId: { $in: oldStaffIds } });
-    }
+    // Note: uploads are additive/non-destructive. Existing staff members, their
+    // assignments, and devices are preserved; rows matching existing emails or
+    // employee IDs are skipped as duplicates in the loop below.
 
     // Pre-fetch all existing departments, years, sections, classrooms into memory maps
     const allDepts = await Department.find({ institutionId: "KSRCE" });
@@ -707,8 +682,6 @@ class SpreadsheetService {
       ).catch((err) => logger.warn(`Audit log notice: ${err.message}`));
     }
 
-    await this._cleanupUnusedStructuralEntities();
-
     const credentialsRoster = staffToInsert.map((item) => ({
       employeeId: item.userData.employeeId,
       name: item.userData.name,
@@ -747,63 +720,6 @@ class SpreadsheetService {
         `Email queue insert partially failed: ${failedCount}/${entries.length} row(s) rejected. ${err.message}`
       );
       return insertedCount || 0;
-    }
-  }
-
-  /**
-   * Cleans up structural database entities not referenced by any user
-   */
-  async _cleanupUnusedStructuralEntities() {
-    try {
-      const User = require("../models/User");
-      const Department = require("../models/Department");
-      const AcademicYear = require("../models/AcademicYear");
-      const Section = require("../models/Section");
-      const ClassRoom = require("../models/ClassRoom");
-      const Rule = require("../models/Rule");
-      const logger = require("../utils/logger");
-
-      // 1. Get all unique ObjectIds and Codes in use by Users
-      const activeDeptIds = await User.find({}).distinct("departmentId");
-      const activeYearIds = await User.find({}).distinct("academicYearId");
-      const activeSectionIds = await User.find({}).distinct("sectionId");
-      const activeClassRoomIds = await User.find({}).distinct("classRoomId");
-      const activeClassIds = await User.find({}).distinct("classId");
-
-      // 2. Delete ClassRooms not referenced by any student or staff
-      const deletedClasses = await ClassRoom.deleteMany({
-        _id: { $nin: activeClassRoomIds }
-      });
-
-      // 3. Delete Sections not referenced
-      const deletedSections = await Section.deleteMany({
-        _id: { $nin: activeSectionIds }
-      });
-
-      // 4. Delete AcademicYears not referenced
-      const deletedYears = await AcademicYear.deleteMany({
-        _id: { $nin: activeYearIds }
-      });
-
-      // 5. Delete Departments not referenced
-      const deletedDepts = await Department.deleteMany({
-        _id: { $nin: activeDeptIds }
-      });
-
-      // 6. Delete Rules targeting classes that no longer exist or have no active students
-      const deletedRules = await Rule.deleteMany({
-        targetClassId: { $nin: activeClassIds }
-      });
-
-      logger.info(`Structural Cleanup Summary:
-- Classrooms deleted: ${deletedClasses.deletedCount}
-- Sections deleted: ${deletedSections.deletedCount}
-- Academic Years deleted: ${deletedYears.deletedCount}
-- Departments deleted: ${deletedDepts.deletedCount}
-- Rules deleted: ${deletedRules.deletedCount}`);
-    } catch (err) {
-      const logger = require("../utils/logger");
-      logger.error(`Structural cleanup failed: ${err.message}`);
     }
   }
 }

@@ -4,44 +4,32 @@
  */
 
 import {
-  BASE_URL,
   apiFetch,
-  saveTokens,
-  getRefreshToken,
+  refreshAccessToken,
 } from './apiConfig';
 
 // ─── Auto-refresh wrapper ─────────────────────────────────────────────────────
 /**
  * Calls apiFetch; on 401 tokenExpired, refreshes the access token and retries once.
+ * Refresh is single-flight (shared in apiConfig) so concurrent 401s never race.
  */
 const fetchWithRefresh = async (path, options = {}) => {
   try {
     return await apiFetch(path, options);
   } catch (err) {
     if (err.status === 401 && err.data?.tokenExpired) {
-      const refreshToken = await getRefreshToken();
-      if (!refreshToken) throw err;
-
-      const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (!refreshRes.ok) throw err;
-
-      const refreshData = await refreshRes.json();
-      if (!refreshData.accessToken) throw err;
-
-      await saveTokens(refreshData.accessToken, refreshData.refreshToken || refreshToken);
-
-      return await apiFetch(path, {
-        ...options,
-        headers: {
-          ...(options.headers || {}),
-          Authorization: `Bearer ${refreshData.accessToken}`,
-        },
-      });
+      try {
+        const newToken = await refreshAccessToken();
+        return await apiFetch(path, {
+          ...options,
+          headers: {
+            ...(options.headers || {}),
+            Authorization: `Bearer ${newToken}`,
+          },
+        });
+      } catch {
+        throw err;
+      }
     }
     throw err;
   }

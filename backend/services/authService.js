@@ -60,6 +60,11 @@ class AuthService {
       return { success: false, error: "Account suspended. Contact your administrator.", status: 403 };
     }
 
+    if (user.status === "blocked") {
+      await this._logAuth({ userId: user._id, email, role: user.role, action: "login.failed", ip, userAgent, institutionId: user.institutionId, details: { reason: "blocked" } });
+      return { success: false, error: "Account blocked. Contact your administrator.", status: 403 };
+    }
+
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       const minutesLeft = Math.ceil((user.lockedUntil - new Date()) / 60000);
       return { success: false, error: `Account locked. Please try again in ${minutesLeft} minute${minutesLeft > 1 ? "s" : ""}.`, status: 423 };
@@ -202,7 +207,8 @@ class AuthService {
         session.status = "revoked";
         await session.save();
         if (userId) {
-          await this._logAuth({ userId, action: "logout.success" });
+          const user = await User.findById(userId).select("email role");
+          await this._logAuth({ userId, email: user ? user.email : null, role: user ? user.role : null, action: "logout.success" });
         }
       }
     }
@@ -210,8 +216,9 @@ class AuthService {
   }
 
   async logoutAll(userId) {
+    const user = await User.findById(userId).select("email role");
     const result = await Session.updateMany({ userId, status: "active" }, { status: "revoked" });
-    await this._logAuth({ userId, action: "logout.force", details: { sessionsRevoked: result.modifiedCount } });
+    await this._logAuth({ userId, email: user ? user.email : null, role: user ? user.role : null, action: "logout.force", details: { sessionsRevoked: result.modifiedCount } });
     return { success: true, sessionsRevoked: result.modifiedCount };
   }
 
@@ -245,12 +252,14 @@ class AuthService {
       return { success: false, error: "User not found", status: 404 };
     }
 
-    if (currentPassword) {
-      const isMatch = await user.comparePassword(currentPassword);
-      if (!isMatch) {
-        await this._logAuth({ userId, email: user.email, role: user.role, action: "password.change.failed" });
-        return { success: false, error: "Current password is incorrect", status: 401 };
-      }
+    if (!currentPassword) {
+      return { success: false, error: "Current password is required", status: 400 };
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      await this._logAuth({ userId, email: user.email, role: user.role, action: "password.change.failed" });
+      return { success: false, error: "Current password is incorrect", status: 401 };
     }
 
     user.password = newPassword;

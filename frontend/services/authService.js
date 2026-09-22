@@ -20,6 +20,7 @@ import {
   getRefreshToken,
   getStoredUser,
   clearTokens,
+  refreshAccessToken as apiRefreshAccessToken,
 } from './apiConfig';
 
 class AuthService {
@@ -133,28 +134,12 @@ class AuthService {
 
   // ─── Token Refresh ─────────────────────────────────────────────────────────
   /**
-   * POST /auth/refresh — exchanges refresh token for new access token.
-   * Returns new accessToken string or null.
+   * POST /auth/refresh — exchanges refresh token for new access token
+   * (single-flight via apiConfig). Returns new accessToken string or null.
    */
   async refreshAccessToken() {
     try {
-      const refreshToken = await getRefreshToken();
-      if (!refreshToken) return null;
-
-      const response = await fetch(`${BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.accessToken) {
-        return null;
-      }
-
-      await saveTokens(data.accessToken, data.refreshToken || refreshToken);
-      return data.accessToken;
+      return await apiRefreshAccessToken();
     } catch {
       return null;
     }

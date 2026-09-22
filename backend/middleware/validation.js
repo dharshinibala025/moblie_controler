@@ -24,7 +24,12 @@ const schemas = {
   }),
 
   changePassword: Joi.object({
-    currentPassword: Joi.string().min(6).allow(null, ""),
+    // currentPassword is only optional on the temporary-token (first-login) flow
+    currentPassword: Joi.string().min(6).when("tempToken", {
+      is: Joi.string().min(1),
+      then: Joi.optional().allow(null, ""),
+      otherwise: Joi.required(),
+    }),
     newPassword: Joi.string().min(8).required(),
     tempToken: Joi.string().allow(null, ""),
   }),

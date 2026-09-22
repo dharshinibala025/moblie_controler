@@ -131,8 +131,7 @@ router.post("/classes/:id/rules", verifyClassScope, (req, res, next) => {
   next();
 }, validate("createRule"), async (req, res, next) => {
   try {
-    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     setClassEmergencyUnblock(req.params.id, false);
 
     if (req.user.institutionId) {
@@ -156,8 +155,7 @@ router.post("/classes/:id/rules", verifyClassScope, (req, res, next) => {
 // PATCH: Update a rule for a class
 router.patch("/classes/:id/rules/:ruleId", verifyClassScope, validate("updateRule"), async (req, res, next) => {
   try {
-    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     setClassEmergencyUnblock(req.params.id, false);
 
     const Rule = require("../models/Rule");
@@ -189,10 +187,8 @@ router.post("/classes/:id/rules/:ruleId/command", verifyClassScope, async (req, 
       return res.status(400).json({ error: "Invalid or missing action. Must be start, pause, or stop." });
     }
 
-    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     if (action === "start") {
-      setEmergencyUnblock(false);
-      const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
       setClassEmergencyUnblock(req.params.id, false);
     }
 
@@ -258,8 +254,7 @@ router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, n
     const classId = req.params.id;
     const actorId = req.user.userId || req.user.id || req.user._id;
 
-    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     setClassEmergencyUnblock(classId, false);
 
     const result = await ruleService.batchRuleCommand({
@@ -451,8 +446,7 @@ router.post("/classes/:id/override/pause", verifyClassScope, async (req, res, ne
 // POST: Resume restriction for a class (re-block apps for that class)
 router.post("/classes/:id/override/resume", verifyClassScope, async (req, res, next) => {
   try {
-    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     setClassEmergencyUnblock(req.params.id, false);
 
     const result = await ruleService.batchRuleCommand({ classIds: [req.params.id], action: "start", actorId: req.user.userId });

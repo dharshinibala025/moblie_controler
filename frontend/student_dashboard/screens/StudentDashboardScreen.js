@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { View, StyleSheet, Animated, StatusBar, SafeAreaView } from 'react-native';
 import HomeScreen from './HomeScreen';
-import AppsScreen from './AppsScreen';
+// Applications / App Restrictions module hidden — re-enable by uncommenting:
+// import AppsScreen from './AppsScreen';
 import NotificationsScreen from './NotificationsScreen';
 import ProfileScreen from './ProfileScreen';
 import BottomNavBar from '../components/BottomNavBar';
-import { fetchDashboard, fetchApps, fetchNotifications } from '../../services/studentService';
+import { fetchDashboard, fetchNotifications } from '../../services/studentService';
 
 export const StudentDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('home');
@@ -22,14 +23,15 @@ export const StudentDashboardScreen = ({ onLogout }) => {
   const loadData = useCallback(async () => {
     if (!isMountedRef.current) return;
     try {
-      const [dash, apps, notifs] = await Promise.all([
+      const [dash, notifs] = await Promise.all([
         fetchDashboard().catch(() => null),
-        fetchApps().catch(() => null),
+        // Applications / App Restrictions module hidden — the /student/apps
+        // poll is disabled (was: fetchApps()).
         fetchNotifications().catch(() => null),
       ]);
 
       if (isMountedRef.current) {
-        const backendBlocked = apps?.apps || dash?.blockedApps || [];
+        const backendBlocked = dash?.blockedApps || [];
         const realNotifications = notifs?.notifications || dash?.notifications || [];
 
         setDashboardData({
@@ -59,24 +61,30 @@ export const StudentDashboardScreen = ({ onLogout }) => {
     };
   }, [loadData]);
 
-  const handleTabChange = (newTab) => {
-    if (newTab === activeTab) return;
+  const handleTabChange = useCallback(
+    (newTab) => {
+      // Applications / App Restrictions module hidden — any attempt to reach
+      // the Apps tab is redirected to Home so no route can land there.
+      if (newTab === 'apps') newTab = 'home';
+      if (newTab === activeTab) return;
 
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 0.9,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
 
-    setActiveTab(newTab);
-  };
+      setActiveTab(newTab);
+    },
+    [activeTab, fadeAnim],
+  );
 
   const handleOpenProfile = useCallback(() => handleTabChange('profile'), [handleTabChange]);
 
@@ -109,8 +117,10 @@ export const StudentDashboardScreen = ({ onLogout }) => {
             onOpenProfile={handleOpenProfile}
           />
         );
-      case 'apps':
-        return <AppsScreen key="apps" data={dashboardData} />;
+      // Applications / App Restrictions module hidden — Apps route disabled.
+      // Re-enable by uncommenting:
+      // case 'apps':
+      //   return <AppsScreen key="apps" data={dashboardData} />;
       case 'notifications':
         return (
           <NotificationsScreen

@@ -130,8 +130,15 @@ router.post(
 
           // Find assigned staff for this student's class
           let staffIds = [];
+          const ClassRoom = require('../models/ClassRoom');
+          // StaffAssignment.classId is a ClassRoom ObjectId, so resolve the
+          // student's class (by classRoomId or by code) before matching.
+          const classLookup = student.classRoomId
+            ? { _id: student.classRoomId }
+            : { code: student.classId };
+          const classrooms = await ClassRoom.find(classLookup).select('_id');
           const staffAssignments = await StaffAssignment.find({
-            classId: student.classId,
+            classId: { $in: classrooms.map((c) => c._id) },
             isActive: true,
           }).select('staffId');
           staffIds = staffAssignments.map(a => a.staffId.toString());
@@ -194,9 +201,9 @@ router.post('/heartbeat', async (req, res, next) => {
   try {
     const { deviceId, isAccessibilityEnabled, isOverlayEnabled } = req.body;
 
-    let query = { userId: req.user.userId };
+    const query = { userId: req.user.userId };
     if (deviceId) {
-      query = { $or: [{ _id: deviceId }, { userId: req.user.userId }] };
+      query._id = deviceId;
     }
 
     const device = await Device.findOneAndUpdate(
@@ -218,7 +225,7 @@ router.post('/heartbeat', async (req, res, next) => {
       await auditService.logAction(
         req.user.userId,
         req.user.role || 'student',
-        'COMPLIANCE_VIOLATION',
+        'compliance.violation',
         { type: 'device', id: device?._id || deviceId },
         'Accessibility or Overlay permission disabled during class hours (9 AM - 4 PM)'
       );

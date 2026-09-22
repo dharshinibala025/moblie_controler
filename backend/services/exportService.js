@@ -20,7 +20,7 @@ class ExportService {
       Year: s.academicYearId ? s.academicYearId.name : "1st Year",
       Section: s.sectionId ? s.sectionId.name : "A",
       ClassId: s.classId || "CSE-1-A",
-      AccountStatus: s.active ? "Active" : "Disabled",
+      AccountStatus: s.isActive ? "Active" : "Disabled",
       CreatedDate: s.createdAt ? s.createdAt.toISOString().split("T")[0] : "",
     }));
 
@@ -43,7 +43,7 @@ class ExportService {
       Email: s.email,
       Department: s.departmentId ? s.departmentId.name : "Computer Science",
       ClassId: s.classId || "CSE-1-A",
-      AccountStatus: s.active ? "Active" : "Disabled",
+      AccountStatus: s.isActive ? "Active" : "Disabled",
     }));
 
     const worksheet = xlsx.utils.json_to_sheet(rows);
@@ -60,14 +60,14 @@ class ExportService {
 
     const rows = devices.map((d, idx) => ({
       SNo: idx + 1,
-      DeviceHardwareID: d.deviceId,
+      DeviceHardwareID: d.deviceFingerprint || (d.deviceInfo && d.deviceInfo.deviceId) || "N/A",
       User: d.userId ? d.userId.name : "Unassigned",
       UserRole: d.userId ? d.userId.role : "student",
-      Manufacturer: d.manufacturer || "Android",
-      Model: d.deviceModel || "Smartphone",
-      OSVersion: d.osVersion || "14",
+      Manufacturer: "Android",
+      Model: (d.deviceInfo && d.deviceInfo.deviceModel) || "Smartphone",
+      OSVersion: (d.deviceInfo && d.deviceInfo.osVersion) || "14",
       DeviceStatus: d.status,
-      LastSeen: d.lastSeenAt ? d.lastSeenAt.toISOString() : "",
+      LastSeen: d.lastSyncAt ? d.lastSyncAt.toISOString() : "",
     }));
 
     const worksheet = xlsx.utils.json_to_sheet(rows);

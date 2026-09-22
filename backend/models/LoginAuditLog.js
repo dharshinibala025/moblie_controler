@@ -9,7 +9,7 @@ const loginAuditLogSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: true,
+      default: null,
       lowercase: true,
       trim: true,
     },
@@ -35,6 +35,9 @@ const loginAuditLogSchema = new mongoose.Schema(
         "login.role_mismatch",
         "password.change",
         "password.change.failed",
+        "refresh.success",
+        "logout.success",
+        "logout.force",
         "2fa.verify",
         "2fa.verify.failed",
         "consent.accept",

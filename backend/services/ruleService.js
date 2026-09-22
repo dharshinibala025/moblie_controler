@@ -225,11 +225,6 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
   const newStatus = action === "pause" ? "paused" : "active";
   const deviceStatus = action === "pause" ? "active" : "blocked";
 
-  if (action === "start") {
-    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
-  }
-
   const isAll = !classIds || classIds.length === 0 || classIds.includes("ALL");
   const query = { status: fromStatus };
   if (!isAll) {
@@ -237,6 +232,21 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
       { targetClassId: { $in: classIds } },
       { "targetScope.targetId": { $in: classIds } },
     ];
+  }
+
+  // Starting restrictions must override a prior emergency *unblock* for the
+  // affected classes only. A class-scoped start must NEVER cancel a global
+  // (campus-wide) emergency unblock that an admin placed — only an explicit
+  // ALL-class action may clear the global flag.
+  if (action === "start") {
+    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    if (isAll) {
+      setEmergencyUnblock(false);
+    } else {
+      for (const cid of classIds || []) {
+        setClassEmergencyUnblock(cid, false);
+      }
+    }
   }
 
   const affectedRules = await Rule.find(query)
@@ -266,8 +276,10 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
       const [eh, em] = (r.scheduleEnd || "16:00").split(":").map(Number);
       const endMinutes = (eh || 0) * 60 + (em || 0);
       if (currentMinutes >= endMinutes) {
+        // Manual start after the scheduled end: extend the *effective* window to
+        // 22:00 for THIS dispatch only. Never persist it — the rule's configured
+        // scheduleEnd must survive untouched for every following school day.
         r.scheduleEnd = "22:00";
-        await Rule.updateOne({ _id: r._id }, { $set: { scheduleEnd: "22:00" } });
       }
     }
   }
@@ -321,10 +333,9 @@ exports.batchRuleCommand = async ({ classIds = [], action, actorId, notify = tru
       return { $or: conds };
     });
 
-    let students = await User.find({ role: "student", $or: studentOrConditions }).select("_id classId");
-    if (students.length === 0) {
-      students = await User.find({ role: "student" }).select("_id classId");
-    }
+    // No fallback-to-all here: if the targeted classes match no students, the
+// correct outcome is to block nobody — not every student in the institution.
+    const students = await User.find({ role: "student", $or: studentOrConditions }).select("_id classId");
     for (const s of students) {
       targetStudentIds.push(s._id);
       studentClassMap.set(s._id.toString(), s.classId || affectedClassIds[0]);
@@ -457,16 +468,22 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
   const serverTimestamp = new Date();
 
   if (action === "start") {
-    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
+    // Override a prior emergency *unblock* for this rule's class only. A
+    // single-rule start must never cancel a global campus-wide emergency
+    // unblock placed by an admin.
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
+    setClassEmergencyUnblock(rule.targetClassId, false);
 
     const istNow = require("../utils/istTime").getISTDate(new Date());
     const currentMinutes = istNow.getHours() * 60 + istNow.getMinutes();
     const [eh, em] = (rule.scheduleEnd || "16:00").split(":").map(Number);
     const endMinutes = (eh || 0) * 60 + (em || 0);
     if (currentMinutes >= endMinutes) {
+      // Effective-only: extend this dispatch's window to 22:00 but never write it
+      // back to the DB (the rule's configured scheduleEnd stays authoritative for
+      // following days). dispatchRule always runs after rule.save(), so mutating
+      // the in-memory doc here does not persist.
       rule.scheduleEnd = "22:00";
-      await Rule.updateOne({ _id: rule._id }, { $set: { scheduleEnd: "22:00" } });
     }
   }
 
@@ -508,10 +525,9 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
     userQuery.institutionId = targetId;
   }
 
-  let targetStudents = await User.find(userQuery).select("_id");
-  if (targetStudents.length === 0) {
-    targetStudents = await User.find({ role: "student" }).select("_id");
-  }
+  // No fallback-to-all here: if the scope matches no students, block nobody
+  // rather than every student in the institution.
+  const targetStudents = await User.find(userQuery).select("_id");
   const targetStudentIds = targetStudents.map((s) => s._id);
 
   // Retrieve target devices

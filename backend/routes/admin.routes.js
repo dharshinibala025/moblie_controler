@@ -21,6 +21,7 @@ const StaffAssignment = require("../models/StaffAssignment");
 const Device = require("../models/Device");
 const Rule = require("../models/Rule");
 const Notification = require("../models/Notification");
+const logger = require("../utils/logger");
 
 const router = express.Router();
 
@@ -37,6 +38,19 @@ const checkScope = (req, res, next) => {
 router.use(checkScope);
 
 const emailService = require("../services/emailService");
+
+// Resolve class-code strings (e.g. "CSE-1-A") to their ClassRoom ObjectIds.
+// StaffAssignment.classId is an ObjectId ref, while the rest of the platform
+// identifies classes by their human-readable code — so we convert before write.
+const resolveClassRoomIds = async (codes) => {
+  const uniqueCodes = [...new Set((codes || []).filter((c) => c != null && c !== ""))];
+  if (uniqueCodes.length === 0) return [];
+  const classrooms = await ClassRoom.find({ code: { $in: uniqueCodes } }).select("_id code").lean();
+  const byCode = new Map(classrooms.map((c) => [c.code, c._id]));
+  return uniqueCodes
+    .map((code) => ({ code, roomId: byCode.get(code) || null }))
+    .filter((x) => x.roomId != null);
+};
 
 // ========== USER MANAGEMENT ==========
 
@@ -88,11 +102,20 @@ router.post("/users/staff", validate("createStaff"), async (req, res, next) => {
     });
 
     if (classIds && classIds.length > 0) {
-      for (const classId of classIds) {
+      const resolved = await resolveClassRoomIds(classIds);
+      for (const { code, roomId } of resolved) {
         await StaffAssignment.findOneAndUpdate(
-          { staffId: result.user._id, classId },
-          { staffId: result.user._id, classId, institutionId: "KSRCE", assignedBy: req.user.userId, isActive: true },
+          { staffId: result.user._id, classId: roomId },
+          { staffId: result.user._id, classId: roomId, institutionId: "KSRCE", assignedBy: req.user.userId, isActive: true },
           { upsert: true, new: true }
+        );
+      }
+      const unknown = classIds.filter(
+        (c) => !resolved.some((r) => r.code === c)
+      );
+      if (unknown.length > 0) {
+        logger.warn(
+          `Staff ${result.user._id} classIds not found as classrooms (skipped): ${unknown.join(", ")}`
         );
       }
     }
@@ -445,17 +468,20 @@ router.post("/staff-assignments", validate("assignStaff"), async (req, res, next
       return res.status(404).json({ error: "Staff not found" });
     }
 
+    const resolved = await resolveClassRoomIds(classIds);
+    const unknown = classIds.filter((c) => !resolved.some((r) => r.code === c));
+
     const assignments = [];
-    for (const classId of classIds) {
+    for (const { roomId } of resolved) {
       const assignment = await StaffAssignment.findOneAndUpdate(
-        { staffId, classId },
-        { staffId, classId, institutionId: req.scopeInstitutionId, assignedBy: req.user.userId, isActive: true },
+        { staffId, classId: roomId },
+        { staffId, classId: roomId, institutionId: req.scopeInstitutionId, assignedBy: req.user.userId, isActive: true },
         { upsert: true, new: true }
       );
       assignments.push(assignment);
     }
 
-    res.status(201).json({ assignments });
+    res.status(201).json({ assignments, unknownClassIds: unknown });
   } catch (err) {
     next(err);
   }
@@ -578,9 +604,6 @@ router.post("/staff", async (req, res, next) => {
 
 router.post("/rules", validate("createRule"), async (req, res, next) => {
   try {
-    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
-
     if (req.scopeInstitutionId) {
       req.body.institutionId = req.scopeInstitutionId;
     }
@@ -616,9 +639,6 @@ router.get("/rules", async (req, res, next) => {
 
 router.patch("/rules/:id", validate("updateRule"), async (req, res, next) => {
   try {
-    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
-
     const rule = await ruleService.updateRule(req.params.id, req.body, req.user.userId, req.scopeInstitutionId);
     await auditService.logAction(
       req.user.userId,
@@ -637,10 +657,6 @@ router.patch("/rules/:id", validate("updateRule"), async (req, res, next) => {
 router.post("/rules/:id/command", validate("commandBody"), async (req, res, next) => {
   try {
     const { action } = req.body;
-    const { setEmergencyUnblock } = require("../utils/emergencyHelper");
-    if (action === "start") {
-      setEmergencyUnblock(false);
-    }
 
     const rule = await ruleService.sendCommand(req.params.id, action, req.user.userId, req.scopeInstitutionId);
     await auditService.logAction(
@@ -671,8 +687,7 @@ router.post("/rules/bulk", async (req, res, next) => {
     } = req.body;
 
     const mongoose = require("mongoose");
-    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
 
     const rawActorId = req.user?.userId || req.user?.id || req.user?._id;
     const actorId = mongoose.Types.ObjectId.isValid(rawActorId) ? rawActorId : new mongoose.Types.ObjectId();
@@ -776,8 +791,7 @@ router.post("/override/resume", async (req, res, next) => {
   try {
     const mongoose = require("mongoose");
     const { targetClassIds = [], classId } = req.body;
-    const { setEmergencyUnblock, setClassEmergencyUnblock } = require("../utils/emergencyHelper");
-    setEmergencyUnblock(false);
+    const { setClassEmergencyUnblock } = require("../utils/emergencyHelper");
     let scopeClassIds = classId ? [classId] : targetClassIds;
     if (!scopeClassIds || scopeClassIds.length === 0) {
       scopeClassIds = ["ALL"];
@@ -1591,9 +1605,9 @@ router.post("/broadcast", async (req, res, next) => {
 
     let query = { role: "student" };
     if (target && target.type === "department" && target.targetId) {
-      query.department = target.targetId;
+      query.departmentId = target.targetId;
     } else if (target && target.type === "section" && target.targetId) {
-      query.section = target.targetId;
+      query.sectionId = target.targetId;
     }
 
     const students = await User.find(query);

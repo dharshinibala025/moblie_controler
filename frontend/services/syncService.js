@@ -118,36 +118,40 @@ class SyncService {
       }
 
       // 3. Scan installed apps
+      // Applications / App Restrictions module hidden — the installed-apps
+      // scan, local APPS_CACHE write and /student/scan upload are disabled to
+      // remove the app-inventory background overhead. Business logic left in
+      // place (commented) so the feature can be re-enabled cleanly.
       let installedApps = [];
-      if (AppScannerModule && AppScannerModule.getInstalledApps) {
-        installedApps =
-          (await AppScannerModule.getInstalledApps().catch(() => [])) || [];
-      }
-      const appsPayload = installedApps.map(app => ({
-        packageName: app.packageName,
-        appName: app.appName,
-        versionName: app.versionName || '1.0.0',
-        isSystemApp: !!app.isSystemApp,
-        isGame: !!app.isGame,
-        isSocial: !!app.isSocial,
-        category: app.category || 'uncategorized',
-      }));
+      // if (AppScannerModule && AppScannerModule.getInstalledApps) {
+      //   installedApps =
+      //     (await AppScannerModule.getInstalledApps().catch(() => [])) || [];
+      // }
+      // const appsPayload = installedApps.map(app => ({
+      //   packageName: app.packageName,
+      //   appName: app.appName,
+      //   versionName: app.versionName || '1.0.0',
+      //   isSystemApp: !!app.isSystemApp,
+      //   isGame: !!app.isGame,
+      //   isSocial: !!app.isSocial,
+      //   category: app.category || 'uncategorized',
+      // }));
 
-      // 3b. Cache scanned apps locally so the Apps screen can render offline
-      try {
-        await AsyncStorage.setItem(
-          CACHE_KEYS.APPS_CACHE,
-          JSON.stringify(installedApps),
-        );
-      } catch (e) {
-        // ignore cache failures
-      }
+      // // 3b. Cache scanned apps locally so the Apps screen can render offline
+      // try {
+      //   await AsyncStorage.setItem(
+      //     CACHE_KEYS.APPS_CACHE,
+      //     JSON.stringify(installedApps),
+      //   );
+      // } catch (e) {
+      //   // ignore cache failures
+      // }
 
-      // 4. Synchronize apps inventory with backend
-      await apiFetch('/student/scan', {
-        method: 'POST',
-        body: JSON.stringify({ apps: appsPayload }),
-      });
+      // // 4. Synchronize apps inventory with backend
+      // await apiFetch('/student/scan', {
+      //   method: 'POST',
+      //   body: JSON.stringify({ apps: appsPayload }),
+      // });
 
       // 5. Pull latest policy configuration
       const policy = await apiFetch(
@@ -162,10 +166,9 @@ class SyncService {
         const policyVersion = policy.policyVersion || 1;
         const status = policy.status || 'active';
         const emergency = policy.emergency === 'active';
-        const blockedPackages = enrichBlockedPackages(
-          policy.blockedPackages || [],
-          installedApps,
-        );
+        // App-inventory enrichment disabled (module hidden) — save the server
+        // package list as-is.
+        const blockedPackages = policy.blockedPackages || [];
         if (AppScannerModule && AppScannerModule.savePolicy) {
           await AppScannerModule.savePolicy(
             policyVersion.toString(),
@@ -496,23 +499,26 @@ class SyncService {
                 };
               }
 
-              let installedApps = [];
-              try {
-                if (AppScannerModule && AppScannerModule.getInstalledApps) {
-                  installedApps =
-                    (await AppScannerModule.getInstalledApps().catch(
-                      () => [],
-                    )) || [];
-                }
-              } catch (e) {
-                /* ignore */
-              }
+              // Applications / App Restrictions module hidden — the live
+              // re-scan of installed apps and package enrichment on rule
+              // updates are disabled. Re-enable by uncommenting.
+              const installedApps = [];
+              // try {
+              //   if (AppScannerModule && AppScannerModule.getInstalledApps) {
+              //     installedApps =
+              //       (await AppScannerModule.getInstalledApps().catch(
+              //         () => [],
+              //       )) || [];
+              //   }
+              // } catch (e) {
+              //   /* ignore */
+              // }
 
-              const enriched = enrichBlockedPackages(
-                packages || [],
-                installedApps,
-              );
-              packages = enriched;
+              // const enriched = enrichBlockedPackages(
+              //   packages || [],
+              //   installedApps,
+              // );
+              // packages = enriched;
 
               const startDays = normalizeDays(activeDays) || [
                 'Mon',

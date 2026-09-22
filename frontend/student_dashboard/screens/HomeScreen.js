@@ -280,20 +280,30 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
       const [endH, endM] = scheduleEndRef.current.split(':').map(Number);
       const startSec = startH * 3600 + startM * 60;
       const endSec = endH * 3600 + endM * 60;
-      const totalDuration = endSec > startSec ? endSec - startSec : 25200;
+      const overnight = endSec <= startSec;
+      const totalDuration = overnight ? (86400 - startSec) + endSec : endSec - startSec;
 
       const dayName = DAYS[now.getDay()];
       const dayOk =
         activeDaysRef.current.length === 0 || activeDaysRef.current.includes(dayName);
-      const isPolicyActive = policyActiveRef.current || (data && (data.restrictionStatus === 'ACTIVE' || data.restrictionStatus === 'active'));
-      const shouldEnforce = isPolicyActive && dayOk && (endSec > startSec ? currentSec >= startSec && currentSec < endSec : true);
+      const isPolicyActive = policyActiveRef.current || (data && data.restrictionStatus && data.restrictionStatus.isActive === true);
+      // Mirrors native RestrictionAccessibilityService.shouldEnforceNow():
+      // status-active + active day + before scheduleEnd. scheduleStart is NOT a
+      // gate (manual start blocks immediately). Overnight windows (end < start)
+      // wrap around midnight instead of enforcing 24/7.
+      const inWindow = overnight
+        ? currentSec >= startSec || currentSec < endSec
+        : currentSec < endSec;
+      const shouldEnforce = isPolicyActive && dayOk && inWindow;
 
       if (shouldEnforce) {
-        const remaining = Math.max(0, endSec - currentSec);
+        const remaining = Math.max(0, overnight
+          ? (currentSec >= startSec ? (86400 - currentSec) + endSec : endSec - currentSec)
+          : endSec - currentSec);
         const totalDur = totalDuration > 0 ? totalDuration : 25200;
         const prog = remaining / totalDur;
         setStatusMode('ACTIVE');
-        setRemainingSeconds(remaining > 0 ? remaining : 3600);
+        setRemainingSeconds(remaining);
         setProgress(Math.min(1, Math.max(0, prog)));
       } else {
         setStatusMode('LIFTED');
@@ -445,19 +455,21 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         }
       >
         <Animated.View style={[styles.mainBodyWrapper, { opacity: fadeAnim }]}>
+          {/* Applications / App Restrictions module hidden — restriction-status
+              widgets below are disabled (keep logic/timers intact, re-enable by
+              uncommenting). This leaves Home as a clean greeting-only screen. */}
           {/* Protection Active Indicator Banner */}
-          {isProtectionComplete ? (
+          {/* {isProtectionComplete ? (
             <View style={styles.protectionActiveBadge}>
               <MaterialCommunityIcons name="shield-check" size={20} color="#16A34A" />
               <Text style={styles.protectionActiveBadgeText}>
                 App Blocking Protection Active & Enforced
               </Text>
             </View>
-          ) : null}
+          ) : null} */}
 
-          {/* Accessibility health warning: the service may have been disabled
-              by the OS (battery optimization / force-stop) -> re-enable prompt */}
-          {accessibilityBroken ? (
+          {/* Accessibility health warning banner */}
+          {/* {accessibilityBroken ? (
             <View style={styles.accessBrokenBanner}>
               <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#DC2626" />
               <View style={styles.accessBrokenTextWrap}>
@@ -478,18 +490,18 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
                 <Text style={styles.accessBrokenButtonText}>Re-enable</Text>
               </TouchableOpacity>
             </View>
-          ) : null}
+          ) : null} */}
 
-          {/* 2. Live Restriction Clock Centerpiece */}
-          <LiveRestrictionClock
+          {/* Live Restriction Clock Centerpiece */}
+          {/* <LiveRestrictionClock
             currentTime={currentTime}
             remainingSeconds={remainingSeconds}
             progress={progress}
             statusMode={statusMode}
-          />
+          /> */}
 
-          {/* 3. Restriction Schedule Info */}
-          <ScheduleInfo scheduleText={`${formatTo12Hour(scheduleStart)} – ${formatTo12Hour(scheduleEnd)}`} />
+          {/* Restriction Schedule Info */}
+          {/* <ScheduleInfo scheduleText={`${formatTo12Hour(scheduleStart)} – ${formatTo12Hour(scheduleEnd)}`} /> */}
         </Animated.View>
       </ScrollView>
 

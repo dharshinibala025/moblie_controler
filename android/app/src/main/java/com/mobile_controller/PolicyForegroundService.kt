@@ -3,7 +3,6 @@ package com.mobile_controller
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -47,20 +46,15 @@ class PolicyForegroundService : Service() {
             notificationManager.createNotificationChannel(channel)
         }
 
-        val contentIntent = packageManager.getLaunchIntentForPackage(packageName)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            contentIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
+        // NOTE: deliberately no PendingIntent here. Tapping the notification
+        // must NOT launch the app, or a blocked student could use it as a
+        // shortcut to the FocusSync UI while the overlay is up (an escape
+        // route). Its only job is keeping the process alive.
         val notification: Notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
                 .setContentTitle("Restriction monitoring active")
                 .setContentText("Keeping enforcement services running")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-                .setContentIntent(pendingIntent)
                 .setOngoing(true)
                 .build()
         } else {
@@ -69,7 +63,6 @@ class PolicyForegroundService : Service() {
                 .setContentTitle("Restriction monitoring active")
                 .setContentText("Keeping enforcement services running")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-                .setContentIntent(pendingIntent)
                 .setOngoing(true)
                 .build()
         }

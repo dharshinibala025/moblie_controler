@@ -97,9 +97,15 @@ class FcmPolicyService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         // Token refreshed — next JS sync registers it with the backend.
+        // IMPORTANT: do NOT write the FCM token into PolicyStorage here.
+        // saveAuth() stores device credentials (device_id / auth_token /
+        // base_url) for the background policy worker; overwriting them (as we
+        // previously did with saveAuth("", token, "")) wiped the device binding
+        // AND stuffed the FCM token into the JWT auth slot, breaking all
+        // background policy syncs until re-login. The FCM token belongs in the
+        // /student/device/register payload, which the JS app re-sends on its
+        // next sync via AppScannerModule.getFcmToken().
         try {
-            PolicyStorage(applicationContext).saveAuth("", token, "")
-            // Also trigger immediate background sync via WorkManager
             val context = applicationContext
             val policyStorage = PolicyStorage(context)
             val deviceId = policyStorage.getDeviceId()

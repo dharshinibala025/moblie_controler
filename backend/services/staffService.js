@@ -38,10 +38,15 @@ class StaffService {
     });
 
     if (classIds && classIds.length > 0) {
-      for (const classId of classIds) {
+      // classIds arrive as class-code strings; StaffAssignment.classId is an
+      // ObjectId ref, so resolve codes to ClassRoom ObjectIds before writing.
+      const classrooms = await ClassRoom.find({
+        code: { $in: [...new Set(classIds)] },
+      }).select("_id code").lean();
+      for (const classroom of classrooms) {
         await StaffAssignment.findOneAndUpdate(
-          { staffId: staff._id, classId },
-          { staffId: staff._id, classId, institutionId: institutionId || scopeInstitutionId, assignedBy: userId, isActive: true },
+          { staffId: staff._id, classId: classroom._id },
+          { staffId: staff._id, classId: classroom._id, institutionId: institutionId || scopeInstitutionId, assignedBy: userId, isActive: true },
           { upsert: true, new: true }
         );
       }

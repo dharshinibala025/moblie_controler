@@ -34,7 +34,7 @@ router.get(["/latest", "/device-policy", "/"], async (req, res, next) => {
     }
     lastRequestCache.set(deviceId, now);
 
-    const device = await Device.findById(deviceId);
+    const device = await Device.findOne({ _id: deviceId, userId: req.user.userId });
     if (!device) {
       return res.status(404).json({ error: "Device not found" });
     }

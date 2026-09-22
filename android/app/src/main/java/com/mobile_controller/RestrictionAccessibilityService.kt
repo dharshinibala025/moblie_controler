@@ -106,10 +106,13 @@ class RestrictionAccessibilityService : AccessibilityService() {
                 policyStorage = it
             }
 
-            // ── Our own package: immediately dismiss any active overlay and return
+            // ── Our own package: never treat it as a way out. If the block overlay
+            // is showing, bounce the student back to the launcher instead of
+            // dismissing it (otherwise they could escape by switching to the
+            // FocusSync app or tapping the foreground-service notification).
             if (packageName == "com.mobile_controller") {
                 if (blockOverlay != null) {
-                    dismissBlockOverlay()
+                    goHome()
                 }
                 return
             }
@@ -185,7 +188,10 @@ class RestrictionAccessibilityService : AccessibilityService() {
     private fun isAccessibilityOrAppSetting(node: AccessibilityNodeInfo): Boolean {
         val textList = mutableListOf<String>()
         findTextNodes(node, textList)
-        val keywords = listOf("Accessibility", "Installed apps", "FocusSync", "Force stop", "Uninstall")
+        val keywords = listOf(
+            "Accessibility", "Installed apps", "Force stop", "Uninstall",
+            "Mobile_Controller", "FocusSync"
+        )
         return textList.any { text -> keywords.any { key -> text.contains(key, ignoreCase = true) } }
     }
 
@@ -232,6 +238,14 @@ class RestrictionAccessibilityService : AccessibilityService() {
 
             // Manual-start: "Set Restriction Timing" blocks immediately when pressed.
             // Auto-stop: Automatically unblocks at 04:00 PM (endMinutesOfDay).
+
+            // Tamper protection: if the device clock was manually changed more
+            // than 3 minutes relative to the monotonic elapsed clock since the
+            // policy was saved, the wall clock cannot be trusted to decide we
+            // are "after hours" — keep enforcing so a clock-forward tamper
+            // cannot skip the restriction window.
+            if (storage.checkTamperDetected()) return true
+
             return currentMinutesOfDay < endMinutesOfDay
         } catch (e: Exception) {
             return false

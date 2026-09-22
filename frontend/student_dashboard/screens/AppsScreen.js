@@ -28,6 +28,21 @@ const FILTER_TABS = [
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Standard default blocked catalog apps to ensure Blocked tab is populated even
+// if local device scan is partial.
+const DEFAULT_CATALOG_BLOCKED = [
+  { packageName: 'com.instagram.android', name: 'Instagram', category: 'social' },
+  { packageName: 'com.whatsapp', name: 'WhatsApp', category: 'social' },
+  { packageName: 'org.telegram.messenger', name: 'Telegram', category: 'social' },
+  { packageName: 'com.snapchat.android', name: 'Snapchat', category: 'social' },
+  { packageName: 'com.twitter.android', name: 'X / Twitter', category: 'social' },
+  { packageName: 'com.facebook.katana', name: 'Facebook', category: 'social' },
+  { packageName: 'com.google.android.youtube', name: 'YouTube', category: 'social' },
+  { packageName: 'com.instagram.barcelona', name: 'Threads', category: 'social' },
+  { packageName: 'com.discord', name: 'Discord', category: 'social' },
+  { packageName: 'com.android.settings', name: 'Android Settings', category: 'system' },
+];
+
 const toMinutes = (hhmm) => {
   const [h, m] = String(hhmm || '00:00').split(':').map(Number);
   return (h || 0) * 60 + (m || 0);
@@ -38,6 +53,8 @@ const toMinutes = (hhmm) => {
 // auto-lifts at the end time. The start time is NOT a gate — only the end
 // time and the configured active days limit enforcement. This keeps the Apps
 // screen honest: after scheduleEnd the banner never says "Restrictions Active".
+// Overnight windows (scheduleEnd < scheduleStart) wrap around midnight so they
+// never incorrectly enforce for 24 hours.
 const isWithinWindow = (policy, now) => {
   if (!policy) return false;
   const dayName = DAYS[now.getDay()];
@@ -45,9 +62,13 @@ const isWithinWindow = (policy, now) => {
   // Treat empty activeDays as "all days" — matches native RestrictionAccessibilityService behavior
   if (activeDays.length > 0 && !activeDays.includes(dayName)) return false;
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const startMinutes = toMinutes(policy.scheduleStart);
+  const endMinutes = toMinutes(policy.scheduleEnd);
+  const overnight = endMinutes <= startMinutes;
   // Policy is active from the moment it's applied until scheduleEnd
   // (scheduleStart is not a gate — admin clicking "Set Restriction Timing" blocks immediately)
-  return currentMinutes < toMinutes(policy.scheduleEnd);
+  if (overnight) return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  return currentMinutes < endMinutes;
 };
 
 
@@ -108,12 +129,19 @@ export const AppsScreen = ({ data }) => {
     }
     // Fallback to dashboard props (older backend responses)
     if (data && (data.restrictionStatus || data.scheduleStart)) {
+      const rs = data.restrictionStatus;
+      // restrictionStatus is an object { isActive, ... } from /student/dashboard;
+      // also tolerate legacy string forms ('active'/'ACTIVE').
+      const isActiveFlag =
+        rs && typeof rs === 'object'
+          ? rs.isActive === true
+          : rs === 'ACTIVE' || rs === 'active';
       setPolicy({
-        status: data.restrictionStatus === 'ACTIVE' || data.restrictionStatus === 'active' ? 'active' : 'inactive',
+        status: isActiveFlag ? 'active' : 'inactive',
         scheduleStart: data.scheduleStart || '09:00',
         scheduleEnd: data.scheduleEnd || '16:00',
         activeDays: data.activeDays || [],
-        restrictionReason: data.restrictionReason || '',
+        restrictionReason: (rs && rs.reason) || data.restrictionReason || '',
         blockedPackages: (data.blockedApps || [])
           .map((a) => (typeof a === 'string' ? a : a.packageName || a.package))
           .filter(Boolean),
@@ -211,19 +239,6 @@ export const AppsScreen = ({ data }) => {
   //   - ONLY 'social' category apps are auto-blocked (WhatsApp, Instagram, etc.)
   //   - Games and Entertainment are NOT auto-blocked from this screen
   //   - Settings app (com.android.settings) is blocked during active restriction
-  // Standard default blocked catalog apps to ensure Blocked tab is populated even if local device scan is partial.
-  const DEFAULT_CATALOG_BLOCKED = [
-    { packageName: 'com.instagram.android', name: 'Instagram', category: 'social' },
-    { packageName: 'com.whatsapp', name: 'WhatsApp', category: 'social' },
-    { packageName: 'org.telegram.messenger', name: 'Telegram', category: 'social' },
-    { packageName: 'com.snapchat.android', name: 'Snapchat', category: 'social' },
-    { packageName: 'com.twitter.android', name: 'X / Twitter', category: 'social' },
-    { packageName: 'com.facebook.katana', name: 'Facebook', category: 'social' },
-    { packageName: 'com.google.android.youtube', name: 'YouTube', category: 'social' },
-    { packageName: 'com.instagram.barcelona', name: 'Threads', category: 'social' },
-    { packageName: 'com.discord', name: 'Discord', category: 'social' },
-    { packageName: 'com.android.settings', name: 'Android Settings', category: 'system' },
-  ];
 
   const allApps = useMemo(() => {
     const rawSource =

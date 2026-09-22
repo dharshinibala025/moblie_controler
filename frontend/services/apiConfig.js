@@ -56,6 +56,48 @@ export const getStoredUser = async () => {
   return raw ? JSON.parse(raw) : null;
 };
 
+// ─── Single-flight token refresh ──────────────────────────────────────────────
+let refreshInFlight = null;
+
+/**
+ * refreshAccessToken — exchanges the refresh token for a new access token.
+ *
+ * Single-flight: concurrent callers share ONE /auth/refresh request. The
+ * backend rotates the refresh token on every refresh, so parallel refreshes
+ * would race and invalidate each other, causing spurious force-logouts.
+ *
+ * Returns the new access token string. Throws on failure.
+ */
+export const refreshAccessToken = async () => {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const response = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.accessToken) {
+      throw new Error('Token refresh failed');
+    }
+
+    await saveTokens(data.accessToken, data.refreshToken || refreshToken);
+    return data.accessToken;
+  })().finally(() => {
+    refreshInFlight = null;
+  });
+
+  return refreshInFlight;
+};
+
 // ─── Core Fetch Utility ───────────────────────────────────────────────────────
 /**
  * apiFetch — wraps fetch with:
