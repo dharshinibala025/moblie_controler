@@ -30,7 +30,7 @@ const TABS = [
   { key: 'students', label: 'Students', icon: 'school' },
   { key: 'staff', label: 'Staff', icon: 'groups' },
   { key: 'devices', label: 'Devices', icon: 'devices' },
-  { key: 'notifications', label: 'Alerts', icon: 'notifications' },
+  // { key: 'notifications', label: 'Alerts', icon: 'notifications' }, // HIDDEN[UK_AV-1] UI hidden; NotificationsScreen logic preserved below
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
 

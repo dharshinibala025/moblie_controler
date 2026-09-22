@@ -165,6 +165,7 @@ const SettingsScreen = ({ adminData, onLogout }) => {
       <View style={styles.section}>
         <SectionTitle title="Account Management" />
         <DashboardCard noPadding>
+          {/* HIDDEN[UK_AV-1] Edit Profile row hidden; modal + handleSaveProfile logic preserved
           <SettingsRow
             icon="person-outline"
             label="Edit Profile"
@@ -174,6 +175,7 @@ const SettingsScreen = ({ adminData, onLogout }) => {
               setEditProfileVisible(true);
             }}
           />
+          */}
           <SettingsRow
             icon="lock-outline"
             label="Change Password"

@@ -483,6 +483,7 @@ const DevicesScreen = () => {
         />
       </View>
 
+      {/* HIDDEN[UK_AV-1] Device filter pills hidden; filterMode logic preserved
       <View style={styles.section}>
         <FilterChipGroup
           options={['All', 'Active Devices', 'Blocked Devices']}
@@ -490,6 +491,7 @@ const DevicesScreen = () => {
           onSelect={setFilterMode}
         />
       </View>
+      */}
 
       {/* Target & Timing Policy Section */}
       <View style={styles.section}>
@@ -637,7 +639,7 @@ const DevicesScreen = () => {
         </View>
       </View>
 
-      {/* Unified Devices List Section */}
+      {/* HIDDEN[UK_AV-1] Unified Devices List Section hidden; displayDevices/handleToggleBlock logic preserved
       <View style={styles.section}>
         <SectionTitle
           title={sectionTitleText}
@@ -661,6 +663,7 @@ const DevicesScreen = () => {
           ))
         )}
       </View>
+      */}
 
       <RestrictionActionModal
         visible={modalVisible}

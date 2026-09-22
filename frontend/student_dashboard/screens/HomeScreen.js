@@ -455,21 +455,19 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
         }
       >
         <Animated.View style={[styles.mainBodyWrapper, { opacity: fadeAnim }]}>
-          {/* Applications / App Restrictions module hidden — restriction-status
-              widgets below are disabled (keep logic/timers intact, re-enable by
-              uncommenting). This leaves Home as a clean greeting-only screen. */}
           {/* Protection Active Indicator Banner */}
-          {/* {isProtectionComplete ? (
+          {isProtectionComplete ? (
             <View style={styles.protectionActiveBadge}>
               <MaterialCommunityIcons name="shield-check" size={20} color="#16A34A" />
               <Text style={styles.protectionActiveBadgeText}>
                 App Blocking Protection Active & Enforced
               </Text>
             </View>
-          ) : null} */}
+          ) : null}
 
-          {/* Accessibility health warning banner */}
-          {/* {accessibilityBroken ? (
+          {/* Accessibility health warning: the service may have been disabled
+              by the OS (battery optimization / force-stop) -> re-enable prompt */}
+          {accessibilityBroken ? (
             <View style={styles.accessBrokenBanner}>
               <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#DC2626" />
               <View style={styles.accessBrokenTextWrap}>
@@ -490,18 +488,18 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
                 <Text style={styles.accessBrokenButtonText}>Re-enable</Text>
               </TouchableOpacity>
             </View>
-          ) : null} */}
+          ) : null}
 
-          {/* Live Restriction Clock Centerpiece */}
-          {/* <LiveRestrictionClock
+          {/* 2. Live Restriction Clock Centerpiece */}
+          <LiveRestrictionClock
             currentTime={currentTime}
             remainingSeconds={remainingSeconds}
             progress={progress}
             statusMode={statusMode}
-          /> */}
+          />
 
-          {/* Restriction Schedule Info */}
-          {/* <ScheduleInfo scheduleText={`${formatTo12Hour(scheduleStart)} – ${formatTo12Hour(scheduleEnd)}`} /> */}
+          {/* 3. Restriction Schedule Info */}
+          <ScheduleInfo scheduleText={`${formatTo12Hour(scheduleStart)} – ${formatTo12Hour(scheduleEnd)}`} />
         </Animated.View>
       </ScrollView>
 

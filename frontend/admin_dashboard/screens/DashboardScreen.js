@@ -231,18 +231,7 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
         subtitle="Smart Classroom Control Center"
         rightElement={
           <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => (onNavigateNotifications ? onNavigateNotifications() : setAnnouncementModalVisible(true))}
-              activeOpacity={0.8}
-            >
-              <Icon name="campaign" size={22} color={colors.primaryBlue} />
-              {unreadCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            {/* HIDDEN[UK_AV-1] Broadcast megaphone icon hidden; announcement logic preserved in modal below */}
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>AD</Text>
             </View>
@@ -250,7 +239,7 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
         }
       />
 
-      {/* Broadcast Announcement Banner Button */}
+      {/* HIDDEN[UK_AV-1] Broadcast Announcement Banner Button hidden; modal + logic preserved
       <View style={styles.section}>
         <TouchableOpacity
           style={styles.announcementBanner}
@@ -269,6 +258,7 @@ const DashboardScreen = ({ onNavigateNotifications }) => {
           <Icon name="chevron-right" size={22} color={colors.primaryBlue} />
         </TouchableOpacity>
       </View>
+      */}
 
       {/* Overview Section */}
       <View style={styles.section}>
