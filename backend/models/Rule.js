@@ -44,6 +44,20 @@ const ruleSchema = new mongoose.Schema(
         default: null,
       },
     },
+    // Authoritative delivery targets resolved at apply time. The admin UI
+    // identifies classes by human-readable codes (e.g. "CSE-2-A"), but stored
+    // student classId values can drift from that code (case, spacing, legacy
+    // spreadsheet formats). These arrays carry the REAL identifiers so socket
+    // rooms, FCM targets, and /api/policy/latest scope matching never depend
+    // on exact string equality between an admin code and User.classId.
+    resolvedClassIds: {
+      type: [String],
+      default: [],
+    },
+    resolvedClassRoomIds: {
+      type: [mongoose.Schema.Types.ObjectId],
+      default: [],
+    },
     reason: {
       type: String,
       default: "",

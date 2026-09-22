@@ -525,6 +525,23 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
     userQuery.institutionId = targetId;
   }
 
+  // Resolution hardening: rules created via /admin/rules/bulk persist the REAL
+  // student targets resolved at apply time (rule.resolvedClassIds /
+  // rule.resolvedClassRoomIds). Merge them so delivery never depends on exact
+  // string equality between an admin code and User.classId. Never applied to a
+  // global ("ALL") target, which already matches every student.
+  const isGlobalTarget = !targetId || targetId === "ALL" || String(targetId).toLowerCase().includes("all");
+  if (scopeType === "class" && !isGlobalTarget) {
+    const resolvedIds = (rule.resolvedClassIds || []).filter((c) => c != null && c !== "");
+    const resolvedRoomIds = (rule.resolvedClassRoomIds || []).filter((r) => r != null);
+    if (resolvedIds.length > 0 || resolvedRoomIds.length > 0) {
+      const conds = userQuery.$or ? userQuery.$or : [];
+      if (resolvedIds.length > 0) conds.push({ classId: { $in: resolvedIds } });
+      if (resolvedRoomIds.length > 0) conds.push({ classRoomId: { $in: resolvedRoomIds } });
+      userQuery.$or = conds;
+    }
+  }
+
   // No fallback-to-all here: if the scope matches no students, block nobody
   // rather than every student in the institution.
   const targetStudents = await User.find(userQuery).select("_id");
@@ -556,11 +573,19 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
     serverTimestamp,
     { fcm: true, emergency: false }  // Explicitly set emergency: false for normal pause/start
   );
-  emitToClass(rule.targetClassId, "rule:update", {
-    ruleId: rule._id,
-    action,
-    ...socketPolicyData,
-  });
+  // Emit the authoritative payload to EVERY room the real students joined under
+  // (room key is User.classId), not just the admin's targetClassId code.
+  const emitClassIds = [
+    rule.targetClassId,
+    ...(rule.resolvedClassIds || []),
+  ].filter((v, i, a) => v && a.indexOf(v) === i);
+  for (const emitClassId of emitClassIds) {
+    emitToClass(emitClassId, "rule:update", {
+      ruleId: rule._id,
+      action,
+      ...socketPolicyData,
+    });
+  }
   emitToClass("ALL", "policy:updated", {
     classId: rule.targetClassId,
     ruleId: rule._id,

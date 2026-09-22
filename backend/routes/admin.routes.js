@@ -52,6 +52,70 @@ const resolveClassRoomIds = async (codes) => {
     .filter((x) => x.roomId != null);
 };
 
+// Resolve an admin class code (e.g. "CSE-2-A") to the REAL students it targets.
+// Students are matched by their classRoom ObjectId first (format-agnostic), then
+// by an exact classId string match, so stored classId formatting/case never
+// breaks delivery. Returns the raw identifiers to persist on the rule plus
+// match counts so the admin response can surface silent zero-match classes.
+const resolveBulkTarget = async (cid, scopeInstitutionId) => {
+  if (!cid || typeof cid !== "string" || cid.length === 0) {
+    return { classId: cid, error: "Empty class code" };
+  }
+  if (/^all$/i.test(cid)) {
+    return {
+      classId: cid,
+      classroomId: null,
+      resolvedClassIds: [],
+      resolvedClassRoomIds: [],
+      studentsMatched: 0,
+      devicesMatched: 0,
+    };
+  }
+
+  const scope = scopeInstitutionId || null;
+  let roomId = null;
+  let roomCode = null;
+
+  try {
+    const room = await ClassRoom.findOne({
+      code: { $regex: new RegExp("^" + cid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") },
+      ...(scope ? { institutionId: scope } : {}),
+    })
+      .select("_id code")
+      .lean();
+    if (room) {
+      roomId = room._id;
+      roomCode = room.code;
+    }
+  } catch (e) {
+    // leave room unresolved; exact classId string match still applies
+  }
+
+  const conditions = [];
+  if (roomId) conditions.push({ classRoomId: roomId });
+  conditions.push({ classId: cid });
+  if (roomCode && roomCode !== cid) conditions.push({ classId: roomCode });
+
+  const students =
+    conditions.length > 0
+      ? await User.find({ role: "student", $or: conditions }).select("classId").lean()
+      : [];
+
+  const matchedClassIds = [...new Set(students.map((s) => s.classId).filter(Boolean))];
+  const studentIds = students.map((s) => s._id);
+  const deviceCount =
+    studentIds.length > 0 ? await Device.countDocuments({ userId: { $in: studentIds } }) : 0;
+
+  return {
+    classId: cid,
+    classroomId: roomId ? roomId.toString() : null,
+    resolvedClassIds: matchedClassIds,
+    resolvedClassRoomIds: roomId ? [roomId] : [],
+    studentsMatched: studentIds.length,
+    devicesMatched: deviceCount,
+  };
+};
+
 // ========== USER MANAGEMENT ==========
 
 router.post("/users/student", validate("createStudent"), async (req, res, next) => {
@@ -694,9 +758,12 @@ router.post("/rules/bulk", async (req, res, next) => {
 
     const classesToApply = targetClassIds.length > 0 ? targetClassIds : ["ALL"];
     const createdRules = [];
+    const resolved = [];
 
     for (const cid of classesToApply) {
       setClassEmergencyUnblock(cid, false);
+      const resolution = await resolveBulkTarget(cid, req.scopeInstitutionId);
+      resolved.push(resolution);
       const rule = await Rule.findOneAndUpdate(
         { targetClassId: cid },
         {
@@ -710,6 +777,8 @@ router.post("/rules/bulk", async (req, res, next) => {
             reason,
             createdBy: actorId,
             institutionId: req.scopeInstitutionId || "KSRCE",
+            resolvedClassIds: resolution.resolvedClassIds,
+            resolvedClassRoomIds: resolution.resolvedClassRoomIds,
             updatedAt: new Date(),
           },
           // Bump so devices (JS policyCache + native worker) detect the change.
@@ -754,6 +823,7 @@ router.post("/rules/bulk", async (req, res, next) => {
       applied: createdRules.length,
       total: targetClassIds.length || classesToApply.length,
       affectedRules: status === "active" || status === "paused" ? createdRules.length : 0,
+      resolved,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

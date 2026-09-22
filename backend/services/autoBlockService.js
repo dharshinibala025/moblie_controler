@@ -138,6 +138,8 @@ const buildScopeRuleQuery = (student) => {
   return {
     $or: [
       { targetClassId: student.classId },
+      ...(student.classId ? [{ resolvedClassIds: student.classId }] : []),
+      ...(student.classRoomId ? [{ resolvedClassRoomIds: student.classRoomId }] : []),
       { "targetScope.type": "student", "targetScope.targetId": student._id.toString() },
       { "targetScope.type": "class", "targetScope.targetId": student.classId },
       { "targetScope.type": "institution", "targetScope.targetId": student.institutionId || "KSRCE" },

@@ -42,6 +42,8 @@ exports.processScan = async (studentId, deviceId, apps) => {
   // 1. Fetch active restriction rules for this student
   const scopeQueries = [
     { targetClassId: student.classId },
+    ...(student.classId ? [{ resolvedClassIds: student.classId }] : []),
+    ...(student.classRoomId ? [{ resolvedClassRoomIds: student.classRoomId }] : []),
     { "targetScope.type": "student", "targetScope.targetId": student._id.toString() },
     { "targetScope.type": "class", "targetScope.targetId": student.classId },
     { "targetScope.type": "institution", "targetScope.targetId": student.institutionId || "KSRCE" },

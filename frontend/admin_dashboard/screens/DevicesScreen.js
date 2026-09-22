@@ -342,6 +342,23 @@ const DevicesScreen = () => {
 
       const applied = result?.applied ?? 0;
       const total = result?.total ?? targetClassIds.length;
+      const resolutions = Array.isArray(result?.resolved) ? result.resolved : [];
+      const studentsMatched = resolutions.reduce(
+        (sum, res) => sum + (res.studentsMatched || 0),
+        0,
+      );
+      const devicesMatched = resolutions.reduce(
+        (sum, res) => sum + (res.devicesMatched || 0),
+        0,
+      );
+      const zeroMatchCodes = resolutions
+        .filter(
+          (res) =>
+            (res.studentsMatched || 0) === 0 &&
+            !/^all$/i.test(String(res.classId || '')) &&
+            !res.error,
+        )
+        .map((res) => res.classId);
 
       if (applied > 0) {
         setRestrictionStatus('ACTIVE');
@@ -352,17 +369,32 @@ const DevicesScreen = () => {
       // Refresh rules + device list once, in parallel (single round-trip latency).
       await Promise.all([loadRules(), loadDevices()]);
 
+      let detail = `Schedule: ${startTime} – ${endTime}`;
+      if (resolutions.length > 0) {
+        detail = `Matched ${studentsMatched} student(s) · ${devicesMatched} device(s)\n${detail}`;
+      }
+
+      if (zeroMatchCodes.length > 0) {
+        detail += `\n\nNo students found for: ${zeroMatchCodes.join(', ')}\nCheck the class code/format.`;
+        showRestrictionModal(
+          'warning',
+          'Restriction Applied - Some Classes Empty',
+          `Restriction policy active for ${applied} class(es)!\n${detail}`,
+        );
+        return;
+      }
+
       if (applied === total) {
         showRestrictionModal(
           'success',
           'Mobile Restriction Applied',
-          `Restriction policy active for ${applied} class(es)!\nSchedule: ${startTime} – ${endTime}`,
+          `Restriction policy active for ${applied} class(es)!\n${detail}`,
         );
       } else {
         showRestrictionModal(
           'warning',
           'Partial Success',
-          `Applied to ${applied}/${total} classes.\nSchedule: ${startTime} – ${endTime}`,
+          `Applied to ${applied}/${total} classes.\n${detail}`,
         );
       }
     } catch (err) {
