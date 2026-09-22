@@ -389,13 +389,51 @@ export const HomeScreen = ({ data, onOpenProfile }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fadeAnim]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadPermissions();
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    try {
+      // Force a policy re-fetch so pull-to-refresh also refreshes the clock.
+      await syncService.sync('periodic').catch(() => null);
+    } finally {
+      loadPermissions();
+      setTimeout(() => {
+        setRefreshing(false);
+      }, 1000);
+    }
   };
+
+  // Re-read the server schedule on each dashboard poll (every 60s) so admin
+  // timing changes reflect on the clock even if no realtime event arrives.
+  useEffect(() => {
+    const rs = data?.restrictionStatus;
+    if (!rs) return;
+
+    if (rs.schedule) {
+      const parts = String(rs.schedule)
+        .split('–')
+        .map((s) => s.trim());
+      if (parts.length === 2) {
+        const parse12To24 = (t12) => {
+          const p = t12.split(' ');
+          if (p.length < 2) return t12;
+          let [h, m] = p[0].split(':').map(Number);
+          if (p[1] === 'PM' && h < 12) h += 12;
+          if (p[1] === 'AM' && h === 12) h = 0;
+          return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        };
+        const nextStart = parse12To24(parts[0]);
+        const nextEnd = parse12To24(parts[1]);
+        scheduleStartRef.current = nextStart;
+        scheduleEndRef.current = nextEnd;
+        setScheduleStart(nextStart);
+        setScheduleEnd(nextEnd);
+      }
+    }
+
+    if (rs.isActive !== undefined) {
+      policyActiveRef.current = rs.isActive;
+    }
+  }, [data]);
 
   // Determine Greeting based on time
   const getGreeting = () => {

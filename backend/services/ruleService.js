@@ -650,3 +650,5 @@ async function dispatchRule(rule, action, { actorId = null, transition = action,
 
   logger.info(`Dispatched scoped [${scopeType}] rule ${rule._id} [${action}] to ${targetDevices.length} devices and ${targetStudentIds.length} students.`);
 }
+
+exports.dispatchRule = dispatchRule;

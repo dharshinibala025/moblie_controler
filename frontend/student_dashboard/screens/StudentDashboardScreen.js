@@ -7,6 +7,7 @@ import NotificationsScreen from './NotificationsScreen';
 import ProfileScreen from './ProfileScreen';
 import BottomNavBar from '../components/BottomNavBar';
 import { fetchDashboard, fetchNotifications } from '../../services/studentService';
+import syncService from '../../services/syncService';
 
 export const StudentDashboardScreen = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('home');
@@ -55,9 +56,15 @@ export const StudentDashboardScreen = ({ onLogout }) => {
 
     const interval = setInterval(loadData, 60 * 1000);
 
+    // Periodic policy sync (30s /policy/latest poll + AppState-foreground sync)
+    // so the dashboard/timer stays fresh even when a socket rule:update event
+    // is missed while backgrounded or offline.
+    syncService.startPeriodicSync();
+
     return () => {
       isMountedRef.current = false;
       clearInterval(interval);
+      syncService.stopPeriodicSync();
     };
   }, [loadData]);
 

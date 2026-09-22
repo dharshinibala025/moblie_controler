@@ -712,24 +712,40 @@ router.post("/rules/bulk", async (req, res, next) => {
             institutionId: req.scopeInstitutionId || "KSRCE",
             updatedAt: new Date(),
           },
+          // Bump so devices (JS policyCache + native worker) detect the change.
+          $inc: { policyVersion: 1 },
         },
         { upsert: true, new: true }
       );
       createdRules.push(rule);
     }
 
-    const commandResult = await ruleService.batchRuleCommand({
-      classIds: classesToApply,
-      action: status === "paused" ? "pause" : "start",
-      actorId,
-    });
+    // Push each upserted rule to its students in real time (socket + FCM +
+    // device status + restriction notification). Previous flow called
+    // batchRuleCommand({ action: "start" }), which only matches rules whose
+    // status is "paused" — the just-saved rules are "active", so it found 0
+    // and emitted nothing on apply, leaving student dashboards stale until the
+    // app reconnected. dispatchRule delivers the authoritative payload.
+    const dispatchAction = status === "paused" ? "pause" : "start";
+    if (status === "active" || status === "paused") {
+      for (const rule of createdRules) {
+        await ruleService
+          .dispatchRule(rule, dispatchAction, { actorId, transition: "set" })
+          .catch((dispatchErr) =>
+            console.error(
+              `Bulk dispatch failed for rule ${rule._id}:`,
+              dispatchErr.message || dispatchErr
+            )
+          );
+      }
+    }
 
     await auditService.logAction(
       actorId,
       req.user?.role || "admin",
       "rule.bulk_apply",
       { type: "rule", id: "bulk" },
-      { targetClassIds: classesToApply, scheduleStart, scheduleEnd, count: classesToApply.length },
+      { targetClassIds: classesToApply, scheduleStart, scheduleEnd, count: classesToApply.length, dispatched: status === "active" || status === "paused" ? createdRules.length : 0 },
       req.scopeInstitutionId
     );
 
@@ -737,7 +753,7 @@ router.post("/rules/bulk", async (req, res, next) => {
       success: true,
       applied: createdRules.length,
       total: targetClassIds.length || classesToApply.length,
-      affectedRules: commandResult.affectedRules,
+      affectedRules: status === "active" || status === "paused" ? createdRules.length : 0,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
